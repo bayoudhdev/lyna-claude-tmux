@@ -1,0 +1,16 @@
+scene: SCENE
+title: Split and zoom
+size: 100 30
+dir: /src/acme-api
+env: LYNA_TMUX_DEMO=1
+env: TERM_PROGRAM=demo
+run: lyna-tmux attach api
+frames: 5
+step: wait 2
+step: frame
+step: keys M-\\
+step: wait 0.5
+step: frame 1.8
+step: type git status
+step: enter
+step: film 3 0.4

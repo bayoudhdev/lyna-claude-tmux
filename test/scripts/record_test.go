@@ -1,0 +1,378 @@
+package scripts_test
+
+import (
+	"bytes"
+	"errors"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"testing"
+
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/testutil/golden"
+)
+
+// fakeChrome records its arguments and writes the image the renderer asks
+// for, so a test exercises the whole pipeline without a browser.
+const fakeChrome = `#!/bin/sh
+echo "chrome $*" >> "$REC_LOG"
+for arg in "$@"; do
+  case $arg in
+  --screenshot=*) printf '\211PNG\r\n\032\n' > "${arg#--screenshot=}" ;;
+  esac
+done
+`
+
+// fakeFFmpeg records its arguments, copies the frame list it was given so the
+// test can read the durations, and writes the output file named last.
+const fakeFFmpeg = `#!/bin/sh
+echo "ffmpeg $*" >> "$REC_LOG"
+out=""
+list=""
+prev=""
+for arg in "$@"; do
+  case $prev in
+  -i) list=$arg ;;
+  esac
+  prev=$arg
+  out=$arg
+done
+if [ -n "$list" ]; then cp "$list" "$REC_LIST"; fi
+printf 'animation\n' > "$out"
+`
+
+type recordEnv struct {
+	dir, bin, log, list string
+}
+
+func newRecordEnv(t *testing.T) recordEnv {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("record.sh needs a POSIX host")
+	}
+	root := t.TempDir()
+	e := recordEnv{
+		dir:  root,
+		bin:  filepath.Join(root, "bin"),
+		log:  filepath.Join(root, "calls.log"),
+		list: filepath.Join(root, "frames.txt"),
+	}
+	if err := os.Mkdir(e.bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeExecutable(t, filepath.Join(e.bin, "chrome"), fakeChrome)
+	writeExecutable(t, filepath.Join(e.bin, "ffmpeg"), fakeFFmpeg)
+	return e
+}
+
+// env is the environment of a record.sh run: the fake tools first, then the
+// system directories that hold tmux and python3.
+func (e recordEnv) env(t *testing.T) []string {
+	t.Helper()
+	tmux, err := exec.LookPath("tmux")
+	if err != nil {
+		t.Skip("tmux is not installed")
+	}
+	if _, err := exec.LookPath("python3"); err != nil {
+		t.Skip("python3 is not installed")
+	}
+	return []string{
+		"PATH=" + e.bin + ":" + filepath.Dir(tmux) + ":/usr/bin:/bin",
+		"CHROME_PATH=" + filepath.Join(e.bin, "chrome"),
+		"REC_LOG=" + e.log,
+		"REC_LIST=" + e.list,
+		"TMPDIR=" + e.dir,
+		"HOME=" + e.dir,
+	}
+}
+
+func (e recordEnv) scene(t *testing.T, body string) string {
+	t.Helper()
+	path := filepath.Join(e.dir, "scene.scene")
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func runRecord(t *testing.T, env []string, args ...string) (stdout, stderr string, exit int) {
+	t.Helper()
+	bash, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash is not installed")
+	}
+	cmd := exec.Command(bash, append([]string{scriptPath(t, "record.sh")}, args...)...)
+	cmd.Env = env
+	var out, errOut bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &errOut
+	err = cmd.Run()
+	if ee := (*exec.ExitError)(nil); errors.As(err, &ee) {
+		exit = ee.ExitCode()
+	} else if err != nil {
+		t.Fatal(err)
+	}
+	return out.String(), errOut.String(), exit
+}
+
+// TestRecordArguments covers the command line, which is checked before
+// anything is started, so these cases need no tmux and no browser.
+func TestRecordArguments(t *testing.T) {
+	cases := []struct {
+		name     string
+		scene    string
+		args     []string
+		wantExit int
+		wantOut  string
+		wantErr  string
+	}{
+		{name: "help", args: []string{"--help"}, wantOut: "Usage: scripts/record.sh --scene FILE"},
+		{name: "unknown argument", args: []string{"--speed", "2"}, wantExit: 2, wantErr: "unknown argument: --speed"},
+		{name: "missing value", args: []string{"--scene"}, wantExit: 2, wantErr: "--scene needs a value"},
+		{name: "no scene", args: nil, wantExit: 2, wantErr: "--scene is required"},
+		{name: "scene is not a file", args: []string{"--scene", "/nonexistent/x.scene", "--out", "/tmp/x.gif"}, wantExit: 2, wantErr: "is not a file"},
+		{
+			name: "no output", scene: "run true\nframe\n", args: []string{"--out", ""},
+			wantExit: 2, wantErr: "one of --out, --still or --mp4 is required",
+		},
+		{
+			name: "width is a number", scene: "run true\nframe\n", args: []string{"--out", "/tmp/x.gif", "--width", "wide"},
+			wantExit: 2, wantErr: "--width takes a whole number of pixels",
+		},
+		{
+			name: "fps is a positive number", scene: "run true\nframe\n", args: []string{"--out", "/tmp/x.gif", "--fps", "0"},
+			wantExit: 2, wantErr: "--fps takes a whole number of frames",
+		},
+		{
+			name: "a redaction is a pair", scene: "run true\nframe\n", args: []string{"--out", "/tmp/x.gif", "--redact", "secret"},
+			wantExit: 2, wantErr: "--redact takes FROM=TO",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newRecordEnv(t)
+			args := tc.args
+			if tc.scene != "" {
+				args = append([]string{"--scene", e.scene(t, tc.scene)}, args...)
+			}
+			stdout, stderr, exit := runRecord(t, e.env(t), args...)
+			if exit != tc.wantExit || !strings.Contains(stdout, tc.wantOut) || !strings.Contains(stderr, tc.wantErr) {
+				t.Fatalf("exit %d (want %d)\nstdout:\n%s\nstderr:\n%s", exit, tc.wantExit, stdout, stderr)
+			}
+			if _, err := os.Stat(e.log); err == nil {
+				t.Fatalf("a rejected command line still ran a tool:\n%s", mustRead(t, e.log))
+			}
+		})
+	}
+}
+
+// TestRecordScene covers the scene file: what a valid one parses to, and every
+// way an invalid one is refused. A dry run starts no server and no browser.
+func TestRecordScene(t *testing.T) {
+	cases := []struct {
+		name     string
+		scene    string
+		wantExit int
+		wantErr  string
+		golden   string
+	}{
+		{
+			name: "every directive",
+			scene: `# the scene of the test
+title Split and zoom
+size 100 30
+dir /src/acme-api
+env LYNA_TMUX_DEMO=1
+env TERM_PROGRAM=demo
+run lyna-tmux attach api
+wait 2
+frame
+keys M-\\
+wait 0.5
+frame 1.8
+type git status
+enter
+film 3 0.4
+`,
+			golden: "record/scene.txt",
+		},
+		{name: "unknown directive", scene: "run true\nzoom 2\nframe\n", wantExit: 2, wantErr: "unknown directive: zoom"},
+		{name: "no run", scene: "title Only a title\nframe\n", wantExit: 2, wantErr: "no run directive"},
+		{name: "empty run", scene: "run\nframe\n", wantExit: 2, wantErr: "run takes a command"},
+		{name: "two runs", scene: "run true\nrun false\nframe\n", wantExit: 2, wantErr: "run is allowed once"},
+		{name: "no frame", scene: "run true\nwait 1\n", wantExit: 2, wantErr: "no frame or film directive"},
+		{name: "size takes two numbers", scene: "size 100\nrun true\nframe\n", wantExit: 2, wantErr: "size takes COLS and ROWS"},
+		{name: "size takes whole numbers", scene: "size 100 tall\nrun true\nframe\n", wantExit: 2, wantErr: "size takes whole numbers"},
+		{name: "env takes an assignment", scene: "env DEMO\nrun true\nframe\n", wantExit: 2, wantErr: "env takes NAME=VALUE"},
+		{name: "film takes a count", scene: "run true\nfilm many 0.3\n", wantExit: 2, wantErr: "film takes a whole COUNT"},
+		{name: "film takes a gap", scene: "run true\nfilm 3\n", wantExit: 2, wantErr: "film takes COUNT and GAP"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newRecordEnv(t)
+			scene := e.scene(t, tc.scene)
+			stdout, stderr, exit := runRecord(t, e.env(t), "--scene", scene, "--out", filepath.Join(e.dir, "out.gif"), "--dry-run")
+			if exit != tc.wantExit || !strings.Contains(stderr, tc.wantErr) {
+				t.Fatalf("exit %d (want %d)\nstdout:\n%s\nstderr:\n%s", exit, tc.wantExit, stdout, stderr)
+			}
+			if tc.golden != "" {
+				golden.Assert(t, tc.golden, []byte(strings.ReplaceAll(stdout, scene, "SCENE")))
+			}
+			if _, err := os.Stat(e.log); err == nil {
+				t.Fatalf("a dry run ran a tool:\n%s", mustRead(t, e.log))
+			}
+		})
+	}
+}
+
+// TestRecordCapturesARealScreen runs the whole pipeline on a real tmux server:
+// the keys of the scene reach the pane, every frame is the screen at that
+// moment, and the frames are handed to the assembler with their durations.
+func TestRecordCapturesARealScreen(t *testing.T) {
+	e := newRecordEnv(t)
+	scene := e.scene(t, `title A recorded scene
+size 40 8
+run cat
+frame 0.5
+type hello from the scene
+enter
+wait 0.4
+frame 1.5
+`)
+	keep := filepath.Join(e.dir, "keep")
+	gif := filepath.Join(e.dir, "assets", "demo.gif")
+	still := filepath.Join(e.dir, "assets", "demo.png")
+	stdout, stderr, exit := runRecord(t, e.env(t),
+		"--scene", scene, "--out", gif, "--still", still, "--width", "800", "--fps", "15", "--keep", keep)
+	if exit != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", exit, stdout, stderr)
+	}
+	for _, want := range []string{"wrote " + still, "wrote " + gif} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("stdout does not report %q:\n%s", want, stdout)
+		}
+	}
+	for _, path := range []string{gif, still} {
+		if info, err := os.Stat(path); err != nil || info.Size() == 0 {
+			t.Fatalf("%s: %v", path, err)
+		}
+	}
+
+	// The second frame is the screen after the keys were typed, the first is
+	// the screen before: this is what proves the capture is the real screen
+	// and not the scene text.
+	first := string(mustRead(t, filepath.Join(keep, "frames", "0001.ansi")))
+	second := string(mustRead(t, filepath.Join(keep, "frames", "0002.ansi")))
+	if strings.Contains(first, "hello from the scene") {
+		t.Fatalf("the first frame already shows the typed line:\n%s", first)
+	}
+	if !strings.Contains(second, "hello from the scene") {
+		t.Fatalf("the typed line never reached the pane:\n%s", second)
+	}
+
+	// One image per frame, and the last one is the still.
+	frames := mustRead(t, e.list)
+	wantList := []string{"0001.png", "duration 0.5", "0002.png", "duration 1.5"}
+	for _, want := range wantList {
+		if !strings.Contains(string(frames), want) {
+			t.Fatalf("frame list has no %q:\n%s", want, frames)
+		}
+	}
+	if n := strings.Count(string(frames), "0002.png"); n != 2 {
+		t.Fatalf("the last frame is named %d times, want 2 (the concat demuxer drops the last duration):\n%s", n, frames)
+	}
+
+	log := string(mustRead(t, e.log))
+	if n := strings.Count(log, "chrome "); n != 2 {
+		t.Fatalf("chrome ran %d times, want one per frame:\n%s", n, log)
+	}
+	for _, want := range []string{"--window-size=418,233", "palettegen", "scale=800:-1", "fps=15", "-loop 0"} {
+		if !strings.Contains(log, want) {
+			t.Fatalf("the tools were not called with %q:\n%s", want, log)
+		}
+	}
+	// The scratch directory is removed even though --keep saved a copy.
+	entries, err := os.ReadDir(e.dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), "lyna-tmux-rec.") {
+			t.Fatalf("scratch directory not removed: %s", entry.Name())
+		}
+	}
+}
+
+// TestRecordRedacts covers what keeps a recording made in a real account
+// publishable: the captured screen is rewritten before it is drawn, so the
+// image cannot hold what the rule replaced.
+func TestRecordRedacts(t *testing.T) {
+	cases := []struct {
+		name   string
+		rules  []string
+		want   string
+		unwant []string
+	}{
+		{
+			name:  "a home directory is replaced everywhere it appears",
+			rules: []string{"--redact", "/Users/realname=/Users/developer", "--redact", "realname=developer"},
+			want:  "/Users/developer/src", unwant: []string{"realname"},
+		},
+		{
+			name:  "a rule that matches nothing changes nothing",
+			rules: []string{"--redact", "/home/other=/home/developer"},
+			want:  "/Users/realname/src",
+		},
+		{
+			name:  "the replacement of the first rule is not rewritten by a later one",
+			rules: []string{"--redact", "/Users/realname=/Users/developer", "--redact", "developer=someone"},
+			want:  "/Users/developer/src",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newRecordEnv(t)
+			scene := e.scene(t, "size 60 6\nrun cat\ntype cd /Users/realname/src\nenter\nwait 0.4\nframe\n")
+			keep := filepath.Join(e.dir, "keep")
+			_, stderr, exit := runRecord(t, e.env(t),
+				append([]string{"--scene", scene, "--still", filepath.Join(e.dir, "x.png"), "--keep", keep}, tc.rules...)...)
+			if exit != 0 {
+				t.Fatalf("exit %d\nstderr:\n%s", exit, stderr)
+			}
+			frame := string(mustRead(t, filepath.Join(keep, "frames", "0001.ansi")))
+			if !strings.Contains(frame, tc.want) {
+				t.Fatalf("the frame does not hold %q:\n%s", tc.want, frame)
+			}
+			for _, unwant := range tc.unwant {
+				if strings.Contains(frame, unwant) {
+					t.Fatalf("the frame still holds %q:\n%s", unwant, frame)
+				}
+			}
+		})
+	}
+}
+
+// TestRecordScenesAreValid parses every scene the repository ships, so a scene
+// that no longer matches the recorder is caught by the test suite rather than
+// by a documentation rebuild.
+func TestRecordScenesAreValid(t *testing.T) {
+	scenes, err := filepath.Glob(filepath.Join(repoRoot(t), "docs", "scenes", "*.scene"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(scenes) == 0 {
+		t.Fatal("no scene files under docs/scenes")
+	}
+	for _, scene := range scenes {
+		t.Run(filepath.Base(scene), func(t *testing.T) {
+			e := newRecordEnv(t)
+			stdout, stderr, exit := runRecord(t, e.env(t), "--scene", scene, "--still", filepath.Join(e.dir, "x.png"), "--dry-run")
+			if exit != 0 {
+				t.Fatalf("exit %d\nstderr:\n%s", exit, stderr)
+			}
+			if !strings.Contains(stdout, "run: ") {
+				t.Fatalf("no run directive reported:\n%s", stdout)
+			}
+		})
+	}
+}
