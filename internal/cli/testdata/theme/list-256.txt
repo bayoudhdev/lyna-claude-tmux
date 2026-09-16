@@ -1,0 +1,8 @@
+  THEME  STYLE            COLORS (256)
+* lyna   dark             color77 color75 color214 color203 color255 color102
+  light  light            color29 color26 color94 color160 color235 color59
+  ansi   terminal colors  color2 color4 color3 color1 color15 color7
+
+* is the configured theme (ui.theme in <config>).
+Switch with: lyna-tmux theme <name>
+Give Claude Code matching themes with: lyna-tmux theme claude

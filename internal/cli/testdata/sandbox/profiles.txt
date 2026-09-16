@@ -1,0 +1,45 @@
+standard (default)
+  Bash sandbox       on, and Bash refuses to run when it cannot start
+  Denied files       ~/.ssh, ~/.aws, ~/.gnupg, ~/.config/gh, ~/.netrc, ~/.docker/config.json, ~/.kube, ~/.npmrc, ~/.pypirc, ~/.config/gcloud, ~/.azure, ~/.git-credentials
+  Unset variables    ANTHROPIC_API_KEY, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN, AZURE_CLIENT_SECRET, CARGO_REGISTRY_TOKEN, CLOUDFLARE_API_TOKEN, DIGITALOCEAN_ACCESS_TOKEN, DOCKER_PASSWORD, GH_TOKEN, GITHUB_TOKEN, GITLAB_TOKEN, GOOGLE_API_KEY, HF_TOKEN, NODE_AUTH_TOKEN, NPM_TOKEN, OPENAI_API_KEY, PYPI_API_TOKEN, SLACK_BOT_TOKEN, STRIPE_SECRET_KEY, TWINE_PASSWORD, VAULT_TOKEN
+  Environment        inherited by subprocesses
+  .env files         ask before reading
+  Outside reads      allowed
+  Network            allowed hosts pass, other hosts ask
+  Allowed hosts      none
+  Also writable      nothing outside the project
+  Unsandboxed        a blocked command may run outside the sandbox after a prompt
+  bypassPermissions  refused
+
+strict
+  Bash sandbox       on, and Bash refuses to run when it cannot start
+  Denied files       ~/.ssh, ~/.aws, ~/.gnupg, ~/.config/gh, ~/.netrc, ~/.docker/config.json, ~/.kube, ~/.npmrc, ~/.pypirc, ~/.config/gcloud, ~/.azure, ~/.git-credentials
+  Unset variables    ANTHROPIC_API_KEY, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN, AZURE_CLIENT_SECRET, CARGO_REGISTRY_TOKEN, CLOUDFLARE_API_TOKEN, DIGITALOCEAN_ACCESS_TOKEN, DOCKER_PASSWORD, GH_TOKEN, GITHUB_TOKEN, GITLAB_TOKEN, GOOGLE_API_KEY, HF_TOKEN, NODE_AUTH_TOKEN, NPM_TOKEN, OPENAI_API_KEY, PYPI_API_TOKEN, SLACK_BOT_TOKEN, STRIPE_SECRET_KEY, TWINE_PASSWORD, VAULT_TOKEN
+  Environment        credentials scrubbed from every subprocess (Bash, hooks, MCP servers)
+  .env files         never read
+  Outside reads      blocked outside the working directories
+  Network            only allowed hosts
+  Allowed hosts      github.com, api.github.com, codeload.github.com, objects.githubusercontent.com, raw.githubusercontent.com
+  Also writable      nothing outside the project
+  Unsandboxed        never
+  bypassPermissions  allowed
+
+off
+  Bash sandbox       off
+  Denied files       none
+  Unset variables    none
+  Environment        inherited by subprocesses
+  .env files         readable
+  Outside reads      allowed
+  Network            open
+  Allowed hosts      none
+  Also writable      nothing outside the project
+  Unsandboxed        every command runs without a sandbox
+  bypassPermissions  refused
+
+Isolation levels (sandbox.isolation or --isolation)
+  bash       Bash commands, in the Claude Code sandbox
+  process    the whole Claude process, in the sandbox runtime
+  container  the whole workspace, in the dev container
+
+bypassPermissions needs the strict profile or container isolation.

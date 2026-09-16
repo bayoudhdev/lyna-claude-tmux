@@ -1,0 +1,62 @@
+After the prefix Ctrl+b
+  PANES
+    \               Split right
+    -               Split down
+    C               Focus Claude pane
+  TOOLS
+    a               Agents
+    g               Review changes
+    S               Scratch shell
+    Space           Menu
+  SESSION
+    Ctrl+b          Send the prefix key to the pane
+    r               Reload configuration
+    d               Detach
+
+Keys left to Claude Code
+    Ctrl+c          interrupt
+    Ctrl+d          exit
+    Ctrl+t          toggle todos
+    Ctrl+o          toggle transcript
+    Ctrl+r          search history
+    Ctrl+l          clear input
+    Ctrl+x          chord prefix (kill agents, queue submit, external editor)
+    Ctrl+j          newline
+    Ctrl+_          undo
+    Ctrl+g          external editor
+    Ctrl+s          stash prompt
+    Ctrl+v          paste image
+    Ctrl+b          background task, page up in transcript (press Ctrl+b twice, the prefix takes it first)
+    Ctrl+e          show all in transcript
+    Ctrl+u          half page up
+    Ctrl+f          page down in transcript
+    Ctrl+n          next item
+    Ctrl+p          previous item
+    Ctrl+]          open artifact
+    Alt+p           model picker
+    Alt+o           fast mode
+    Alt+t           thinking toggle
+    Alt+w           workflow keyword toggle
+    Alt+j           toggle terminal
+    Alt+m           cycle permission mode (Windows)
+    Alt+v           paste image (Windows)
+    Alt+Up          previous file in diff list
+    Alt+Down        next file in diff list
+    Alt+b           word left
+    Alt+f           word right
+    Alt+d           delete word
+    Alt+y           yank
+    Alt+Backspace   delete word left
+    Alt+Left        word left
+    Alt+Right       word right
+    Alt+Enter       newline
+    Shift+Tab       cycle permission mode
+    Shift+Enter     newline
+    Enter           submit
+    Esc             cancel
+    Tab             accept completion
+    Up              previous history
+    Down            next history
+    Space           push to talk
+    PageUp          scroll up
+    PageDown        scroll down
