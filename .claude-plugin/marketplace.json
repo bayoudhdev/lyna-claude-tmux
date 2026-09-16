@@ -1,0 +1,20 @@
+{
+  "name": "lyna-tmux",
+  "owner": {
+    "name": "LYNA-IT"
+  },
+  "description": "Claude Code plugins published with lyna-tmux, the tmux workspace for Claude Code.",
+  "plugins": [
+    {
+      "name": "lyna-tmux",
+      "source": "./plugins/lyna-tmux",
+      "description": "Companion hooks and color themes for lyna-tmux: live agent state and bells in your tmux status line, and Claude Code themes that match the workspace.",
+      "author": {
+        "name": "LYNA-IT"
+      },
+      "repository": "https://github.com/bayoudhdev/lyna-claude-tmux",
+      "license": "MIT",
+      "category": "productivity"
+    }
+  ]
+}

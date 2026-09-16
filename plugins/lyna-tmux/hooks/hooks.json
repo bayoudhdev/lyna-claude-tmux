@@ -1,0 +1,117 @@
+{
+  "description": "Mirror Claude Code agent state (busy, waiting, idle, subagents, branch) onto the tmux pane it runs in and ring the tmux bell when the agent needs you. Requires lyna-tmux in an absolute PATH directory; does nothing outside tmux or inside panes lyna-tmux launched itself.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin SessionStart",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin UserPromptSubmit",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin PreToolUse",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin PermissionRequest",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "permission_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin Notification",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin PostToolUse",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin SubagentStart",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin SubagentStop",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin Stop",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin SessionEnd",
+            "async": true
+          }
+        ]
+      }
+    ]
+  }
+}

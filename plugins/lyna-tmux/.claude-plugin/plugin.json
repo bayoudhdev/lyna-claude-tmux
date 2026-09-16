@@ -1,0 +1,11 @@
+{
+  "name": "lyna-tmux",
+  "description": "Companion hooks and color themes for lyna-tmux: live agent state and bells in your tmux status line, and Claude Code themes that match the workspace.",
+  "version": "1.0.0",
+  "author": {
+    "name": "LYNA-IT"
+  },
+  "repository": "https://github.com/bayoudhdev/lyna-claude-tmux",
+  "license": "MIT",
+  "keywords": ["tmux", "terminal", "status-line", "notifications", "themes"]
+}
