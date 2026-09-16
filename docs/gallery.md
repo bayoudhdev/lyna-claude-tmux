@@ -23,7 +23,6 @@ scene named beside it, and the animations of the same scenes are in the
 |---|---|
 | **The picker** (`agents.scene`)<br>Every agent on the machine, what it is doing, and where it runs. | ![The agent picker](assets/agents.png) |
 | **Tasks** (`task.scene`)<br>A task window with its own worktree, listed by git. | ![A task worktree](assets/task.png) |
-| **Resume** (`resume.scene`)<br>Past conversations of the project, continued in place. | ![The resume picker](assets/resume.png) |
 
 ## Changes
 

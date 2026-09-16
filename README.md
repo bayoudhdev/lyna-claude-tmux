@@ -178,8 +178,6 @@ subprocess.
 
 `lyna-tmux resume` picks a past conversation and continues it in the workspace.
 
-![Continuing a past conversation](docs/assets/resume.gif)
-
 ## The dashboard
 
 `lyna-tmux` with no command opens the dashboard: every workspace with its layout, sandbox and
@@ -317,7 +315,7 @@ lyna-tmux uninstall --purge  # also remove the state, cache and configuration di
 
 It lists what it will remove before it removes anything.
 
-![What uninstall removes](docs/assets/uninstall.gif)
+![What uninstall removes](docs/assets/uninstall.png)
 
 ## Contributing
 

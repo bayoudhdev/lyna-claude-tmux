@@ -1,18 +1,25 @@
-# A task gets its own git worktree, so agents never share a checkout.
+# A task gets its own git worktree, so agents never share a checkout. The task
+# window is selected as it opens, so the scene goes back to the first window to
+# ask git what the repository now holds.
 title lyna-tmux task rate-limit
 size 112 34
 pre lyna-tmux kill --all
 pre rm -rf .devcontainer
+# The worktrees another scene left are locked, so git prunes none of them: the
+# registry goes with them, which is a reset of the demo project, not a fix.
+pre rm -rf .claude/worktrees
+pre rm -rf .git/worktrees
 pre lyna-tmux create . --layout duo --detach
 run lyna-tmux create .
 wait 3
-frame 1.2
+frame 1.6
 keys M-]
 type lyna-tmux task rate-limit "add a token bucket to the API gateway"
 enter
-wait 6
-frame 2.6
+wait 8
+keys M-1
+wait 0.8
 type git worktree list
 enter
 wait 1.5
-frame 2.4
+frame 3

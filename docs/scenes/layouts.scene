@@ -1,5 +1,7 @@
 # The built-in layouts, one after the other, driven from the shell of the
-# workspace itself. The last frame is quad: one agent per worktree.
+# workspace itself. Each one opens a window of its own and selects it, so the
+# scene goes back to the first window between them. The last frame is quad:
+# one agent per worktree.
 title lyna-tmux layout solo, duo, trio, quad
 size 112 34
 pre lyna-tmux kill --all
@@ -14,10 +16,14 @@ type lyna-tmux layout solo
 enter
 wait 3
 frame 1.8
+keys M-1
+wait 0.8
 type lyna-tmux layout trio
 enter
 wait 3
 frame 1.8
+keys M-1
+wait 0.8
 type lyna-tmux layout quad
 enter
 wait 8

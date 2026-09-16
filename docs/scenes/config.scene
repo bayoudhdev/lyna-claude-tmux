@@ -13,7 +13,7 @@ type lyna-tmux config validate
 enter
 wait 1.5
 frame 2.6
-type clear; head -24 "$(lyna-tmux config path)"
+type head -18 "$(lyna-tmux config path)"
 enter
 wait 1.5
 frame 3.5
