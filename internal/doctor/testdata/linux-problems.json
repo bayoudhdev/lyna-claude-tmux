@@ -1,0 +1,98 @@
+{
+  "results": [
+    {
+      "id": "tmux",
+      "title": "tmux",
+      "status": "fail",
+      "detail": "tmux 3.2a at /usr/bin/tmux is older than 3.3; if the distribution package is still older, build a release from https://github.com/tmux/tmux/releases",
+      "fix": "sudo apt-get install tmux"
+    },
+    {
+      "id": "claude",
+      "title": "Claude Code",
+      "status": "fail",
+      "detail": "claude is not on PATH",
+      "fix": "curl -fsSL https://claude.ai/install.sh | bash"
+    },
+    {
+      "id": "claude-trust",
+      "title": "Project trust",
+      "status": "skip",
+      "detail": "no project directory"
+    },
+    {
+      "id": "git",
+      "title": "git",
+      "status": "ok",
+      "detail": "git 2.43.0 at /usr/bin/git"
+    },
+    {
+      "id": "sandbox-bwrap",
+      "title": "bubblewrap",
+      "status": "fail",
+      "detail": "bwrap is not on PATH; the Linux sandbox needs it",
+      "fix": "sudo apt-get install bubblewrap"
+    },
+    {
+      "id": "sandbox-socat",
+      "title": "socat",
+      "status": "fail",
+      "detail": "socat is not on PATH; the Linux sandbox needs it",
+      "fix": "sudo apt-get install socat"
+    },
+    {
+      "id": "sandbox-userns",
+      "title": "User namespaces",
+      "status": "fail",
+      "detail": "AppArmor restricts unprivileged user namespaces, so bubblewrap cannot isolate commands",
+      "fix": "sudo tee /etc/apparmor.d/bwrap \u003e /dev/null \u003c\u003c'EOF'\nabi \u003cabi/4.0\u003e,\ninclude \u003ctunables/global\u003e\n\nprofile bwrap /usr/bin/bwrap flags=(unconfined) {\n  userns,\n  include if exists \u003clocal/bwrap\u003e\n}\nEOF\nsudo systemctl reload apparmor"
+    },
+    {
+      "id": "truecolor",
+      "title": "Truecolor",
+      "status": "warn",
+      "detail": "the terminal does not advertise 24-bit color, so lyna-tmux quantizes the theme to 256 colors",
+      "fix": "export COLORTERM=truecolor (only when the terminal renders 24-bit color), or set ui.color = \"256\" in config.toml"
+    },
+    {
+      "id": "clipboard",
+      "title": "Clipboard",
+      "status": "warn",
+      "detail": "no clipboard tool found (xclip, xsel, wl-copy), so copy mode cannot write the system clipboard",
+      "fix": "sudo apt-get install xclip"
+    },
+    {
+      "id": "option-meta",
+      "title": "Option as Meta",
+      "status": "ok",
+      "detail": "Alt sends Meta by default on this platform"
+    },
+    {
+      "id": "keybindings",
+      "title": "Claude keybindings",
+      "status": "warn",
+      "detail": "alt+s (Chat, chat:stash) never reaches Claude: M-s is lyna-tmux Scratch shell",
+      "fix": "edit /home/u/.claude/keybindings.json to use other keys, or set ui.alt_keys = false (and workspace.prefix) in config.toml"
+    },
+    {
+      "id": "docker",
+      "title": "Docker",
+      "status": "warn",
+      "detail": "the Docker daemon is not reachable: permission denied while trying to connect to the Docker daemon socket",
+      "fix": "sudo usermod -aG docker \"$USER\" (then log out and back in)"
+    },
+    {
+      "id": "nvim",
+      "title": "Neovim",
+      "status": "warn",
+      "detail": "Neovim 0.7.2 at /usr/bin/nvim is older than 0.9; the review popup needs 0.9 or newer",
+      "fix": "sudo apt-get install neovim"
+    }
+  ],
+  "summary": {
+    "ok": 2,
+    "warn": 5,
+    "fail": 5,
+    "skip": 1
+  }
+}

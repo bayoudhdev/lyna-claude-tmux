@@ -1,0 +1,21 @@
+ok    tmux             tmux 3.7c at /usr/bin/tmux
+warn  Option as Meta   needs a setting
+                       fix:  Terminal > Settings > Profiles > Keyboard: enable "Use Option as Meta Key"
+fail  User namespaces  restricted
+                       fix:  sudo tee /etc/apparmor.d/bwrap > /dev/null <<'EOF'
+                             abi <abi/4.0>,
+                             include <tunables/global>
+
+                             profile bwrap /usr/bin/bwrap flags=(unconfined) {
+                               userns,
+                               include if exists <local/bwrap>
+                             }
+                             EOF
+                             sudo systemctl reload apparmor
+skip  Docker           not needed
+warn  evil             line one
+                       line twored
+                       fix:  run this
+ok    Empty
+
+2 ok, 2 warn, 1 fail, 1 skipped

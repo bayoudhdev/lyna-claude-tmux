@@ -1,0 +1,34 @@
+fail  tmux                tmux 3.2a at /usr/bin/tmux is older than 3.3; if the distribution package is still older, build a release from https://github.com/tmux/tmux/releases
+                          fix:  sudo apt-get install tmux
+fail  Claude Code         claude is not on PATH
+                          fix:  curl -fsSL https://claude.ai/install.sh | bash
+skip  Project trust       no project directory
+ok    git                 git 2.43.0 at /usr/bin/git
+fail  bubblewrap          bwrap is not on PATH; the Linux sandbox needs it
+                          fix:  sudo apt-get install bubblewrap
+fail  socat               socat is not on PATH; the Linux sandbox needs it
+                          fix:  sudo apt-get install socat
+fail  User namespaces     AppArmor restricts unprivileged user namespaces, so bubblewrap cannot isolate commands
+                          fix:  sudo tee /etc/apparmor.d/bwrap > /dev/null <<'EOF'
+                                abi <abi/4.0>,
+                                include <tunables/global>
+
+                                profile bwrap /usr/bin/bwrap flags=(unconfined) {
+                                  userns,
+                                  include if exists <local/bwrap>
+                                }
+                                EOF
+                                sudo systemctl reload apparmor
+warn  Truecolor           the terminal does not advertise 24-bit color, so lyna-tmux quantizes the theme to 256 colors
+                          fix:  export COLORTERM=truecolor (only when the terminal renders 24-bit color), or set ui.color = "256" in config.toml
+warn  Clipboard           no clipboard tool found (xclip, xsel, wl-copy), so copy mode cannot write the system clipboard
+                          fix:  sudo apt-get install xclip
+ok    Option as Meta      Alt sends Meta by default on this platform
+warn  Claude keybindings  alt+s (Chat, chat:stash) never reaches Claude: M-s is lyna-tmux Scratch shell
+                          fix:  edit /home/u/.claude/keybindings.json to use other keys, or set ui.alt_keys = false (and workspace.prefix) in config.toml
+warn  Docker              the Docker daemon is not reachable: permission denied while trying to connect to the Docker daemon socket
+                          fix:  sudo usermod -aG docker "$USER" (then log out and back in)
+warn  Neovim              Neovim 0.7.2 at /usr/bin/nvim is older than 0.9; the review popup needs 0.9 or newer
+                          fix:  sudo apt-get install neovim
+
+2 ok, 5 warn, 5 fail, 1 skipped
