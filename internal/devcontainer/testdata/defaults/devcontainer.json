@@ -1,0 +1,23 @@
+{
+  "name": "lyna-tmux lyna-claude-tmux",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
+  "runArgs": [
+    "--cap-add=NET_ADMIN",
+    "--init"
+  ],
+  "containerUser": "lyna",
+  "remoteUser": "lyna",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+  "workspaceFolder": "/workspace",
+  "mounts": [
+    "source=lyna-tmux-claude-lyna-claude-tmux,target=/home/lyna/.claude,type=volume"
+  ],
+  "containerEnv": {
+    "CLAUDE_CONFIG_DIR": "/home/lyna/.claude"
+  },
+  "postStartCommand": "sudo /usr/local/bin/init-firewall.sh",
+  "waitFor": "postStartCommand"
+}

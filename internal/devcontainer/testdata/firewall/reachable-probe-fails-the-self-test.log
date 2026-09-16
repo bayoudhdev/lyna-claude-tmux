@@ -1,0 +1,36 @@
+ipset create lyna-tmux-allowed hash:ip family inet -exist
+ipset create lyna-tmux-allowed-next hash:ip family inet -exist
+ipset flush lyna-tmux-allowed-next
+ipset add lyna-tmux-allowed-next 160.79.104.10 -exist
+ipset add lyna-tmux-allowed-next 140.82.121.3 -exist
+ipset add lyna-tmux-allowed-next 140.82.121.4 -exist
+ipset swap lyna-tmux-allowed-next lyna-tmux-allowed
+ipset destroy lyna-tmux-allowed-next
+iptables -F OUTPUT
+iptables -A OUTPUT -o lo -j ACCEPT
+iptables -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+iptables -A OUTPUT -d 192.168.65.7 -p udp --dport 53 -j ACCEPT
+iptables -A OUTPUT -d 192.168.65.7 -p tcp --dport 53 -j ACCEPT
+iptables -A OUTPUT -d 127.0.0.11 -p udp --dport 53 -j ACCEPT
+iptables -A OUTPUT -d 127.0.0.11 -p tcp --dport 53 -j ACCEPT
+iptables -A OUTPUT -m set --match-set lyna-tmux-allowed dst -j ACCEPT
+iptables -A OUTPUT -j REJECT --reject-with icmp-admin-prohibited
+iptables -P OUTPUT DROP
+iptables -P FORWARD DROP
+ip6tables -S OUTPUT
+ip6tables -F OUTPUT
+ip6tables -A OUTPUT -o lo -j ACCEPT
+ip6tables -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+ip6tables -A OUTPUT -j REJECT --reject-with icmp6-adm-prohibited
+ip6tables -P OUTPUT DROP
+ip6tables -P FORWARD DROP
+curl --silent --output /dev/null --connect-timeout 5 --max-time 10 https://example.com
+iptables -F OUTPUT
+iptables -A OUTPUT -o lo -j ACCEPT
+iptables -P OUTPUT DROP
+iptables -P FORWARD DROP
+ip6tables -S OUTPUT
+ip6tables -F OUTPUT
+ip6tables -A OUTPUT -o lo -j ACCEPT
+ip6tables -P OUTPUT DROP
+ip6tables -P FORWARD DROP

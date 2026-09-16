@@ -1,0 +1,13 @@
+ipset create lyna-tmux-allowed hash:ip family inet -exist
+ipset create lyna-tmux-allowed-next hash:ip family inet -exist
+ipset flush lyna-tmux-allowed-next
+ipset add lyna-tmux-allowed-next 160.79.104.10 -exist
+iptables -F OUTPUT
+iptables -A OUTPUT -o lo -j ACCEPT
+iptables -P OUTPUT DROP
+iptables -P FORWARD DROP
+ip6tables -S OUTPUT
+ip6tables -F OUTPUT
+ip6tables -A OUTPUT -o lo -j ACCEPT
+ip6tables -P OUTPUT DROP
+ip6tables -P FORWARD DROP

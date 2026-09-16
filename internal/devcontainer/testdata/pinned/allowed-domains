@@ -1,0 +1,14 @@
+# Egress allowlist for the lyna-tmux dev container, one host per line.
+# Resolved to IPv4 addresses at container start by init-firewall.sh; rebuild after editing.
+api.anthropic.com
+claude.ai
+claude.com
+platform.claude.com
+downloads.claude.ai
+raw.githubusercontent.com
+github.com
+api.github.com
+codeload.github.com
+registry.npmjs.org
+proxy.golang.org
+sum.golang.org

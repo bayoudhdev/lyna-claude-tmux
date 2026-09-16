@@ -1,0 +1,23 @@
+{
+  "name": "lyna-tmux api",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
+  "runArgs": [
+    "--cap-add=NET_ADMIN",
+    "--init"
+  ],
+  "containerUser": "dev",
+  "remoteUser": "dev",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+  "workspaceFolder": "/workspace",
+  "mounts": [
+    "source=lyna-tmux-claude-api,target=/home/dev/.claude,type=volume"
+  ],
+  "containerEnv": {
+    "CLAUDE_CONFIG_DIR": "/home/dev/.claude"
+  },
+  "postStartCommand": "sudo /usr/local/bin/init-firewall.sh",
+  "waitFor": "postStartCommand"
+}

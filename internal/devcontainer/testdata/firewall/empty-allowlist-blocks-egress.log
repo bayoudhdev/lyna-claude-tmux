@@ -1,0 +1,9 @@
+iptables -F OUTPUT
+iptables -A OUTPUT -o lo -j ACCEPT
+iptables -P OUTPUT DROP
+iptables -P FORWARD DROP
+ip6tables -S OUTPUT
+ip6tables -F OUTPUT
+ip6tables -A OUTPUT -o lo -j ACCEPT
+ip6tables -P OUTPUT DROP
+ip6tables -P FORWARD DROP
