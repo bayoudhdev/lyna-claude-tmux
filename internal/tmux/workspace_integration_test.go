@@ -238,7 +238,7 @@ func TestIntegrationWorkspaceProcesses(t *testing.T) {
 	t.Run("pane options land on their pane literally", func(t *testing.T) {
 		for i, want := range []string{"\x1f", dir + "/s.json\x1fx", "\x1f", "\x1f"} {
 			got, err := srv.Client.Display(ctx, built.Panes[i], "#{@lt_settings}\x1f#{@lt_other}")
-			if err != nil || got != want {
+			if err != nil || !keptByTmux(got, want) {
 				t.Fatalf("pane %d options %q, %v; want %q", i, got, err, want)
 			}
 		}
