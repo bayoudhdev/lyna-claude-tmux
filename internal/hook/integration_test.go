@@ -35,11 +35,11 @@ func startLive(t *testing.T) *liveServer {
 func (s *liveServer) newSession(t *testing.T, name string) (pane, window, sessionID string) {
 	t.Helper()
 	out, err := s.Client.Run(tmuxtest.Context(t), "new-session", "-d", "-s", name, "-x", "80", "-y", "24",
-		"-P", "-F", "#{pane_id}"+fieldSep+"#{window_id}"+fieldSep+"#{session_id}", "sleep 3600")
+		"-P", "-F", tmux.FieldSep("#{pane_id}", "#{window_id}", "#{session_id}"), "sleep 3600")
 	if err != nil {
 		t.Fatalf("new-session %q: %v", name, err)
 	}
-	f := strings.Split(strings.TrimSpace(out), fieldSep)
+	f := tmux.SplitFields(strings.TrimSpace(out))
 	if len(f) != 3 {
 		t.Fatalf("new-session output %q", out)
 	}

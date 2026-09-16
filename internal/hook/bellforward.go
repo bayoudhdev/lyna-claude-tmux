@@ -9,10 +9,11 @@ import (
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
 )
 
-// fieldSep separates the fields of a display-message reply. tmux rejects
-// session names holding control characters and never produces one in a
-// window option set to a window ID, so it cannot occur inside a field.
-const fieldSep = "\x1f"
+// The fields of a display-message reply are separated by the unit separator
+// of the tmux package, which rejects session names holding control characters
+// and never produces one in a window option set to a window ID, so it cannot
+// occur inside a field. tmux.SplitFields reads the reply back, including from
+// the version that prints the separator as its octal escape.
 
 // BellForwardInput is one `lyna-tmux bell-forward <session-id>` invocation,
 // run by the alert-bell hook of the plugin-mode configuration with
@@ -71,12 +72,12 @@ func BellForward(ctx context.Context, in BellForwardInput, deps Deps) (status in
 	client := deps.Tmux(sock)
 
 	out, err := client.Run(ctx, "display-message", "-p", "-t", in.Session,
-		"#{session_name}"+fieldSep+"#{"+tmux.OptOrigin+"}"+fieldSep+"#{"+tmux.OptClaudeOrigin+"}")
+		tmux.FieldSep("#{session_name}", "#{"+tmux.OptOrigin+"}", "#{"+tmux.OptClaudeOrigin+"}"))
 	if err != nil {
 		deps.logf(name, "%v", err)
 		return 0
 	}
-	fields := strings.Split(strings.TrimRight(out, "\n"), fieldSep)
+	fields := tmux.SplitFields(strings.TrimRight(out, "\n"))
 	if len(fields) != 3 || !session.IsPopup(in.Prefix, fields[0]) {
 		return 0
 	}
@@ -92,7 +93,7 @@ func BellForward(ctx context.Context, in BellForwardInput, deps Deps) (status in
 		return 0
 	}
 
-	out, err = client.Run(ctx, "display-message", "-p", "-t", origin, "#{session_name}"+fieldSep+"#{pane_tty}")
+	out, err = client.Run(ctx, "display-message", "-p", "-t", origin, tmux.FieldSep("#{session_name}", "#{pane_tty}"))
 	if err != nil {
 		// A popup routinely outlives the window it was opened from.
 		if !errors.Is(err, tmux.ErrNotFound) {
@@ -100,7 +101,7 @@ func BellForward(ctx context.Context, in BellForwardInput, deps Deps) (status in
 		}
 		return 0
 	}
-	fields = strings.Split(strings.TrimRight(out, "\n"), fieldSep)
+	fields = tmux.SplitFields(strings.TrimRight(out, "\n"))
 	// display-message expands against no target when the origin is gone
 	// (its target lookup may fail), which yields empty fields.
 	if len(fields) != 2 || fields[1] == "" || session.IsPopup(in.Prefix, fields[0]) {

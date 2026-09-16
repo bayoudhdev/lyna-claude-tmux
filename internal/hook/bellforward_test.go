@@ -31,7 +31,7 @@ func (s *scriptTmux) Exec(_ context.Context, _ string, args []string) (tmux.Resu
 }
 
 func reply(fields ...string) tmux.Result {
-	return tmux.Result{Stdout: []byte(strings.Join(fields, fieldSep) + "\n")}
+	return tmux.Result{Stdout: []byte(tmux.FieldSep(fields...) + "\n")}
 }
 
 func TestBellForward(t *testing.T) {
