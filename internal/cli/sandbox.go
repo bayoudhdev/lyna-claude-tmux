@@ -14,6 +14,7 @@ import (
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/doctor"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/sandbox"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/sanitize"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/termx"
 )
 
 func sandboxCommand(d Deps) *cobra.Command {
@@ -26,11 +27,11 @@ func sandboxCommand(d Deps) *cobra.Command {
 			"dev container of container isolation.",
 		Args: cobra.NoArgs,
 	}
-	cmd.AddCommand(sandboxProfilesCommand(), sandboxShowCommand(d), sandboxStatusCommand(d), devcontainerCommand(d))
+	cmd.AddCommand(sandboxProfilesCommand(d), sandboxShowCommand(d), sandboxStatusCommand(d), devcontainerCommand(d))
 	return cmd
 }
 
-func sandboxProfilesCommand() *cobra.Command {
+func sandboxProfilesCommand(d Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "profiles",
 		Short: "Show what each sandbox profile and isolation level protects and allows",
@@ -51,7 +52,7 @@ func sandboxProfilesCommand() *cobra.Command {
 					label += " (default)"
 				}
 				fmt.Fprintf(out, "%s\n", label)
-				sandboxWriteSummary(out, sandbox.Describe(res), "  ", false)
+				sandboxWriteSummary(out, sandbox.Describe(res), "  ", false, d.Terminal().Width)
 				fmt.Fprintln(out)
 			}
 			fmt.Fprintln(out, "Isolation levels (sandbox.isolation or --isolation)")
@@ -65,8 +66,9 @@ func sandboxProfilesCommand() *cobra.Command {
 }
 
 // sandboxWriteSummary prints a sandbox summary as aligned rows. The boundary
-// belongs to the isolation level, so profile listings leave it out.
-func sandboxWriteSummary(w io.Writer, s sandbox.Summary, indent string, withBoundary bool) {
+// belongs to the isolation level, so profile listings leave it out. termWidth
+// is the width of the terminal in cells, or zero when it is not known.
+func sandboxWriteSummary(w io.Writer, s sandbox.Summary, indent string, withBoundary bool, termWidth int) {
 	list := func(values []string, empty string) string {
 		if len(values) == 0 {
 			return empty
@@ -127,10 +129,27 @@ func sandboxWriteSummary(w io.Writer, s sandbox.Summary, indent string, withBoun
 		{"Unsandboxed", fallback},
 		{"bypassPermissions", bypass},
 	}...)
+	// A denied file list or a set of allowed hosts is longer than a terminal,
+	// and the terminal would break it wherever the line ends, under no column
+	// at all. Wrapped here, every line after the first keeps the value column.
+	column := len(indent) + 19
+	room := 0
+	if termWidth-column >= sandboxMinRoom {
+		room = termWidth - column
+	}
 	for _, r := range rows {
-		fmt.Fprintf(w, "%s%-18s %s\n", indent, r[0], r[1])
+		for i, line := range termx.Wrap(r[1], room) {
+			if i == 0 {
+				fmt.Fprintf(w, "%s%-18s %s\n", indent, r[0], line)
+				continue
+			}
+			fmt.Fprintf(w, "%s%s\n", strings.Repeat(" ", column), line)
+		}
 	}
 }
+
+// sandboxMinRoom is the narrowest value column worth wrapping into.
+const sandboxMinRoom = 24
 
 func sandboxShowCommand(d Deps) *cobra.Command {
 	var dir, isolation string
@@ -244,7 +263,7 @@ func sandboxStatus(cmd *cobra.Command, d Deps, dir string, asJSON bool) error {
 		fmt.Fprintf(out, "Sandbox for %s (from the configuration)\n", sanitize.Line(st.Project))
 	}
 	fmt.Fprintf(out, "  %-18s %s\n  %-18s %s\n", "Profile", st.Sandbox.Profile, "Isolation", st.Sandbox.Isolation)
-	sandboxWriteSummary(out, st.Sandbox, "  ", true)
+	sandboxWriteSummary(out, st.Sandbox, "  ", true, d.Terminal().Width)
 	ready := "ready"
 	if !st.Ready {
 		ready = "not ready"

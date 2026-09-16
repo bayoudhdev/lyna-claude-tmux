@@ -26,12 +26,32 @@ func sandboxWriteConfig(t *testing.T, e *infraEnv, content string) {
 }
 
 func TestSandboxProfilesCLI(t *testing.T) {
-	e := newInfraEnv(t)
-	code, stdout, stderr := e.run(t, "sandbox", "profiles")
-	if code != 0 {
-		t.Fatalf("exit %d: %s", code, stderr)
+	// A denied file list is longer than any terminal, so the listing is checked
+	// both where its width is unknown and where there is a column to wrap into.
+	for _, tc := range []struct {
+		name   string
+		width  int
+		golden string
+	}{
+		{name: "width unknown", golden: "sandbox/profiles.txt"},
+		{name: "a terminal to wrap into", width: 100, golden: "sandbox/profiles-100.txt"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newInfraEnv(t)
+			e.term = Terminal{Interactive: true, Width: tc.width}
+			code, stdout, stderr := e.run(t, "sandbox", "profiles")
+			if code != 0 {
+				t.Fatalf("exit %d: %s", code, stderr)
+			}
+			for _, line := range strings.Split(stdout, "\n") {
+				if tc.width > 0 && len([]rune(line)) > tc.width {
+					t.Errorf("line longer than %d cells: %q", tc.width, line)
+				}
+			}
+			golden.Assert(t, tc.golden, []byte(stdout))
+		})
 	}
-	golden.Assert(t, "sandbox/profiles.txt", []byte(stdout))
+	e := newInfraEnv(t)
 	if code, _, stderr := e.run(t, "sandbox", "profiles", "extra"); code != 1 || !containsFolded(stderr, "unknown command") {
 		t.Fatalf("exit %d, stderr %q", code, stderr)
 	}
