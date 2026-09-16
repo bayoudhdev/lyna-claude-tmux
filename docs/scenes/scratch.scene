@@ -1,0 +1,16 @@
+# A shell in a popup over the workspace, gone when it exits.
+title Alt+s opens a scratch shell
+size 112 34
+pre lyna-tmux kill --all
+pre rm -rf .devcontainer
+pre lyna-tmux create . --layout duo --detach
+run lyna-tmux create .
+wait 4
+frame 1.2
+keys M-s
+wait 3
+frame 1.4
+type git log --oneline -5
+enter
+wait 2.5
+frame 3.5

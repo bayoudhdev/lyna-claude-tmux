@@ -1,0 +1,18 @@
+# Every requirement, with the command that fixes what is missing.
+# fixtures: off
+# The report prints where Claude Code is installed, so this scene runs against
+# the machine's own installation rather than the fixture that answers for the
+# agent list.
+title lyna-tmux doctor
+size 104 30
+env PS1=$\040
+env BASH_SILENCE_DEPRECATION_WARNING=1
+run bash --norc --noprofile -i
+wait 1
+type clear
+enter
+wait 0.5
+type lyna-tmux doctor
+enter
+wait 3
+frame 3.5

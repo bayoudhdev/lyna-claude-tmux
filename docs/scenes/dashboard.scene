@@ -1,0 +1,20 @@
+# The dashboard: workspaces, agents and the actions that open them.
+title lyna-tmux
+env LYNA_TMUX_DEMO_AGENTS=1
+size 104 30
+pre lyna-tmux kill --all
+pre rm -rf .devcontainer
+pre lyna-tmux create ../acme-web --layout duo --detach
+pre lyna-tmux create . --layout trio --detach
+run lyna-tmux
+wait 2.5
+frame 2.4
+keys Down
+wait 0.7
+frame 1.2
+keys Down
+wait 0.7
+frame 1.2
+keys Tab
+wait 1
+frame 2.4

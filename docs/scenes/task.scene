@@ -1,0 +1,18 @@
+# A task gets its own git worktree, so agents never share a checkout.
+title lyna-tmux task rate-limit
+size 112 34
+pre lyna-tmux kill --all
+pre rm -rf .devcontainer
+pre lyna-tmux create . --layout duo --detach
+run lyna-tmux create .
+wait 3
+frame 1.2
+keys M-]
+type lyna-tmux task rate-limit "add a token bucket to the API gateway"
+enter
+wait 6
+frame 2.6
+type git worktree list
+enter
+wait 1.5
+frame 2.4

@@ -1,0 +1,23 @@
+#!/bin/sh
+# The shell the documentation recordings open their panes with.
+#
+# A recording is made in a real account, and the account's own shell draws the
+# account's own prompt: the pictures would carry a host name, a user name or a
+# theme nobody else has, and they would look different on every machine. This
+# shell reads no start-up file and sets the prompt itself. The prompt is set
+# here rather than inherited because a non-interactive shell unsets PS1, and
+# this script is one.
+#
+# tmux starts a pane shell as a login shell with no arguments, and runs a
+# command through it with -c; the arguments are passed straight on.
+PS1='$ '
+BASH_SILENCE_DEPRECATION_WARNING=1
+export PS1 BASH_SILENCE_DEPRECATION_WARNING
+
+bash=$(command -v bash 2>/dev/null)
+[ -n "$bash" ] || bash=/bin/bash
+
+if [ "$#" -gt 0 ]; then
+  exec "$bash" --noprofile --norc "$@"
+fi
+exec "$bash" --noprofile --norc -i

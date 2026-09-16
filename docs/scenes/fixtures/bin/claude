@@ -1,0 +1,95 @@
+#!/usr/bin/env python3
+"""A recording aid: the agent list of a machine that is not the recorder's.
+
+The agent picker shows every Claude agent on the machine, which for whoever
+records the documentation means their own work. With LYNA_TMUX_DEMO_AGENTS set,
+this wrapper answers `agents --json` with a fixed list instead, so the picture
+shows the tool rather than the account it was recorded in. Every other call,
+and every call without the variable, runs the real binary unchanged.
+"""
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+
+MARKER = "LYNA_TMUX_DEMO_AGENTS"
+
+
+def real_claude():
+    """The next claude on PATH after the directory this wrapper sits in."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    entries = [p for p in os.environ.get("PATH", "").split(os.pathsep) if p]
+    rest = [p for p in entries if os.path.abspath(p) != here]
+    found = shutil.which("claude", path=os.pathsep.join(rest))
+    if not found:
+        sys.stderr.write("claude: not found behind the recording wrapper\n")
+        raise SystemExit(127)
+    return found
+
+
+def workspace_agents(project):
+    """The real agents of the recorded project, which have real pane ids."""
+    try:
+        out = subprocess.run(
+            [real_claude(), "agents", "--json"],
+            capture_output=True, timeout=10, check=True,
+        ).stdout
+        records = json.loads(out or b"[]")
+    except (OSError, ValueError, subprocess.SubprocessError, SystemExit):
+        return []
+    project = os.path.realpath(project)
+    return [r for r in records if os.path.realpath(r.get("cwd", "")) == project]
+
+
+def fixture(project):
+    """The agents of a demo machine: three jobs beside the open workspace."""
+    now = int(time.time() * 1000)
+    minutes = 60 * 1000
+    return [
+        {
+            "id": "job_7d31",
+            "cwd": project,
+            "kind": "background",
+            "startedAt": now - 21 * minutes,
+            "name": "rate-limit-middleware",
+            "status": "waiting",
+            "waitingFor": "permission prompt",
+            "state": "running",
+        },
+        {
+            "id": "job_9a04",
+            "cwd": os.path.join(os.path.dirname(project), "acme-web"),
+            "kind": "background",
+            "startedAt": now - 48 * minutes,
+            "name": "flaky-test-hunt",
+            "status": "busy",
+            "state": "running",
+        },
+        {
+            "id": "job_2b77",
+            "cwd": os.path.join(os.path.dirname(project), "acme-docs"),
+            "kind": "background",
+            "startedAt": now - 3 * 60 * minutes,
+            "name": "docs-pass",
+            "status": "idle",
+            "state": "done",
+        },
+    ]
+
+
+def main(argv):
+    if os.environ.get(MARKER) and argv[1:3] == ["agents", "--json"]:
+        project = os.environ.get("LYNA_TMUX_DEMO_PROJECT") or os.getcwd()
+        json.dump(workspace_agents(project) + fixture(project), sys.stdout)
+        sys.stdout.write("\n")
+        return 0
+    binary = real_claude()
+    os.execv(binary, [binary] + argv[1:])
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv))

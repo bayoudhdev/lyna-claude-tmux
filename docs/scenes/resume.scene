@@ -1,0 +1,14 @@
+# Continuing a past conversation inside the workspace.
+title lyna-tmux resume
+size 112 34
+pre lyna-tmux kill --all
+pre rm -rf .devcontainer
+pre lyna-tmux create . --layout duo --detach
+run lyna-tmux create .
+wait 3
+frame 1.2
+keys M-]
+type lyna-tmux resume
+enter
+wait 4
+frame 2.8

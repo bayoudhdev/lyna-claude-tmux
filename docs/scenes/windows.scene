@@ -1,0 +1,19 @@
+# Windows: a new one, the number keys, and the tree of every workspace.
+title Alt+n opens a window, Alt+1 and Alt+2 switch, Alt+e is the tree
+size 112 34
+pre lyna-tmux kill --all
+pre rm -rf .devcontainer
+pre lyna-tmux create ../acme-web --layout duo --detach
+pre lyna-tmux create . --layout duo --detach
+run lyna-tmux create .
+wait 4
+frame 1.4
+keys M-n
+wait 2
+frame 1.8
+keys M-1
+wait 1.2
+frame 1.6
+keys M-e
+wait 2.5
+frame 3.5

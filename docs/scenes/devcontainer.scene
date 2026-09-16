@@ -1,0 +1,18 @@
+# Container isolation: the files lyna-tmux renders for the project.
+title lyna-tmux sandbox devcontainer init
+size 104 30
+env PS1=$\040
+env BASH_SILENCE_DEPRECATION_WARNING=1
+run bash --norc --noprofile -i
+wait 1
+type clear
+enter
+wait 0.5
+type lyna-tmux sandbox devcontainer init
+enter
+wait 2.5
+frame 3
+type clear; ls -la .devcontainer
+enter
+wait 1.5
+frame 3

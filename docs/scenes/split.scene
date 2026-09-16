@@ -1,0 +1,27 @@
+# Splitting and zooming a pane, all without the prefix key.
+title Alt+\ split right, Alt+- split down, Alt+z zoom
+size 112 34
+pre lyna-tmux kill --all
+pre rm -rf .devcontainer
+pre lyna-tmux create . --layout solo --detach
+run lyna-tmux create .
+wait 4
+frame 1.6
+keys M-\
+wait 1.8
+type git log --oneline -5
+enter
+wait 1.2
+frame 1.8
+keys M--
+wait 1.8
+type go test ./internal/ratelimit/
+enter
+wait 3
+frame 1.8
+keys M-z
+wait 1.5
+frame 1.8
+keys M-z
+wait 1.5
+frame 3

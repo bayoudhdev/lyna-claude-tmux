@@ -1,0 +1,14 @@
+# What uninstall removes, listed before anything is removed.
+title lyna-tmux uninstall
+size 104 30
+env PS1=$\040
+env BASH_SILENCE_DEPRECATION_WARNING=1
+run bash --norc --noprofile -i
+wait 1
+type clear
+enter
+wait 0.5
+type lyna-tmux uninstall
+enter
+wait 2.5
+frame 3.5

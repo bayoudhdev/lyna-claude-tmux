@@ -1,0 +1,14 @@
+# Using lyna-tmux from a tmux setup you already have.
+title lyna-tmux plugin tmux
+size 104 30
+env PS1=$\040
+env BASH_SILENCE_DEPRECATION_WARNING=1
+run bash --norc --noprofile -i
+wait 1
+type clear
+enter
+wait 0.5
+type lyna-tmux plugin tmux | head -22
+enter
+wait 1.5
+frame 3.5

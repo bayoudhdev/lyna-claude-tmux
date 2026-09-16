@@ -1,0 +1,13 @@
+# The live changes pane of the trio layout, refreshed as files change.
+title The live changes pane
+size 112 34
+pre lyna-tmux kill --all
+pre rm -rf .devcontainer
+pre lyna-tmux create . --layout trio --detach
+run lyna-tmux create .
+wait 4
+frame 1.4
+keys M-]
+keys M-]
+wait 1
+frame 2.4

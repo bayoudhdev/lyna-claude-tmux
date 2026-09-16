@@ -1,0 +1,21 @@
+# Reviewing the changes of the repository in a side-by-side diff.
+title Alt+g reviews the changes
+size 112 34
+pre lyna-tmux kill --all
+pre rm -rf .devcontainer
+pre lyna-tmux create . --layout trio --detach
+run lyna-tmux create .
+wait 4
+frame 1.2
+keys M-g
+wait 4
+frame 2.6
+keys j
+keys j
+keys j
+wait 1
+frame 2
+keys C-w
+keys l
+wait 1.2
+frame 3.5

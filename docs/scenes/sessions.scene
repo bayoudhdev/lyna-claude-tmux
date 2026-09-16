@@ -1,0 +1,25 @@
+# Listing and renaming workspaces.
+title lyna-tmux ls and rename
+size 104 30
+env PS1=$\040
+env BASH_SILENCE_DEPRECATION_WARNING=1
+pre lyna-tmux kill --all
+pre rm -rf .devcontainer
+pre lyna-tmux create ../acme-web --layout duo --detach
+pre lyna-tmux create . --layout trio --detach
+run bash --norc --noprofile -i
+wait 1
+type clear
+enter
+wait 0.5
+type lyna-tmux ls
+enter
+wait 2
+frame 2.6
+type lyna-tmux rename acme-api gateway
+enter
+wait 1.5
+type lyna-tmux ls
+enter
+wait 1.5
+frame 3.5

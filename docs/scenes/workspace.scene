@@ -1,0 +1,9 @@
+# The first picture of the README: one command opens the project.
+title lyna-tmux create ~/src/acme-api
+size 112 34
+pre lyna-tmux kill --all
+pre rm -rf .devcontainer
+run lyna-tmux create . --layout trio
+film 5 0.9
+wait 5
+frame 3

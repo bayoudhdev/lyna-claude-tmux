@@ -1,0 +1,21 @@
+# The configuration file: written documented, validated on demand.
+title lyna-tmux config
+size 104 30
+env PS1=$\040
+env BASH_SILENCE_DEPRECATION_WARNING=1
+run bash --norc --noprofile -i
+wait 1
+type clear
+enter
+wait 0.5
+type lyna-tmux config path
+enter
+wait 1.2
+type lyna-tmux config validate
+enter
+wait 1.5
+frame 2.6
+type clear; head -24 "$(lyna-tmux config path)"
+enter
+wait 1.5
+frame 3.5

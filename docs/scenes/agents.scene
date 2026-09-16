@@ -1,0 +1,32 @@
+# The agent picker: every Claude on the machine, with what it is doing.
+title Alt+a opens the agent picker
+env LYNA_TMUX_DEMO_AGENTS=1
+size 112 34
+pre lyna-tmux kill --all
+pre rm -rf .devcontainer
+pre lyna-tmux create . --layout trio --detach
+run lyna-tmux create .
+wait 4
+frame 1.2
+keys M-a
+wait 1.5
+frame 2.4
+keys Down
+wait 0.7
+frame 1.4
+keys Down
+wait 0.7
+frame 1.4
+keys Enter
+wait 1.5
+frame 1.6
+keys M-a
+wait 1.5
+frame 1.4
+# The picture keeps an agent that runs in a pane: its preview is the live
+# screen of that pane, which is what the picker is for.
+keys Down
+wait 0.6
+keys Down
+wait 1.4
+frame 2.6

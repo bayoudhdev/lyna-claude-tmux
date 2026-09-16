@@ -1,0 +1,19 @@
+# The wizard that writes the configuration file.
+title lyna-tmux setup
+size 104 30
+run lyna-tmux setup
+wait 2
+frame 2
+keys Down
+wait 0.6
+frame 1.2
+keys Enter
+wait 1
+frame 1.6
+keys Down
+keys Enter
+wait 1
+frame 1.6
+keys Enter
+wait 1
+frame 2.4
