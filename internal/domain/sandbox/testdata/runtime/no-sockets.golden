@@ -1,0 +1,43 @@
+{
+  "network": {
+    "allowedDomains": [
+      "api.anthropic.com",
+      "claude.ai",
+      "claude.com",
+      "platform.claude.com",
+      "downloads.claude.ai",
+      "github.com",
+      "api.github.com",
+      "codeload.github.com",
+      "objects.githubusercontent.com",
+      "raw.githubusercontent.com",
+      "registry.npmjs.org",
+      "registry.yarnpkg.com",
+      "*.internal.example.com"
+    ],
+    "deniedDomains": []
+  },
+  "filesystem": {
+    "denyRead": [
+      "/home/u/.ssh",
+      "/home/u/.aws",
+      "/home/u/.gnupg",
+      "/home/u/.config/gh",
+      "/home/u/.netrc",
+      "/home/u/.docker/config.json",
+      "/home/u/.kube",
+      "/home/u/.npmrc",
+      "/home/u/.pypirc",
+      "/home/u/.config/gcloud",
+      "/home/u/.azure",
+      "/home/u/.git-credentials",
+      "/home/u/Documents"
+    ],
+    "allowWrite": [
+      "/p",
+      "/tmp/build",
+      "/home/u/src/api"
+    ],
+    "denyWrite": []
+  }
+}

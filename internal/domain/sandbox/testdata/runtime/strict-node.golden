@@ -1,0 +1,48 @@
+{
+  "network": {
+    "allowedDomains": [
+      "api.anthropic.com",
+      "claude.ai",
+      "claude.com",
+      "platform.claude.com",
+      "downloads.claude.ai",
+      "github.com",
+      "api.github.com",
+      "codeload.github.com",
+      "objects.githubusercontent.com",
+      "raw.githubusercontent.com",
+      "registry.npmjs.org",
+      "registry.yarnpkg.com",
+      "*.internal.example.com"
+    ],
+    "deniedDomains": [],
+    "allowUnixSockets": [
+      "/private/tmp/tmux-501/lyna-tmux"
+    ]
+  },
+  "filesystem": {
+    "denyRead": [
+      "/home/u/.ssh",
+      "/home/u/.aws",
+      "/home/u/.gnupg",
+      "/home/u/.config/gh",
+      "/home/u/.netrc",
+      "/home/u/.docker/config.json",
+      "/home/u/.kube",
+      "/home/u/.npmrc",
+      "/home/u/.pypirc",
+      "/home/u/.config/gcloud",
+      "/home/u/.azure",
+      "/home/u/.git-credentials",
+      "/home/u/Documents"
+    ],
+    "allowWrite": [
+      "/home/u/src/api",
+      "/home/u/.claude",
+      "/home/u/.claude.json",
+      "/home/u/.local/state/lyna-tmux",
+      "/tmp/build"
+    ],
+    "denyWrite": []
+  }
+}
