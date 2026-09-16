@@ -72,10 +72,44 @@ func (e *cliEnv) run(t *testing.T, args ...string) (code int, stdout, stderr str
 }
 
 // containsFolded matches an error message the way fang prints it: first
-// letter capitalized, a trailing period, padded and wrapped lines.
+// letter capitalized, a trailing period, and lines padded then wrapped to the
+// terminal. A message holding a path longer than the terminal is wrapped at
+// the width rather than between words, which cuts whatever follows the path
+// wherever the line ends, "--name" included. Every space therefore goes,
+// rather than runs of them becoming one.
 func containsFolded(s, sub string) bool {
-	fold := func(x string) string { return strings.ToLower(strings.Join(strings.Fields(x), " ")) }
+	fold := func(x string) string { return strings.ToLower(strings.Join(strings.Fields(x), "")) }
 	return strings.Contains(fold(s), fold(sub))
+}
+
+func TestContainsFolded(t *testing.T) {
+	// The wrapped message is what a run on a temporary directory long enough
+	// to fill the line printed; the word "--name" lost its second character to
+	// the line end.
+	wrapped := "       ERROR  \n" +
+		"              Workspace name is taken: api is used by the workspace of\n" +
+		"              /private/var/folders/20/jp1_0n3n7kndh6rnbqb5344m0000gn/T/TestCreateCLI63206629/001/src/api; pick another name with -\n" +
+		"              -name.\n"
+	cases := []struct {
+		name string
+		s    string
+		sub  string
+		want bool
+	}{
+		{name: "plain", s: "workspace name is taken", sub: "name is taken", want: true},
+		{name: "capitalized and ended by fang", s: "Workspace name is taken.", sub: "workspace name is taken", want: true},
+		{name: "padded and wrapped between words", s: "  unknown\n  command\n", sub: "unknown command", want: true},
+		{name: "wrapped inside a word", s: wrapped, sub: "--name", want: true},
+		{name: "the message itself", s: wrapped, sub: "workspace name is taken", want: true},
+		{name: "another message", s: wrapped, sub: "profile must be one of", want: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := containsFolded(tc.s, tc.sub); got != tc.want {
+				t.Fatalf("containsFolded(_, %q) = %v, want %v", tc.sub, got, tc.want)
+			}
+		})
+	}
 }
 
 func (e *cliEnv) start(t *testing.T, name, project string) {
