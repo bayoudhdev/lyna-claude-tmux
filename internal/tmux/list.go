@@ -13,6 +13,25 @@ import (
 // field count does not match is skipped rather than misparsed.
 const fieldSep = "\x1f"
 
+// escapedFieldSep is the separator as tmux 3.4 prints it. That version writes
+// a control character as its octal escape whatever the client says about
+// UTF-8, where the versions on either side of it pass the byte through.
+// Nothing else of a reply changes there: a tab, a backslash and an accent all
+// arrive as themselves, so the escape carries no meaning of its own and a
+// reply is read by putting the separator back.
+const escapedFieldSep = `\037`
+
+// SplitFields splits one line of a reply into the fields a format asked for.
+func SplitFields(line string) []string {
+	if strings.Contains(line, escapedFieldSep) {
+		line = strings.ReplaceAll(line, escapedFieldSep, fieldSep)
+	}
+	return strings.Split(line, fieldSep)
+}
+
+// FieldSep joins the fields of a format whose reply SplitFields reads.
+func FieldSep(fields ...string) string { return strings.Join(fields, fieldSep) }
+
 // Session is one row of list-sessions.
 type Session struct {
 	ID       string
@@ -56,7 +75,7 @@ func (c *Client) ListSessions(ctx context.Context) ([]Session, error) {
 func parseSessions(out string) []Session {
 	var sessions []Session
 	for _, line := range splitLines(out) {
-		f := strings.Split(line, fieldSep)
+		f := SplitFields(line)
 		if len(f) != len(sessionFields) {
 			continue
 		}
@@ -149,7 +168,7 @@ func (c *Client) ListPanes(ctx context.Context, target string) ([]Pane, error) {
 func parsePanes(out string) []Pane {
 	var panes []Pane
 	for _, line := range splitLines(out) {
-		f := strings.Split(line, fieldSep)
+		f := SplitFields(line)
 		if len(f) != len(paneFields) {
 			continue
 		}

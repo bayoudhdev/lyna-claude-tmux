@@ -46,7 +46,7 @@ func (c *Client) ReadPluginOptions(ctx context.Context) (PluginUserOptions, erro
 	if err != nil {
 		return PluginUserOptions{}, err
 	}
-	f := strings.Split(values, fieldSep)
+	f := SplitFields(values)
 	if len(f) != len(pluginOptionNames) {
 		return PluginUserOptions{}, nil
 	}

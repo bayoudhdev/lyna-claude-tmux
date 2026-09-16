@@ -256,7 +256,7 @@ func paneOptions(target string, role layout.Role, p PaneProcess) []Command {
 }
 
 func parseCreated(out string) (Built, bool) {
-	f := strings.Split(strings.TrimSpace(out), fieldSep)
+	f := SplitFields(strings.TrimSpace(out))
 	if len(f) != len(createdFields) || !strings.HasPrefix(f[0], "$") || !strings.HasPrefix(f[1], "@") || !isPaneID(f[2]) {
 		return Built{}, false
 	}

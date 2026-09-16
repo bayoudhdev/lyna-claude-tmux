@@ -53,7 +53,7 @@ func (c *Client) DescribePane(ctx context.Context, target string) (PaneContext, 
 	if err != nil {
 		return PaneContext{}, err
 	}
-	f := strings.Split(out, fieldSep)
+	f := SplitFields(out)
 	// display-message does not fail on a missing target: it expands the
 	// format without one, so every field comes back empty.
 	if len(f) == len(paneContextFields) && f[0] == "" {
@@ -80,8 +80,8 @@ func (c *Client) FindWindow(ctx context.Context, sessionName, name string) (stri
 		return "", false, err
 	}
 	for _, line := range splitLines(out) {
-		if id, window, ok := strings.Cut(line, fieldSep); ok && window == name && validWindowID(id) {
-			return id, true, nil
+		if f := SplitFields(line); len(f) == 2 && f[1] == name && validWindowID(f[0]) {
+			return f[0], true, nil
 		}
 	}
 	return "", false, nil

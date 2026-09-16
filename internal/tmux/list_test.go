@@ -10,6 +10,55 @@ import (
 
 func row(fields ...string) string { return strings.Join(fields, fieldSep) }
 
+// escapedRow is a row as tmux 3.4 prints it: the separator comes back as the
+// four characters of its octal escape.
+func escapedRow(fields ...string) string { return strings.Join(fields, escapedFieldSep) }
+
+func TestSplitFields(t *testing.T) {
+	cases := []struct {
+		name string
+		line string
+		want []string
+	}{
+		{name: "the separator itself", line: row("$1", "api"), want: []string{"$1", "api"}},
+		{name: "the separator escaped", line: escapedRow("$1", "api"), want: []string{"$1", "api"}},
+		{name: "both in one line", line: "$1" + fieldSep + "api" + escapedFieldSep + "duo", want: []string{"$1", "api", "duo"}},
+		{name: "no separator", line: "$1", want: []string{"$1"}},
+		{name: "empty fields", line: row("", ""), want: []string{"", ""}},
+		{name: "nothing", line: "", want: []string{""}},
+		// The escape is put back wherever it is; a backslash of a path that
+		// starts something else is left alone.
+		{name: "a backslash that is not the escape", line: row(`/work/a\b`, `\03`), want: []string{`/work/a\b`, `\03`}},
+		{name: "a path holding the escape", line: escapedRow(`/work/a`, `b`), want: []string{"/work/a", "b"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := SplitFields(tc.line); !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("SplitFields(%q) = %q, want %q", tc.line, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestFieldSep(t *testing.T) {
+	if got := FieldSep("#{pane_id}", "#{session_id}"); got != "#{pane_id}"+fieldSep+"#{session_id}" {
+		t.Fatalf("FieldSep() = %q", got)
+	}
+	if got := FieldSep("#{pane_id}"); got != "#{pane_id}" {
+		t.Fatalf("FieldSep() of one field = %q", got)
+	}
+}
+
+// TestParsePanesEscapedReply reads a reply from the tmux version that prints
+// the separator as an octal escape: every row must still parse.
+func TestParsePanesEscapedReply(t *testing.T) {
+	fields := []string{"%3", "$1", "api", "@2", "1", "claude", "0", "/dev/ttys004", "4242", "/work/api", "claude", "Claude", "1", "1", "0", "120", "40", "claude", "waiting"}
+	got := parsePanes(escapedRow(fields...) + "\n")
+	if len(got) != 1 || got[0].ID != "%3" || got[0].SessionName != "api" || got[0].State != "waiting" {
+		t.Fatalf("parsePanes() = %+v", got)
+	}
+}
+
 func TestParseSessions(t *testing.T) {
 	out := strings.Join([]string{
 		row("$1", "api", "3", "1", "1757930000", "/work/api", "1", "/work/api", "strict", "duo"),
