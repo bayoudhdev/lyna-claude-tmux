@@ -66,19 +66,48 @@ local function revision(rev)
   return rev
 end
 
-function _G.lyna_tmux_review_label(name)
+-- A review splits the window three ways, so a label often has fewer columns
+-- than it needs. Neovim would cut it at the front, which turns README.md into
+-- <ADME.md: the shorter forms below are tried in order instead. The room is
+-- what the window being drawn has left once the marker and the ruler on the
+-- other side of the line have taken theirs.
+local ruler = 16
+
+local function fit(forms, measure)
+  if not measure then
+    return forms[1]
+  end
+  -- Neovim draws a status line with its own window current, so this is the
+  -- width of that window and not of the one the cursor is in.
+  local width = vim.fn.winwidth(0)
+  if width <= 0 then
+    return forms[1]
+  end
+  local room = width - ruler
+  for _, form in ipairs(forms) do
+    if vim.fn.strdisplaywidth(form) <= room then
+      return form
+    end
+  end
+  return forms[#forms]
+end
+
+-- measure is set by the status line, which is drawn in one window and has its
+-- width to respect. The tab line spans the whole editor and passes nothing.
+function _G.lyna_tmux_review_label(name, measure)
   if not name or name == "" then
     return "[no name]"
   end
   local rev, file = name:match("^codediff:///.-///([^/]+)/(.+)$")
   if file then
-    return file .. "  @ " .. revision(rev)
+    return fit({ file .. "  @ " .. revision(rev), file, vim.fn.fnamemodify(file, ":t") }, measure)
   end
   local panel = name:match("^CodeDiff (%a+) %[%d+%]$")
   if panel then
     return panel
   end
-  return vim.fn.fnamemodify(name, ":~:.")
+  local short = vim.fn.fnamemodify(name, ":~:.")
+  return fit({ short, vim.fn.fnamemodify(short, ":t") }, measure)
 end
 
 function _G.lyna_tmux_review_tabline()
@@ -103,7 +132,7 @@ vim.o.tabline = "%!v:lua.lyna_tmux_review_tabline()"
 -- them are; only unsaved work in the file under review is worth a marker. The
 -- space before it is its own item because Neovim drops the leading space of an
 -- expression that follows another one.
-vim.o.statusline = " %{v:lua.lyna_tmux_review_label(bufname())} %{&modified ? '[+]' : ''}%=%l:%c  %P "
+vim.o.statusline = " %{v:lua.lyna_tmux_review_label(bufname(), 1)} %{&modified ? '[+]' : ''}%=%l:%c  %P "
 
 -- codediff.nvim opens its review in a new tab, which leaves the empty buffer
 -- Neovim starts with in a tab of its own. Closing it gives the review the whole

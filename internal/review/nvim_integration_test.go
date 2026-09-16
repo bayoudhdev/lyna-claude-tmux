@@ -376,6 +376,12 @@ type chromeResult struct {
 	Modified     string `json:"modified"`
 	Tabline      string `json:"tabline"`
 	Tabs         int    `json:"tabs"`
+	// Half and Third are the status lines of a window split in two and in
+	// three, with the width each one was drawn at.
+	Half       string `json:"half"`
+	HalfWidth  int    `json:"half_width"`
+	Third      string `json:"third"`
+	ThirdWidth int    `json:"third_width"`
 }
 
 // TestNeovimReviewChrome checks the status and tab lines of the isolated
@@ -439,6 +445,19 @@ vim.api.nvim_buf_set_name(edited, "notes.md")
 vim.api.nvim_win_set_buf(0, edited)
 vim.api.nvim_buf_set_lines(0, 0, -1, false, { "edited" })
 result.modified = vim.api.nvim_eval_statusline(vim.o.statusline, { winid = vim.api.nvim_get_current_win(), maxwidth = 80 }).str
+-- A review splits the window, so the status line of each side has to give up
+-- what does not fit rather than let Neovim cut the name at the front.
+local function split(splits, name)
+  vim.cmd("tabnew")
+  for _ = 1, splits do
+    vim.cmd("vsplit")
+  end
+  show(name)
+  local width = vim.api.nvim_win_get_width(0)
+  return width, vim.api.nvim_eval_statusline(vim.o.statusline, { winid = vim.api.nvim_get_current_win(), maxwidth = width }).str
+end
+result.half_width, result.half = split(1, "codediff:////src/api///8a1b2c3d4e5f6a7b/internal/api/server.go")
+result.third_width, result.third = split(2, "codediff:////src/api///1234567890abcdef/internal/api/server.go")
 local f = assert(io.open(` + domain.LuaString(out) + `, "w"))
 f:write(vim.json.encode(result))
 f:close()
@@ -483,6 +502,32 @@ f:close()
 		}
 		if !strings.HasPrefix(got.Modified, " notes.md [+] ") {
 			t.Errorf("status line of a changed buffer = %q", got.Modified)
+		}
+	})
+	t.Run("a narrow window gives up what does not fit", func(t *testing.T) {
+		// Half of the editor holds the path but not the revision, a third of it
+		// holds the name of the file alone. Neither may be cut at the front,
+		// which is what the "<" of Neovim's own shortening would leave.
+		for _, tc := range []struct {
+			name  string
+			line  string
+			width int
+			want  string
+		}{
+			{name: "half", line: got.Half, width: got.HalfWidth, want: " internal/api/server.go "},
+			{name: "a third", line: got.Third, width: got.ThirdWidth, want: " server.go "},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				if tc.width <= 0 || tc.width >= 80 {
+					t.Fatalf("the window was %d columns wide, which is not a split", tc.width)
+				}
+				if !strings.HasPrefix(tc.line, tc.want) {
+					t.Errorf("status line of a %d column window = %q, want it to start with %q", tc.width, tc.line, tc.want)
+				}
+				if strings.Contains(tc.line, "<") {
+					t.Errorf("status line of a %d column window was cut at the front: %q", tc.width, tc.line)
+				}
+			})
 		}
 	})
 	t.Run("the tab line names every tab", func(t *testing.T) {
