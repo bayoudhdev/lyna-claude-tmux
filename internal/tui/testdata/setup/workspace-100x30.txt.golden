@@ -1,0 +1,30 @@
+ λ setup
+ theme                       icons ● ◆ ○ ⎇ ▣ ±
+
+  2/5  Workspace
+  ┃ Default layout
+  ┃   solo   Claude only
+  ┃   duo    Claude and a shell
+  ┃   trio   Claude, a shell and live changes
+  ┃   quad   four Claude agents in their own worktrees
+  ┃   review Claude beside a review pane
+  ┃ > auto   chosen from the terminal size
+
+    Alt keys
+    Alt+key bindings that need no prefix (terminals must send Option as Meta)
+
+                                   On     Off
+
+    Mouse
+    click panes, tabs and status buttons; scroll with the wheel
+
+                            On     Off
+
+
+
+
+
+
+
+
+ enter next  shift+tab back  ctrl+c cancel

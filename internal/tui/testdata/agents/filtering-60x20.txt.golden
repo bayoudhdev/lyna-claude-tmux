@@ -1,0 +1,20 @@
+ λ agents  ◆ 1 waiting  ○ 1 idle  ● 1 busy  · 1 unknown
+▌○ idle    docs sweep                    job done         2d
+ ● busy    web                           web:0 main       3h
+
+─ preview ──────────────────────────────────────────────────
+ background agent without a pane: enter attaches to it
+
+
+
+
+
+
+
+
+
+
+
+
+
+ / we_  enter apply  esc clear

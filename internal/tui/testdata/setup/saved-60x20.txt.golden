@@ -1,0 +1,20 @@
+ λ setup
+
+ saving 5 changes
+   ui.theme: lyna -> light
+   ui.icons: auto -> ascii
+   ui.color: auto -> 256
+   workspace.layout: auto -> review
+   ui.alt_keys: true -> false
+
+
+
+
+
+
+
+
+
+
+
+

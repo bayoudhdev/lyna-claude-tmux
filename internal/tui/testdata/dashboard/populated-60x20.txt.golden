@@ -1,0 +1,20 @@
+ λ lyna-tmux  5 sessions  1 attached
+   SESSION               WIN PROJECT
+ ○ api                     3 ~/src/api
+▌  web                     2 ~/src/web
+   scratch                 1 /tmp/scratch
+   a-very-long-session…   12
+   misc                    1 ~
+
+
+
+
+
+
+
+─ agents ───────────────────────────────────────────────────
+ ◆ waiting api-refactor               api:1 claude
+ ○ idle    docs sweep                 job done
+ ● busy    web                        web:0 main
+ · ?       tools                      /srv/tools
+ enter attach  n new  x kill  a agents  s setup  r refresh …

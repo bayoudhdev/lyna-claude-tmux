@@ -1,0 +1,30 @@
+ λ lyna-tmux
+   SESSION               WIN LAYOUT   SANDBOX     PROJECT
+ could not list sessions: no server running on /tmp/tmux-501/lyna
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+─ agents ───────────────────────────────────────────────────────────────────────────────────────────
+ could not list agents: claude: executable file not found in $PATH
+ enter attach  n new  x kill  a agents  s setup  r refresh  q quit

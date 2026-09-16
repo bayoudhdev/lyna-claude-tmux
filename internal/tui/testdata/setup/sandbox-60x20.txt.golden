@@ -1,0 +1,20 @@
+ λ setup
+ theme                       icons ● ◆ ○ ⎇ ▣ ±
+
+  4/5  Sandbox
+  ┃ Sandbox profile
+  ┃ > standard  sandboxed Bash, credentials denied
+  ┃   strict    adds a network allowlist, no escape hatch
+  ┃   off       no sandbox (a red shield)
+
+    Isolation
+      bash        only the Bash tool is sandboxed
+      process     the whole Claude process
+      container   everything in a dev container
+
+
+
+
+
+
+ enter next  shift+tab back  ctrl+c cancel

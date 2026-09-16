@@ -1,0 +1,20 @@
+ λ agents  ◆ 1 waiting  ○ 1 idle  ● 1 busy  · 1 unknown
+▌◆ waiting api-refactor approve Bash: g… api:1 claude    42m
+ ○ idle    docs sweep                    job done         2d
+ ● busy    web                           web:0 main       3h
+ · ?       tools                         /srv/tools      20s
+─ preview api:1 %3 ─────────────────────────────────────────
+✻ Welcome back
+
+> run the api tests
+  Bash(go test ./...)
+  Do you want to proceed?
+  1. Yes
+  2. No
+
+
+
+
+
+
+ jump failed: pane %3 is gone

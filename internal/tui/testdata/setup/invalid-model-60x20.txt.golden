@@ -1,0 +1,20 @@
+ λ setup
+ theme                       icons ● ◆ ○ ⎇ ▣ ±
+
+  3/5  Claude
+  ┃ Model
+  ┃ model alias or id; leave empty to let Claude decide
+  ┃ > bad model!
+
+    Effort
+      default     let Claude decide
+      low         quickest answers
+      medium      balanced
+      high        more reasoning on hard steps
+      xhigh       extended reasoning
+      max         the most reasoning per step
+      ultracode   long autonomous coding runs
+
+   * must be a model alias or id such as opus or claude-
+  opus-5 (got "bad model!")
+ enter next  shift+tab back  ctrl+c cancel

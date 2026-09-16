@@ -1,0 +1,30 @@
+ λ lyna-tmux  0 sessions
+   SESSION               WIN LAYOUT   SANDBOX     PROJECT
+                                no sessions on the lyna-tmux server
+                                    press n to open a workspace
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+─ agents ───────────────────────────────────────────────────────────────────────────────────────────
+ no Claude agents running
+ enter attach  n new  x kill  a agents  s setup  r refresh  q quit

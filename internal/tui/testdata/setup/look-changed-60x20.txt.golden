@@ -1,0 +1,20 @@
+ λ setup
+ theme                       icons * ! o @ # ~
+
+  1/5  Look
+
+  ┃ Icons
+  ┃   auto      unicode on UTF-8 locales, ascii otherwise
+  ┃   unicode   one-cell symbols that draw in common fonts
+  ┃   nerd      glyphs from a patched icon font
+  ┃ > ascii     plain characters only
+
+    Color depth
+      auto        detected from COLORTERM and TERM
+      truecolor   24-bit color
+      256         the xterm 256-color palette
+      16          the basic terminal palette
+
+
+
+ enter next  shift+tab back  ctrl+c cancel

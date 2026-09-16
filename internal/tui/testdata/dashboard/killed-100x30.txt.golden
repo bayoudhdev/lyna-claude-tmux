@@ -1,0 +1,30 @@
+ λ lyna-tmux  5 sessions  1 attached
+   SESSION               WIN LAYOUT   SANDBOX     PROJECT
+▌○ api                     3 trio     ▣ standard  ~/src/api
+   web                     2 duo      ▣ strict    ~/src/web
+   scratch                 1 solo     ▢ OFF       /tmp/scratch
+   a-very-long-session…   12 quad     -
+   misc                    1 -        -           ~
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+─ agents ───────────────────────────────────────────────────────────────────────────────────────────
+ ◆ waiting api-refactor                                             api:1 claude
+ ○ idle    docs sweep                                               job done
+ ● busy    web                                                      web:0 main
+ · ?       tools                                                    /srv/tools
+ killed session api

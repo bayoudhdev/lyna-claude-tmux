@@ -1,0 +1,30 @@
+ λ agents  ◆ 1 waiting  ○ 1 idle  ● 1 busy  · 1 unknown
+ ◆ waiting api-refactor approve Bash: go test ./...           api:1 claude             lyna      42m
+ ○ idle    docs sweep                                         job done                 bg         2d
+▌● busy    web                                                web:0 main               pane       3h
+ · ?       tools                                              /srv/tools               outside   20s
+─ preview web:0 %7 ─────────────────────────────────────────────────────────────────────────────────
+$ npm run dev
+  ready in 312 ms
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ enter jump  ctrl+x kill  / filter  r refresh  q quit

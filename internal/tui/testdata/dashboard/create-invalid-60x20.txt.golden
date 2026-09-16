@@ -1,0 +1,20 @@
+ λ lyna-tmux  5 sessions  1 attached          new workspace
+
+  New workspace
+  ┃ Directory
+  ┃ project to open; an existing workspace for it is
+  ┃ reused
+  ┃ >
+
+    Layout
+      solo
+      duo
+      trio
+      quad
+      review
+      auto
+
+
+   * a directory is required
+
+ enter next  shift+tab back  esc cancel

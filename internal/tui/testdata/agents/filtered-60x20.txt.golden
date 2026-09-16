@@ -1,0 +1,20 @@
+ λ agents  ◆1 ○1 ●1 ·1                          filter: web
+▌● busy    web                           web:0 main       3h
+
+
+─ preview web:0 %7 ─────────────────────────────────────────
+$ npm run dev
+  ready in 312 ms
+
+
+
+
+
+
+
+
+
+
+
+
+ enter jump  ctrl+x kill  / filter  r refresh  q quit

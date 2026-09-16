@@ -1,0 +1,30 @@
+ λ setup
+ theme                       icons ● ◆ ○ ⎇ ▣ ±
+
+  3/5  Claude
+  ┃ Model
+  ┃ model alias or id; leave empty to let Claude decide
+  ┃ > opus
+
+    Effort
+      default     let Claude decide
+      low         quickest answers
+      medium      balanced
+      high        more reasoning on hard steps
+      xhigh       extended reasoning
+      max         the most reasoning per step
+      ultracode   long autonomous coding runs
+
+    Status line
+      auto   lyna status line unless you configured your own
+      lyna   always the lyna status line
+      off    no status line from lyna-tmux
+
+
+
+
+
+
+
+
+ enter next  shift+tab back  ctrl+c cancel

@@ -1,0 +1,20 @@
+ λ lyna-tmux
+   SESSION               WIN PROJECT
+                      listing sessions
+
+
+
+
+
+
+
+
+
+
+
+
+
+─ agents ───────────────────────────────────────────────────
+ ◆ waiting api-refactor               api:1 claude
+ ● busy    web                        web:0 main
+ enter attach  n new  x kill  a agents  s setup  r refresh …
