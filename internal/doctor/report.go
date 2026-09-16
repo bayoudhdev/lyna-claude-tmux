@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/sanitize"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/termx"
 )
 
 // Summary counts results by status.
@@ -84,7 +85,7 @@ func WriteText(w io.Writer, r Report, termWidth int) error {
 		pad := strings.Repeat(" ", titles-utf8.RuneCountInString(title))
 		row := fmt.Sprintf("%-4s  %s%s", sanitize.Line(string(res.Status)), title, pad)
 		indent := strings.Repeat(" ", 6+titles)
-		for i, line := range wrapLines(cleanLines(res.Detail), room) {
+		for i, line := range termx.WrapLines(cleanLines(res.Detail), room) {
 			if i == 0 {
 				row += "  " + line
 				continue
@@ -96,7 +97,7 @@ func WriteText(w io.Writer, r Report, termWidth int) error {
 		if res.Fix != "" && res.Status != StatusOK && res.Status != StatusSkip {
 			fix := cleanLines(res.Fix)
 			if len(fix) == 1 {
-				fix = wrap(fix[0], room-len("fix:  "))
+				fix = termx.Wrap(fix[0], room-len("fix:  "))
 			}
 			for i, line := range fix {
 				label := "      "
@@ -116,39 +117,6 @@ func WriteText(w io.Writer, r Report, termWidth int) error {
 	fmt.Fprintf(&b, "\n%d ok, %d warn, %d fail, %d skipped\n", s.OK, s.Warn, s.Fail, s.Skip)
 	_, err := io.WriteString(w, b.String())
 	return err
-}
-
-// wrapLines wraps every line of a detail to limit.
-func wrapLines(lines []string, limit int) []string {
-	out := make([]string, 0, len(lines))
-	for _, line := range lines {
-		out = append(out, wrap(line, limit)...)
-	}
-	return out
-}
-
-// wrap breaks s on spaces so that no line it returns is longer than limit,
-// keeping the indentation of s on each of them. A word of its own longer than
-// limit, a path or a URL, is kept whole rather than cut in two. A limit of
-// zero or less leaves s alone.
-func wrap(s string, limit int) []string {
-	words := strings.Fields(s)
-	if limit <= 0 || len(words) == 0 {
-		return []string{s}
-	}
-	indent := s[:len(s)-len(strings.TrimLeft(s, " "))]
-	var lines []string
-	line, length := indent+words[0], utf8.RuneCountInString(indent+words[0])
-	for _, word := range words[1:] {
-		n := utf8.RuneCountInString(word)
-		if length+1+n > limit {
-			lines = append(lines, line)
-			line, length = indent+word, utf8.RuneCountInString(indent)+n
-			continue
-		}
-		line, length = line+" "+word, length+1+n
-	}
-	return append(lines, line)
 }
 
 // cleanLines splits s into sanitized lines, keeping indentation so multi-line
