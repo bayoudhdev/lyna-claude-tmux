@@ -57,7 +57,7 @@ func newDocsEnv(t *testing.T, scenes map[string]string) docsEnv {
 		record:  filepath.Join(root, "bin", "record.sh"),
 		log:     filepath.Join(root, "calls.log"),
 	}
-	for _, dir := range []string{e.bin, e.scenes, e.assets, e.project, filepath.Join(e.scenes, "fixtures", "bin")} {
+	for _, dir := range []string{e.bin, e.scenes, e.assets, e.project, filepath.Join(e.scenes, "fixtures", "bin"), filepath.Join(e.scenes, "bin")} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -254,7 +254,7 @@ func TestRecordDocsShell(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			e := newDocsEnv(t, map[string]string{"doctor": "frames: 1\n"})
-			shell := filepath.Join(e.scenes, "fixtures", "bin", "shell")
+			shell := filepath.Join(e.scenes, "bin", "demo-shell")
 			want := accountShell
 			if tc.fixture {
 				writeExecutable(t, shell, "#!/bin/sh\nexit 0\n")

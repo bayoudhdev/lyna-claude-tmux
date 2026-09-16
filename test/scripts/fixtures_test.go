@@ -173,13 +173,15 @@ func TestFixtureClaudeIsValidJSON(t *testing.T) {
 	}
 }
 
-// fixtureShell is the shell the recordings open their panes with.
-func fixtureShell(t *testing.T) string {
+// demoShell is the shell the recordings open their panes with. It sits next
+// to the scenes rather than under the fixtures, because a scene that opts out
+// of the fixtures still opens its panes with it.
+func demoShell(t *testing.T) string {
 	t.Helper()
 	if runtime.GOOS == "windows" {
 		t.Skip("the recording fixtures need a POSIX host")
 	}
-	return filepath.Join(repoRoot(t), "docs", "scenes", "fixtures", "bin", "shell")
+	return filepath.Join(repoRoot(t), "docs", "scenes", "bin", "demo-shell")
 }
 
 // startupHome is a home directory whose start-up files would change what a
@@ -195,11 +197,11 @@ func startupHome(t *testing.T) string {
 	return home
 }
 
-// TestFixtureShell covers the command form of the shell a recorded pane runs:
+// TestDemoShell covers the command form of the shell a recorded pane runs:
 // tmux hands the command of a session to it with -c, and what comes back must
 // be what the scene asked for, not what the account's own setup prints.
-func TestFixtureShell(t *testing.T) {
-	sh := fixtureShell(t)
+func TestDemoShell(t *testing.T) {
+	sh := demoShell(t)
 	info, err := os.Stat(sh)
 	if err != nil {
 		t.Fatal(err)
@@ -236,12 +238,12 @@ func TestFixtureShell(t *testing.T) {
 	}
 }
 
-// TestFixtureShellPrompt starts the fixture shell the way tmux starts a pane
+// TestDemoShellPrompt starts the fixture shell the way tmux starts a pane
 // shell, with no argument at all, and reads the prompt off the screen. That
 // is the form that draws a prompt and reads start-up files, so it is the one
 // that decides what the recordings show.
-func TestFixtureShellPrompt(t *testing.T) {
-	sh := fixtureShell(t)
+func TestDemoShellPrompt(t *testing.T) {
+	sh := demoShell(t)
 	home := startupHome(t)
 	srv := tmuxtest.Start(t)
 	ctx := tmuxtest.Context(t)

@@ -82,6 +82,12 @@ command -v lyna-tmux >/dev/null 2>&1 || fail "lyna-tmux is not on PATH; build it
 # A scene that prints the path of the Claude binary would print the fixture
 # instead of a real installation, so such a scene opts out with a
 # "# fixtures: off" line and runs against the machine's own PATH.
+# The recording shell comes before the fixtures, so a scene that opts out of
+# them still opens its panes with it.
+if [[ -d $scenes/bin ]]; then
+  PATH=$scenes/bin:$PATH
+  export PATH
+fi
 machine_path=$PATH
 if [[ -d $scenes/fixtures/bin ]]; then
   PATH=$scenes/fixtures/bin:$PATH
@@ -90,9 +96,9 @@ fi
 # Every pane the scenes open runs this shell rather than the account's own,
 # which would draw its own prompt into the pictures. tmux takes the shell of a
 # new pane from SHELL, and hands it down to the workspace tmux server a scene
-# starts.
-if [[ -x $scenes/fixtures/bin/shell ]]; then
-  SHELL=$scenes/fixtures/bin/shell
+# starts; a scene that opens a shell of its own runs it by name, as demo-shell.
+if [[ -x $scenes/bin/demo-shell ]]; then
+  SHELL=$scenes/bin/demo-shell
   export SHELL
 fi
 
