@@ -127,7 +127,11 @@ func doctorReviewResult(editor domain.EditorMode, r review.Report) doctor.Result
 	default:
 		commit := r.Commit[:min(doctorShortCommit, len(r.Commit))]
 		res.Status = doctor.StatusOK
-		res.Detail = fmt.Sprintf("codediff.nvim %s (commit %s), %d native files match their checksums; Neovim %s", r.Version, commit, len(r.Assets), r.NvimVersion)
+		files := fmt.Sprintf("%d native files match their checksums", len(r.Assets))
+		if len(r.Assets) == 1 {
+			files = "its native file matches its checksum"
+		}
+		res.Detail = fmt.Sprintf("codediff.nvim %s (commit %s), %s; Neovim %s", r.Version, commit, files, r.NvimVersion)
 		if w := r.Warnings(); len(w) > 0 {
 			res.Status, res.Detail = doctor.StatusWarn, res.Detail+"\n"+strings.Join(w, "\n")
 		}

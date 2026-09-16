@@ -201,7 +201,10 @@ func TestDoctorReviewResult(t *testing.T) {
 		wantFix    string
 		detailHas  string
 	}{
-		{name: "verified", editor: domain.EditorIsolated, report: good, wantStatus: doctor.StatusOK, detailHas: "codediff.nvim 2.1.0 (commit 0123456789ab), 1 native files match their checksums; Neovim v0.11.2"},
+		{name: "verified", editor: domain.EditorIsolated, report: good, wantStatus: doctor.StatusOK, detailHas: "codediff.nvim 2.1.0 (commit 0123456789ab), its native file matches its checksum; Neovim v0.11.2"},
+		{name: "verified with several native files", editor: domain.EditorIsolated, report: with(func(r *review.Report) {
+			r.Assets = append(r.Assets, review.AssetStatus{File: "libvscode_diff.so", Present: true, ChecksumOK: true})
+		}), wantStatus: doctor.StatusOK, detailHas: "2 native files match their checksums"},
 		{name: "not installed", editor: domain.EditorIsolated, report: with(func(r *review.Report) { r.Installed, r.Assets = false, nil }), wantStatus: doctor.StatusWarn, wantFix: "lyna-tmux review install", detailHas: "not installed"},
 		{name: "unsupported platform", editor: domain.EditorIsolated, report: with(func(r *review.Report) { r.PlatformProblem = "no build for plan9/amd64" }), wantStatus: doctor.StatusWarn, detailHas: "plan9"},
 		{name: "not a directory", editor: domain.EditorIsolated, report: with(func(r *review.Report) { r.DirProblem = "is a symbolic link" }), wantStatus: doctor.StatusFail, wantFix: "lyna-tmux review install", detailHas: "symbolic link"},
