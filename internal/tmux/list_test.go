@@ -1,0 +1,122 @@
+package tmux
+
+import (
+	"context"
+	"reflect"
+	"strings"
+	"testing"
+	"time"
+)
+
+func row(fields ...string) string { return strings.Join(fields, fieldSep) }
+
+func TestParseSessions(t *testing.T) {
+	out := strings.Join([]string{
+		row("$1", "api", "3", "1", "1757930000", "/work/api", "1", "/work/api", "strict", "duo"),
+		row("$2", "notes", "1", "0", "1757930100", "/home/me", "", "", "", ""),
+		"garbage row without separators",
+		row("$3", "short"),
+	}, "\n") + "\n"
+	got := parseSessions(out)
+	want := []Session{
+		{ID: "$1", Name: "api", Windows: 3, Attached: 1, Created: time.Unix(1757930000, 0), Path: "/work/api", Managed: true, Project: "/work/api", Sandbox: "strict", Layout: "duo"},
+		{ID: "$2", Name: "notes", Windows: 1, Attached: 0, Created: time.Unix(1757930100, 0), Path: "/home/me"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("parseSessions() =\n%+v\nwant\n%+v", got, want)
+	}
+	if parseSessions("") != nil {
+		t.Fatal("empty output should yield nil")
+	}
+}
+
+func TestParsePanes(t *testing.T) {
+	out := row("%3", "$1", "api", "@2", "1", "claude", "0", "/dev/ttys004", "4242", "/work/api", "claude", "Claude", "1", "1", "0", "120", "40", "claude", "waiting") + "\n" +
+		row("%4", "$1", "api", "@2", "1", "claude", "1", "/dev/ttys005", "4243", "/work/api", "zsh", "", "0", "1", "1", "80", "40", "", "") + "\n"
+	got := parsePanes(out)
+	want := []Pane{
+		{ID: "%3", SessionID: "$1", SessionName: "api", WindowID: "@2", WindowIndex: 1, WindowName: "claude", PaneIndex: 0, TTY: "/dev/ttys004", PID: 4242, CurrentPath: "/work/api", CurrentCommand: "claude", Title: "Claude", Active: true, WindowActive: true, Width: 120, Height: 40, Role: "claude", State: "waiting"},
+		{ID: "%4", SessionID: "$1", SessionName: "api", WindowID: "@2", WindowIndex: 1, WindowName: "claude", PaneIndex: 1, TTY: "/dev/ttys005", PID: 4243, CurrentPath: "/work/api", CurrentCommand: "zsh", WindowActive: true, Dead: true, Width: 80, Height: 40},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("parsePanes() =\n%+v\nwant\n%+v", got, want)
+	}
+	if loc := got[0].Location(); loc != "api:1.0" {
+		t.Fatalf("Location() = %q", loc)
+	}
+}
+
+func TestQueryArgs(t *testing.T) {
+	cases := []struct {
+		name string
+		call func(c *Client) error
+		want []string
+	}{
+		{
+			name: "list panes all",
+			call: func(c *Client) error { _, err := c.ListPanes(context.Background(), ""); return err },
+			want: []string{"list-panes", "-a", "-F", strings.Join(paneFields, fieldSep)},
+		},
+		{
+			name: "list panes session",
+			call: func(c *Client) error { _, err := c.ListPanes(context.Background(), "=api"); return err },
+			want: []string{"list-panes", "-s", "-t", "=api", "-F", strings.Join(paneFields, fieldSep)},
+		},
+		{
+			name: "has session exact",
+			call: func(c *Client) error { _, err := c.HasSession(context.Background(), "api"); return err },
+			want: []string{"has-session", "-t", "=api:"},
+		},
+		{
+			name: "capture with history",
+			call: func(c *Client) error { _, err := c.CapturePane(context.Background(), "%1", 200); return err },
+			want: []string{"capture-pane", "-p", "-e", "-t", "%1", "-S", "-200"},
+		},
+		{
+			name: "capture visible only",
+			call: func(c *Client) error { _, err := c.CapturePane(context.Background(), "%1", 0); return err },
+			want: []string{"capture-pane", "-p", "-e", "-t", "%1"},
+		},
+		{
+			name: "show pane option",
+			call: func(c *Client) error { _, err := c.ShowOption(context.Background(), "-p", "%1", OptState); return err },
+			want: []string{"show-options", "-pqv", "-t", "%1", "@lt_state"},
+		},
+		{
+			name: "show global option",
+			call: func(c *Client) error { _, err := c.ShowOption(context.Background(), "", "", OptParent); return err },
+			want: []string{"show-options", "-qv", "@lt_parent"},
+		},
+		{
+			name: "display format",
+			call: func(c *Client) error { _, err := c.Display(context.Background(), "%1", "#{pane_tty}"); return err },
+			want: []string{"display-message", "-p", "-t", "%1", "#{pane_tty}"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := &recorder{}
+			if err := tc.call(New(Options{Executor: rec})); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(rec.args[0], tc.want) {
+				t.Fatalf("args = %q, want %q", rec.args[0], tc.want)
+			}
+		})
+	}
+}
+
+func TestQueriesTolerateNoServer(t *testing.T) {
+	rec := &recorder{res: Result{Stderr: []byte("no server running on /tmp/tmux-501/x"), ExitCode: 1}}
+	c := New(Options{Executor: rec})
+	ctx := context.Background()
+	if s, err := c.ListSessions(ctx); err != nil || s != nil {
+		t.Fatalf("ListSessions = %v, %v", s, err)
+	}
+	if p, err := c.ListPanes(ctx, ""); err != nil || p != nil {
+		t.Fatalf("ListPanes = %v, %v", p, err)
+	}
+	if ok, err := c.HasSession(ctx, "x"); err != nil || ok {
+		t.Fatalf("HasSession = %v, %v", ok, err)
+	}
+}
