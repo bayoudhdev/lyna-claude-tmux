@@ -36,9 +36,9 @@ func (s *scriptedTmux) client() *tmux.Client {
 }
 
 func TestTmuxPaneSignalCommands(t *testing.T) {
-	display := []string{"-S", "/tmp/lt-test.sock", "display-message", "-p", "-t", "%3", "#{session_name}"}
+	display := []string{"-S", "/tmp/lt-test.sock", "-u", "display-message", "-p", "-t", "%3", "#{session_name}"}
 	wait := func(session string) []string {
-		return []string{"-S", "/tmp/lt-test.sock", "wait-for", "lt-changes-" + session}
+		return []string{"-S", "/tmp/lt-test.sock", "-u", "wait-for", "lt-changes-" + session}
 	}
 	cases := []struct {
 		name      string

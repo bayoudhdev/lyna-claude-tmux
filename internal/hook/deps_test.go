@@ -90,7 +90,7 @@ func TestRunBranch(t *testing.T) {
 				t.Fatalf("tmux calls %q", h.tmux.calls)
 			}
 			call := strings.Join(h.tmux.calls[0], "\x00")
-			idle := strings.Join([]string{"-S", testSocket, "set-option", "-p", "-t", "%3", "@lt_state", "idle"}, "\x00")
+			idle := strings.Join([]string{"-S", testSocket, "-u", "set-option", "-p", "-t", "%3", "@lt_state", "idle"}, "\x00")
 			want := idle
 			if tc.wantTail != nil {
 				want += "\x00;\x00" + strings.Join(tc.wantTail, "\x00")

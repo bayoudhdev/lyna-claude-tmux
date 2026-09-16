@@ -20,7 +20,7 @@ type scripted struct {
 }
 
 func (s *scripted) Exec(ctx context.Context, _ string, args []string) (Result, error) {
-	s.calls = append(s.calls, append([]string(nil), args...))
+	s.calls = append(s.calls, dropUTF8Flag(args))
 	s.done = append(s.done, ctx.Err() != nil)
 	if len(s.calls) > len(s.results) {
 		return Result{}, nil

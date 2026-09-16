@@ -35,9 +35,9 @@ func reply(fields ...string) tmux.Result {
 }
 
 func TestBellForward(t *testing.T) {
-	resolve := []string{"-S", testSocket, "display-message", "-p", "-t", "$4", "#{session_name}\x1f#{@lt_origin}\x1f#{@claude_origin}"}
+	resolve := []string{"-S", testSocket, "-u", "display-message", "-p", "-t", "$4", "#{session_name}\x1f#{@lt_origin}\x1f#{@claude_origin}"}
 	origin := func(target string) []string {
-		return []string{"-S", testSocket, "display-message", "-p", "-t", target, "#{session_name}\x1f#{pane_tty}"}
+		return []string{"-S", testSocket, "-u", "display-message", "-p", "-t", target, "#{session_name}\x1f#{pane_tty}"}
 	}
 	cases := []struct {
 		name     string

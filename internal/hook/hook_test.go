@@ -116,7 +116,7 @@ func env(overrides map[string]string) func(string) string {
 }
 
 func argv(cmds ...string) []string {
-	return append([]string{"-S", testSocket}, strings.Fields(strings.Join(cmds, " ; "))...)
+	return append([]string{"-S", testSocket, "-u"}, strings.Fields(strings.Join(cmds, " ; "))...)
 }
 
 type errReader struct{}
@@ -202,7 +202,7 @@ func TestRun(t *testing.T) {
 		{
 			name: "subagent counter", event: "SubagentStart",
 			stdin: strings.NewReader(`{"agent_id":"a1","agent_type":"Explore"}`),
-			want:  [][]string{{"-S", testSocket, "set-option", "-p", "-t", "%3", "-F", "@lt_subagents", fmtSubagentsInc}},
+			want:  [][]string{{"-S", testSocket, "-u", "set-option", "-p", "-t", "%3", "-F", "@lt_subagents", fmtSubagentsInc}},
 		},
 		{
 			name: "stop rings the pane terminal", event: "Stop",

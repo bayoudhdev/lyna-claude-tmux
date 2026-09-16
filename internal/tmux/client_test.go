@@ -16,8 +16,21 @@ type recorder struct {
 
 func (r *recorder) Exec(_ context.Context, bin string, args []string) (Result, error) {
 	r.bin = bin
-	r.args = append(r.args, append([]string(nil), args...))
+	r.args = append(r.args, dropUTF8Flag(args))
 	return r.res, r.err
+}
+
+// dropUTF8Flag returns one invocation without the client flag every command
+// carries, so a table of expectations spells the command it is about. The
+// flag itself is pinned by TestClientArgv. Only the first occurrence goes:
+// "set-environment -u" takes the same letter for its own meaning.
+func dropUTF8Flag(args []string) []string {
+	for i, a := range args {
+		if a == utf8Flag {
+			return append(append([]string(nil), args[:i]...), args[i+1:]...)
+		}
+	}
+	return append([]string(nil), args...)
 }
 
 func TestClientArgv(t *testing.T) {
@@ -30,19 +43,19 @@ func TestClientArgv(t *testing.T) {
 		{
 			name: "default socket single command",
 			cmds: []Command{{"list-sessions"}},
-			want: []string{"tmux", "list-sessions"},
+			want: []string{"tmux", "-u", "list-sessions"},
 		},
 		{
 			name: "named socket with config",
 			opts: Options{Bin: "/opt/tmux", Socket: Socket{Name: "lyna-tmux"}, Config: "/state/tmux.conf"},
 			cmds: []Command{{"new-session", "-d", "-s", "api"}},
-			want: []string{"/opt/tmux", "-L", "lyna-tmux", "-f", "/state/tmux.conf", "new-session", "-d", "-s", "api"},
+			want: []string{"/opt/tmux", "-L", "lyna-tmux", "-u", "-f", "/state/tmux.conf", "new-session", "-d", "-s", "api"},
 		},
 		{
 			name: "path socket wins over name",
 			opts: Options{Socket: Socket{Name: "x", Path: "/tmp/s"}},
 			cmds: []Command{{"ls"}},
-			want: []string{"tmux", "-S", "/tmp/s", "ls"},
+			want: []string{"tmux", "-S", "/tmp/s", "-u", "ls"},
 		},
 		{
 			name: "batch separators and escaped data",
@@ -51,12 +64,12 @@ func TestClientArgv(t *testing.T) {
 				{},
 				{"display-message", "-p", ";"},
 			},
-			want: []string{"tmux", "set-option", "-p", "-t", "%1", "@lt_state", `busy\;`, ";", "display-message", "-p", `\;`},
+			want: []string{"tmux", "-u", "set-option", "-p", "-t", "%1", "@lt_state", `busy\;`, ";", "display-message", "-p", `\;`},
 		},
 		{
 			name: "leading empty command adds no separator",
 			cmds: []Command{{}, {"ls"}},
-			want: []string{"tmux", "ls"},
+			want: []string{"tmux", "-u", "ls"},
 		},
 	}
 	for _, tc := range cases {

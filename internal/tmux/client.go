@@ -160,6 +160,15 @@ func (c *Client) WithSocket(s Socket) *Client {
 // Command{"set-option", "-p", "-t", "%1", "@lt_state", "busy"}.
 type Command []string
 
+// utf8Flag tells tmux that the bytes it exchanges with this client are UTF-8.
+// Without it tmux guesses from the locale, and in the C locale it keeps no
+// byte it cannot represent: a session name, an option value and even the
+// separator of a reply come back as underscores or as octal escapes, so a
+// value set through one command is no longer the value another command reads.
+// Everything this CLI sends and reads is UTF-8 whatever the account's locale
+// says, so it states that rather than leaving it to the environment.
+const utf8Flag = "-u"
+
 // Argv returns the complete argument vector (binary first) for a batch of
 // commands, suitable for syscall.Exec when the process should become tmux.
 func (c *Client) Argv(cmds ...Command) []string {
@@ -167,7 +176,7 @@ func (c *Client) Argv(cmds ...Command) []string {
 }
 
 func (c *Client) args(cmds []Command) []string {
-	args := c.socket.Args()
+	args := append(c.socket.Args(), utf8Flag)
 	if c.config != "" {
 		args = append(args, "-f", c.config)
 	}
