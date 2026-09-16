@@ -147,6 +147,11 @@ func TestRecordArguments(t *testing.T) {
 			name: "a redaction is a pair", scene: "run true\nframe\n", args: []string{"--out", "/tmp/x.gif", "--redact", "secret"},
 			wantExit: 2, wantErr: "--redact takes FROM=TO",
 		},
+		{
+			name: "a redaction keeps the columns", scene: "run true\nframe\n",
+			args:     []string{"--out", "/tmp/x.gif", "--redact", "realname=someone"},
+			wantExit: 2, wantErr: "a replacement must be as long as what it replaces",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -309,30 +314,43 @@ frame 1.5
 func TestRecordRedacts(t *testing.T) {
 	cases := []struct {
 		name   string
+		scene  string
 		rules  []string
 		want   string
 		unwant []string
 	}{
 		{
 			name:  "a home directory is replaced everywhere it appears",
-			rules: []string{"--redact", "/Users/realname=/Users/developer", "--redact", "realname=developer"},
-			want:  "/Users/developer/src", unwant: []string{"realname"},
+			rules: []string{"--redact", "/Users/realname=/Users/demouser", "--redact", "realname=demouser"},
+			want:  "/Users/demouser/src", unwant: []string{"realname"},
+		},
+		{
+			// The path reaches past the right edge, so the terminal writes it
+			// over two rows. Read row by row it holds neither rule.
+			name:  "a value the terminal wrapped over two rows is replaced too",
+			scene: "size 24 6\nrun cat\ntype cd ~/work/x/Users/realname/src\nenter\nwait 0.4\nframe\n",
+			rules: []string{"--redact", "/Users/realname=/Users/demouser", "--redact", "realname=demouser"},
+			want:  "demouser", unwant: []string{"realname"},
 		},
 		{
 			name:  "a rule that matches nothing changes nothing",
-			rules: []string{"--redact", "/home/other=/home/developer"},
+			rules: []string{"--redact", "/home/other=/home/spare"},
 			want:  "/Users/realname/src",
 		},
 		{
 			name:  "the replacement of the first rule is not rewritten by a later one",
-			rules: []string{"--redact", "/Users/realname=/Users/developer", "--redact", "developer=someone"},
-			want:  "/Users/developer/src",
+			rules: []string{"--redact", "/Users/realname=/Users/demouser", "--redact", "demouser=someuser"},
+			want:  "/Users/demouser/src",
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			e := newRecordEnv(t)
-			scene := e.scene(t, "size 60 6\nrun cat\ntype cd /Users/realname/src\nenter\nwait 0.4\nframe\n")
+			text := tc.scene
+			if text == "" {
+				text = "size 60 6\nrun cat\ntype cd /Users/realname/src\nenter\nwait 0.4\nframe\n"
+			}
+			scene := e.scene(t, text)
 			keep := filepath.Join(e.dir, "keep")
 			_, stderr, exit := runRecord(t, e.env(t),
 				append([]string{"--scene", scene, "--still", filepath.Join(e.dir, "x.png"), "--keep", keep}, tc.rules...)...)
@@ -340,11 +358,14 @@ func TestRecordRedacts(t *testing.T) {
 				t.Fatalf("exit %d\nstderr:\n%s", exit, stderr)
 			}
 			frame := string(mustRead(t, filepath.Join(keep, "frames", "0001.ansi")))
-			if !strings.Contains(frame, tc.want) {
+			// The screen is a grid: a value long enough is written over two
+			// rows, so what it says is read without the breaks between them.
+			rows := strings.NewReplacer("\n", "", "\r", "").Replace(frame)
+			if !strings.Contains(rows, tc.want) {
 				t.Fatalf("the frame does not hold %q:\n%s", tc.want, frame)
 			}
 			for _, unwant := range tc.unwant {
-				if strings.Contains(frame, unwant) {
+				if strings.Contains(rows, unwant) {
 					t.Fatalf("the frame still holds %q:\n%s", unwant, frame)
 				}
 			}

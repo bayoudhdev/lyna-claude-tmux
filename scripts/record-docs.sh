@@ -36,7 +36,7 @@ bin=""
 assets=$root/docs/assets
 scenes=$root/docs/scenes
 record=$here/record.sh
-demo_home=developer
+demo_home=""
 only=()
 dry_run=0
 while (($# > 0)); do
@@ -112,14 +112,18 @@ export LYNA_TMUX_DEMO_AGENTS=1
 # length as what they replace, because a screen is laid out in columns: a
 # shorter name would pull a status bar and every box border out of line. The
 # home directory goes first, so the account name inside it is already gone.
+account=$(id -un)
+if [[ -n $demo_home ]]; then
+  ((${#demo_home} == ${#account})) ||
+    fail "$account is ${#account} characters and $demo_home is ${#demo_home}: columns would shift; --home takes a name of ${#account} characters"
+else
+  # Nobody has to count the letters of their own account name, so the default
+  # is the neutral one padded to it.
+  demo_home=developer
+  while ((${#demo_home} < ${#account})); do demo_home+=x; done
+  demo_home=${demo_home:0:${#account}}
+fi
 demo_dir=$(dirname "$HOME")/$demo_home
-for rule in "$HOME=$demo_dir" "$(id -un)=$demo_home"; do
-  from=${rule%%=*} to=${rule#*=}
-  if ((${#from} != ${#to})); then
-    printf 'record-docs.sh: %s is %s characters and %s is %s: columns will shift\n' \
-      "$from" "${#from}" "$to" "${#to}" >&2
-  fi
-done
 # The project itself is shown where the documentation puts it, under src. Its
 # parent is rewritten rather than the project, so a scene that lists a sibling
 # project reads the same way. Rules are applied longest first, so this one wins
@@ -127,7 +131,7 @@ done
 redact=(
   --redact "$(dirname "$project")=$demo_dir/src"
   --redact "$HOME=$demo_dir"
-  --redact "$(id -un)=$demo_home"
+  --redact "$account=$demo_home"
 )
 
 # wanted is true when the scene was asked for, or when none was.

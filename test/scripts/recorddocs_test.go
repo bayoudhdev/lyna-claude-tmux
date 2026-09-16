@@ -156,6 +156,16 @@ func TestRecordDocsOutputs(t *testing.T) {
 
 // TestRecordDocsRedactsTheAccount pins the promise of the driver: nothing it
 // records can name the account it was recorded in.
+// defaultHome is the neutral account name record-docs.sh derives when no
+// --home is given: the word padded to the length of the real one.
+func defaultHome(account string) string {
+	name := "developer"
+	for len(name) < len(account) {
+		name += "x"
+	}
+	return name[:len(account)]
+}
+
 func TestRecordDocsRedactsTheAccount(t *testing.T) {
 	user, err := exec.Command("id", "-un").Output()
 	if err != nil {
@@ -166,10 +176,11 @@ func TestRecordDocsRedactsTheAccount(t *testing.T) {
 	// the property the driver warns about when it does not hold.
 	sameLength := strings.Repeat("d", len(account))
 	cases := []struct {
-		name    string
-		args    []string
-		want    []string
-		wantErr string
+		name     string
+		args     []string
+		want     []string
+		wantErr  string
+		wantExit int
 	}{
 		{
 			name: "the home directory and the account name are rewritten",
@@ -177,18 +188,35 @@ func TestRecordDocsRedactsTheAccount(t *testing.T) {
 			want: []string{"--redact HOME=HOMEDIR/" + sameLength, "--redact " + account + "=" + sameLength},
 		},
 		{
-			name:    "a replacement of another length is reported",
-			args:    []string{"--home", sameLength + "x"},
-			want:    []string{"--redact " + account + "=" + sameLength + "x"},
-			wantErr: account + " is " + strconv.Itoa(len(account)) + " characters",
+			// Nobody has to count the letters of their own account name.
+			name: "the default name is as long as the account",
+			want: []string{"--redact " + account + "=" + defaultHome(account)},
+		},
+		{
+			// A shorter or longer name would pull every status bar and box
+			// border out of line, and could not be written over a value the
+			// terminal wrapped, so nothing is recorded with one.
+			name:     "a replacement of another length is refused",
+			args:     []string{"--home", sameLength + "x"},
+			wantErr:  account + " is " + strconv.Itoa(len(account)) + " characters",
+			wantExit: 1,
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			e := newDocsEnv(t, map[string]string{"doctor": "frames: 1\n"})
 			_, stderr, exit := runRecordDocs(t, e.env(), e.args(tc.args...)...)
-			if exit != 0 {
-				t.Fatalf("exit %d\nstderr:\n%s", exit, stderr)
+			if exit != tc.wantExit {
+				t.Fatalf("exit %d, want %d\nstderr:\n%s", exit, tc.wantExit, stderr)
+			}
+			if tc.wantExit != 0 {
+				if !strings.Contains(stderr, tc.wantErr) {
+					t.Fatalf("stderr does not report %q:\n%s", tc.wantErr, stderr)
+				}
+				if _, err := os.Stat(e.log); err == nil {
+					t.Fatalf("a refused redaction still recorded a scene:\n%s", mustRead(t, e.log))
+				}
+				return
 			}
 			log := string(mustRead(t, e.log))
 			log = strings.ReplaceAll(log, e.dir, "HOME")

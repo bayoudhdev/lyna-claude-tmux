@@ -73,6 +73,13 @@ while (($# > 0)); do
     --keep) keep=$2 ;;
     --redact)
       [[ $2 == *=* ]] || usage_error "--redact takes FROM=TO"
+      # A screen is laid out in columns, and a replacement of another length
+      # pulls every status bar and box border after it out of line. It is also
+      # the only way a value can be rewritten where the terminal wrapped it,
+      # which is what keeps a home directory out of the picture.
+      redact_from=${2%%=*} redact_to=${2#*=}
+      ((${#redact_from} == ${#redact_to})) ||
+        usage_error "--redact $redact_from is ${#redact_from} characters and $redact_to is ${#redact_to}: a replacement must be as long as what it replaces"
       redactions+=("$2")
       ;;
     esac
@@ -243,12 +250,38 @@ import sys
 path = sys.argv[1]
 with open(path, "rb") as f:
     data = f.read().decode("utf-8", "replace")
-# One pass, longest rule first: what a rule writes is never read by another,
-# so a replacement that happens to contain a later rule's text survives.
 table = dict(rule.partition("=")[::2] for rule in sys.argv[2:])
+
+# A capture is a grid: the terminal breaks a path that reaches the right edge
+# over two rows, and a rule read line by line would walk straight past it. The
+# printable characters are gathered into one string, with the position each one
+# came from, so a value is found wherever the screen happens to have split it.
+escape = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b.")
+chars = list(data)
+flat = []
+where = []
+i = 0
+while i < len(data):
+    m = escape.match(data, i)
+    if m:
+        i = m.end()
+        continue
+    if data[i] not in "\n\r":
+        flat.append(data[i])
+        where.append(i)
+    i += 1
+flat = "".join(flat)
+
+# Every replacement is as long as what it replaces, so it is written over those
+# characters and each one keeps its column. Longest rule first, over the text as
+# it was captured: what a rule writes is never read by another.
 if table:
-    pattern = "|".join(re.escape(src) for src in sorted(table, key=len, reverse=True))
-    data = re.sub(pattern, lambda m: table[m.group(0)], data)
+    rules = re.compile("|".join(re.escape(src) for src in sorted(table, key=len, reverse=True)))
+    for m in rules.finditer(flat):
+        for offset, ch in enumerate(table[m.group(0)]):
+            chars[where[m.start() + offset]] = ch
+data = "".join(chars)
+
 with open(path, "w") as f:
     f.write(data)
 PY
