@@ -41,7 +41,7 @@ func doctorCommand(d Deps) *cobra.Command {
 			if asJSON {
 				err = doctor.WriteJSON(cmd.OutOrStdout(), r)
 			} else {
-				err = doctor.WriteText(cmd.OutOrStdout(), r)
+				err = doctor.WriteText(cmd.OutOrStdout(), r, d.Terminal().Width)
 			}
 			if err != nil {
 				return err

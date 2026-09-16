@@ -55,22 +55,36 @@ func WriteJSON(w io.Writer, r Report) error {
 	return enc.Encode(r)
 }
 
+// minRoom is the narrowest text column worth wrapping into. Below it the
+// terminal wraps the report itself, which at least loses no characters.
+const minRoom = 24
+
 // WriteText writes the report as aligned plain text. Details and fixes come
 // from command output, paths and environment variables, so every line passes
 // through sanitize.Line: a crafted TERM_PROGRAM or tool version must not
 // reach the terminal as an escape sequence.
-func WriteText(w io.Writer, r Report) error {
-	width := 0
+//
+// termWidth is the width of the terminal in cells, or zero when it is not
+// known. It wraps what a check says on word boundaries under its own column,
+// where the terminal would otherwise break it mid-word. A fix written over
+// several lines is left exactly as it is: it is a command to copy, not prose.
+func WriteText(w io.Writer, r Report, termWidth int) error {
+	titles := 0
 	for _, res := range r.Results {
-		width = max(width, utf8.RuneCountInString(sanitize.Line(res.Title)))
+		titles = max(titles, utf8.RuneCountInString(sanitize.Line(res.Title)))
+	}
+	column := 6 + titles + 2
+	room := 0
+	if termWidth > 0 && termWidth-column >= minRoom {
+		room = termWidth - column
 	}
 	var lines []string
 	for _, res := range r.Results {
 		title := sanitize.Line(res.Title)
-		pad := strings.Repeat(" ", width-utf8.RuneCountInString(title))
+		pad := strings.Repeat(" ", titles-utf8.RuneCountInString(title))
 		row := fmt.Sprintf("%-4s  %s%s", sanitize.Line(string(res.Status)), title, pad)
-		indent := strings.Repeat(" ", 6+width)
-		for i, line := range cleanLines(res.Detail) {
+		indent := strings.Repeat(" ", 6+titles)
+		for i, line := range wrapLines(cleanLines(res.Detail), room) {
 			if i == 0 {
 				row += "  " + line
 				continue
@@ -80,7 +94,11 @@ func WriteText(w io.Writer, r Report) error {
 		}
 		lines = append(lines, row)
 		if res.Fix != "" && res.Status != StatusOK && res.Status != StatusSkip {
-			for i, line := range cleanLines(res.Fix) {
+			fix := cleanLines(res.Fix)
+			if len(fix) == 1 {
+				fix = wrap(fix[0], room-len("fix:  "))
+			}
+			for i, line := range fix {
 				label := "      "
 				if i == 0 {
 					label = "fix:  "
@@ -98,6 +116,39 @@ func WriteText(w io.Writer, r Report) error {
 	fmt.Fprintf(&b, "\n%d ok, %d warn, %d fail, %d skipped\n", s.OK, s.Warn, s.Fail, s.Skip)
 	_, err := io.WriteString(w, b.String())
 	return err
+}
+
+// wrapLines wraps every line of a detail to limit.
+func wrapLines(lines []string, limit int) []string {
+	out := make([]string, 0, len(lines))
+	for _, line := range lines {
+		out = append(out, wrap(line, limit)...)
+	}
+	return out
+}
+
+// wrap breaks s on spaces so that no line it returns is longer than limit,
+// keeping the indentation of s on each of them. A word of its own longer than
+// limit, a path or a URL, is kept whole rather than cut in two. A limit of
+// zero or less leaves s alone.
+func wrap(s string, limit int) []string {
+	words := strings.Fields(s)
+	if limit <= 0 || len(words) == 0 {
+		return []string{s}
+	}
+	indent := s[:len(s)-len(strings.TrimLeft(s, " "))]
+	var lines []string
+	line, length := indent+words[0], utf8.RuneCountInString(indent+words[0])
+	for _, word := range words[1:] {
+		n := utf8.RuneCountInString(word)
+		if length+1+n > limit {
+			lines = append(lines, line)
+			line, length = indent+word, utf8.RuneCountInString(indent)+n
+			continue
+		}
+		line, length = line+" "+word, length+1+n
+	}
+	return append(lines, line)
 }
 
 // cleanLines splits s into sanitized lines, keeping indentation so multi-line

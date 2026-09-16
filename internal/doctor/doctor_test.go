@@ -90,7 +90,7 @@ func TestRunGolden(t *testing.T) {
 				t.Fatalf("Failed() = %v, want %v; summary %+v", report.Failed(), tc.failed, report.Summary)
 			}
 			var text, js bytes.Buffer
-			if err := WriteText(&text, report); err != nil {
+			if err := WriteText(&text, report, 0); err != nil {
 				t.Fatal(err)
 			}
 			if err := WriteJSON(&js, report); err != nil {

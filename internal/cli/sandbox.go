@@ -250,7 +250,7 @@ func sandboxStatus(cmd *cobra.Command, d Deps, dir string, asJSON bool) error {
 		ready = "not ready"
 	}
 	fmt.Fprintf(out, "\nReadiness on this machine: %s\n", ready)
-	return doctor.WriteText(out, st.Readiness)
+	return doctor.WriteText(out, st.Readiness, d.Terminal().Width)
 }
 
 // sandboxWaitKey waits for one key. A terminal is put in raw mode so any key
