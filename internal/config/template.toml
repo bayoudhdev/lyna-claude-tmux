@@ -1,0 +1,101 @@
+# lyna-tmux configuration
+#
+# Every key is optional: a missing key keeps its default value, and an
+# unknown key is an error. Check this file with `lyna-tmux config validate`.
+
+[ui]
+# Color theme: lyna (dark), light, ansi (uses the terminal's own palette).
+theme = "lyna"
+# Icon set: auto, unicode, nerd (needs a Nerd Font), ascii.
+icons = "auto"
+# Color depth: auto (detected), truecolor, 256, 16.
+color = "auto"
+# Status bar position: top or bottom.
+status_position = "bottom"
+clock = true
+# Prefix-free Alt (Option) key bindings such as Alt+[ and Alt+] to move between
+# panes and Alt+\\ to split. Run `lyna-tmux keys` for the full list.
+alt_keys = true
+mouse = true
+# Let programs in panes send escape sequences straight to your terminal.
+# Off by default: pane output cannot drive your terminal or clipboard.
+allow_passthrough = false
+
+[workspace]
+# Default layout: solo, duo, trio, quad, review, auto (picks by terminal size), or
+# the name of a [layouts.<name>] table below.
+layout = "auto"
+# Width of the Claude pane in percent when a layout splits it (20-80).
+split_ratio = 62
+history_limit = 100000
+# tmux prefix key. Press it twice to send it to the program in the pane.
+prefix = "C-b"
+# Shell for shell panes. Empty uses $SHELL.
+shell = ""
+
+[claude]
+# Claude Code executable. Empty looks up "claude" on PATH.
+command = ""
+# Extra arguments for every launch.
+# args = ["--verbose"]
+# Model alias or id. Empty uses your Claude Code default.
+model = ""
+# Effort: low, medium, high, xhigh, max, ultracode. Empty uses the default.
+effort = ""
+# Permission mode: default, manual, acceptEdits, plan, auto, dontAsk,
+# bypassPermissions.
+# bypassPermissions requires the strict sandbox profile or container isolation.
+permission_mode = ""
+# Status line: auto (keeps yours when you have one), lyna, off.
+statusline = "auto"
+# Flicker-free fullscreen renderer with mouse wheel scrolling.
+fullscreen = false
+# Agent teams, with teammates opened as tmux panes.
+teams = false
+# Base for new worktrees: fresh (origin default branch) or head. Empty uses the default.
+worktree_base = ""
+# Size guideline for dynamic workflows: small, medium, large, unrestricted.
+workflow_size = ""
+# Ring the terminal bell when Claude finishes or needs you.
+bell = true
+# add_dirs = ["~/src/shared-lib"]
+# mcp_config = ["~/.config/mcp/servers.json"]
+# plugin_dirs = ["~/src/my-plugins"]
+
+[sandbox]
+# Profile: standard (sandboxed Bash, credential files hidden) or strict (adds a
+# network allowlist and no unsandboxed fallback). Running without a sandbox is
+# only possible per launch, with `--sandbox off`.
+profile = "standard"
+# Isolation: bash (sandboxed Bash tool), process (whole Claude process in the
+# sandbox runtime), container (dev container).
+isolation = "bash"
+# allow_write = ["~/.cache/go-build"]
+# deny_read = ["~/Documents"]
+# allowed_domains = ["api.example.com", "*.internal.example.com"]
+# excluded_commands = ["docker"]
+
+[popup]
+width = "90%"
+height = "90%"
+# Prefix of per-directory popup session names.
+session_prefix = "claude-"
+
+[review]
+# Live code review with side-by-side diffs in Neovim. isolated runs a private
+# Neovim with a pinned, checksum-verified codediff.nvim (`lyna-tmux review
+# install`) and never touches your Neovim setup; user runs your own Neovim and
+# plugin install.
+editor = "isolated"
+# Diff layout: default, inline, side-by-side.
+layout = "default"
+
+# Custom layouts. The first pane is the window itself; each later pane splits
+# an earlier one (parent, 1-based, defaults to the previous pane).
+#
+# [layouts.tests]
+# panes = [
+#   { role = "claude" },
+#   { role = "changes", split = "right", size = 35 },
+#   { role = "command", split = "down", size = 30, command = "go test ./..." },
+# ]
