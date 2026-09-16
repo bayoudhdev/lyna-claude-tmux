@@ -1,0 +1,24 @@
+LYNA TMUX (lyna-tmux)
+Copyright (c) 2026 LYNA-IT
+https://www.lyna-it.com/
+
+This software is published under the MIT License, in the LICENSE file.
+
+Every source file in this repository was written for this project by LYNA-IT.
+
+THIRD-PARTY COMPONENTS
+
+The compiled binary links Go modules published by their own authors under
+their own licenses, mostly the MIT, BSD and Apache-2.0 licenses. Those terms
+govern those components. The exact list, with versions and licenses, is in the
+software bill of materials attached to every release, and in go.mod.
+
+lyna-tmux can install and run codediff.nvim
+(https://github.com/esmuellert/codediff.nvim), which is published by its
+authors under the MIT License, at a pinned and checksum-verified release. It
+is downloaded on request by `lyna-tmux review install`, into lyna-tmux's own
+data directory, and it is not bundled in lyna-tmux releases. Your own Neovim
+configuration and plugin directories are never touched.
+
+lyna-tmux runs tmux (ISC License) and Claude Code, neither of which is
+included in this repository or in its releases.

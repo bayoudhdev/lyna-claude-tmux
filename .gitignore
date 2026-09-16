@@ -1,0 +1,17 @@
+# Build output
+/bin/
+/dist/
+/coverage/
+*.test
+*.out
+*.prof
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Local tool state
+/.cache/
+testdata/fuzz/**/corpus-local/

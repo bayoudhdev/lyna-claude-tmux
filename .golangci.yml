@@ -1,0 +1,89 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: none
+  enable:
+    - bodyclose
+    - copyloopvar
+    - errcheck
+    - errorlint
+    - gocritic
+    - gosec
+    - govet
+    - ineffassign
+    - intrange
+    - misspell
+    - nolintlint
+    - revive
+    - staticcheck
+    - unconvert
+    - unused
+    - usestdlibvars
+  settings:
+    gosec:
+      excludes:
+        # G204: every subprocess is started with an argv slice and no shell
+        # (AGENTS.md security rules); tmux and claude paths are variables by
+        # design.
+        - G204
+        # G304: file paths come from XDG resolution, the user's own config and
+        # CLI arguments; reads go through size-bounded fsx helpers.
+        - G304
+    misspell:
+      locale: US
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: dot-imports
+        - name: error-naming
+        - name: error-return
+        - name: error-strings
+        - name: exported
+        - name: increment-decrement
+        - name: indent-error-flow
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: redefines-builtin-id
+        - name: superfluous-else
+        - name: time-naming
+        - name: unexported-return
+        - name: unreachable-code
+        - name: unused-parameter
+        - name: var-declaration
+  exclusions:
+    presets:
+      - comments
+      - std-error-handling
+    rules:
+      # Tests write fixtures with fixed modes and ignore cleanup errors.
+      - path: _test\.go
+        linters:
+          - gosec
+          - errcheck
+      # Test helpers write repository files (goldens are committed with 0644)
+      # and never ship in the binary.
+      - path: internal/testutil/
+        linters:
+          - gosec
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/bayoudhdev/lyna-claude-tmux
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
