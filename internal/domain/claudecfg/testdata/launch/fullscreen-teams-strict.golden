@@ -1,0 +1,23 @@
+argv:
+  /home/dev/.local/bin/claude
+  --settings=/home/dev/.local/state/lyna-tmux/settings/0123456789abcdef.json
+  --name=api-server
+  --model=opus
+  --effort=ultracode
+  --permission-mode=bypassPermissions
+  --add-dir=/home/dev/src/shared-lib
+  --add-dir=/srv/docs
+  --mcp-config=/home/dev/.config/mcp/servers.json
+  --plugin-dir=/opt/plugins
+  --worktree=feature-1
+  --verbose
+  review the diff
+env:
+  CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+  CLAUDE_CODE_NO_FLICKER=1
+  CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1
+  CLAUDE_CODE_TMUX_TRUECOLOR=1
+  LYNA_TMUX_MANAGED=1
+  LYNA_TMUX_SANDBOX=strict
+  LYNA_TMUX_SESSION=api-server
+  LYNA_TMUX_SOCKET=/tmp/tmux-1000/lyna-tmux

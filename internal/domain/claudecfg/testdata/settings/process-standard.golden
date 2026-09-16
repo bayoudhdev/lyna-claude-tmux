@@ -1,0 +1,133 @@
+{
+  "env": {
+    "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/dev/My Tools/lyna-tmux' hook SessionStart",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/dev/My Tools/lyna-tmux' hook UserPromptSubmit",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/dev/My Tools/lyna-tmux' hook PreToolUse",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/dev/My Tools/lyna-tmux' hook PermissionRequest",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "permission_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/dev/My Tools/lyna-tmux' hook Notification",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/dev/My Tools/lyna-tmux' hook PostToolUse",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/dev/My Tools/lyna-tmux' hook SubagentStart",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/dev/My Tools/lyna-tmux' hook SubagentStop",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/dev/My Tools/lyna-tmux' hook Stop",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/dev/My Tools/lyna-tmux' hook SessionEnd",
+            "async": true
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "ask": [
+      "Read(.env)",
+      "Read(.env.*)"
+    ],
+    "disableBypassPermissionsMode": "disable"
+  },
+  "sandbox": {
+    "enabled": false
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "'/Users/dev/My Tools/lyna-tmux' statusline"
+  }
+}

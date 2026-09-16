@@ -1,0 +1,10 @@
+argv:
+  /home/dev/.local/bin/claude
+  --settings=/home/dev/.local/state/lyna-tmux/settings/0123456789abcdef.json
+  --name=api-server
+env:
+  CLAUDE_CODE_TMUX_TRUECOLOR=1
+  LYNA_TMUX_MANAGED=1
+  LYNA_TMUX_SANDBOX=standard
+  LYNA_TMUX_SESSION=api-server
+  LYNA_TMUX_SOCKET=/tmp/tmux-1000/lyna-tmux
