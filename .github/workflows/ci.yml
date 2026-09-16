@@ -1,0 +1,239 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  # The release workflow calls this gate on the tagged commit before it
+  # publishes anything.
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.27.x"
+  GOTOOLCHAIN: local
+  GOLANGCI_LINT_VERSION: v2.13.2
+  GORELEASER_VERSION: v2.18.1
+  GOVULNCHECK_VERSION: v1.8.0
+  ACTIONLINT_VERSION: v1.7.12
+  TERM: xterm-256color
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Module is verified and tidy
+        run: |
+          go mod verify
+          go mod tidy -diff
+      - name: go vet
+        run: go vet ./...
+      # golangci-lint run also reports gofumpt and goimports formatting
+      # (formatters in .golangci.yml).
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+      - name: shellcheck
+        run: shellcheck -x scripts/*.sh scripts/lib/*.sh lyna-tmux.tmux internal/devcontainer/templates/init-firewall.sh
+      # Workflow schemas, expression syntax and the shell of every run block
+      # (actionlint calls shellcheck on them).
+      - name: actionlint
+        run: go run "github.com/rhysd/actionlint/cmd/actionlint@${ACTIONLINT_VERSION}"
+      - name: Text guard
+        run: scripts/check-text.sh
+
+  govulncheck:
+    name: govulncheck
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: govulncheck
+        run: go run "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}" ./...
+
+  test:
+    name: test (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ubuntu-24.04
+            os: ubuntu-24.04
+          - name: macos arm64
+            os: macos-latest
+          # internal/procx reads process arguments through a sysctl whose
+          # layout depends on the architecture, and darwin/amd64 is a release
+          # target: the x86_64 image keeps it covered.
+          - name: macos amd64
+            os: macos-15-intel
+          - name: tmux 3.6 from source
+            os: ubuntu-24.04
+            tmux-version: "3.6"
+            # sha256 digest GitHub publishes for tmux-3.6.tar.gz on the 3.6 release.
+            tmux-sha256: 136db80cfbfba617a103401f52874e7c64927986b65b1b700350b6058ad69607
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Install tools (Linux)
+        if: runner.os == 'Linux'
+        env:
+          TMUX_FROM_SOURCE: ${{ matrix.tmux-version }}
+        run: |
+          packages="dash git hyperfine neovim wget"
+          if [ -n "$TMUX_FROM_SOURCE" ]; then
+            packages="$packages build-essential pkg-config libevent-dev libncurses-dev"
+          else
+            packages="$packages tmux"
+          fi
+          sudo apt-get update
+          # shellcheck disable=SC2086 # the package list is split on purpose
+          sudo apt-get install -y --no-install-recommends $packages
+      - name: Install tools (macOS)
+        if: runner.os == 'macOS'
+        run: brew install tmux neovim hyperfine wget
+      - name: Restore tmux build
+        if: matrix.tmux-version != ''
+        id: tmux-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.local/tmux-${{ matrix.tmux-version }}
+          key: tmux-${{ matrix.tmux-version }}-${{ matrix.tmux-sha256 }}-${{ matrix.os }}-${{ runner.arch }}
+      - name: Build tmux from source
+        if: matrix.tmux-version != '' && steps.tmux-cache.outputs.cache-hit != 'true'
+        env:
+          TMUX_VERSION: ${{ matrix.tmux-version }}
+          TMUX_SHA256: ${{ matrix.tmux-sha256 }}
+        run: |
+          work=$(mktemp -d)
+          curl --proto '=https' --tlsv1.2 -fsSL -o "$work/tmux.tar.gz" \
+            "https://github.com/tmux/tmux/releases/download/${TMUX_VERSION}/tmux-${TMUX_VERSION}.tar.gz"
+          echo "${TMUX_SHA256}  $work/tmux.tar.gz" | sha256sum -c -
+          tar -xzf "$work/tmux.tar.gz" -C "$work"
+          cd "$work/tmux-${TMUX_VERSION}"
+          ./configure --prefix="$HOME/.local/tmux-${TMUX_VERSION}"
+          make -j"$(nproc)"
+          make install
+      - name: Use tmux from source
+        if: matrix.tmux-version != ''
+        env:
+          TMUX_VERSION: ${{ matrix.tmux-version }}
+        run: echo "$HOME/.local/tmux-${TMUX_VERSION}/bin" >> "$GITHUB_PATH"
+      - name: Tool versions
+        run: |
+          tmux -V
+          git --version
+          go version
+      - name: Test
+        run: go test -race -shuffle=on -count=1 ./...
+
+  test-debian:
+    name: test (debian 12, tmux 3.3a)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    container: debian:12
+    steps:
+      # git must exist before checkout so the tests see a repository; gcc and
+      # libc6-dev are needed by the race detector. Debian 12 ships neovim 0.7,
+      # older than the supported 0.9, so it is not installed here.
+      - name: Install tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends bash ca-certificates curl dash gcc git libc6-dev procps tmux wget
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Trust the workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Tool versions
+        run: |
+          tmux -V
+          go version
+      - name: Test
+        run: go test -race -shuffle=on -count=1 ./...
+
+  fuzz:
+    name: fuzz smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Fuzz every target briefly
+        run: scripts/fuzz.sh 5s
+
+  cover:
+    name: coverage gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Install tmux
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends tmux
+      - name: Coverage floor
+        run: make cover
+
+  goreleaser:
+    name: goreleaser snapshot
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - uses: anchore/sbom-action/download-syft@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+      - name: goreleaser check
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          distribution: goreleaser
+          version: ${{ env.GORELEASER_VERSION }}
+          args: check
+      - name: goreleaser snapshot
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          distribution: goreleaser
+          version: ${{ env.GORELEASER_VERSION }}
+          args: release --snapshot --clean

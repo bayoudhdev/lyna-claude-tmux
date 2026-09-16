@@ -1,0 +1,220 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# Release build for lyna-tmux. CI runs `goreleaser check` and a snapshot on
+# every push; a v* tag publishes through .github/workflows/release.yml.
+version: 2
+
+project_name: lyna-tmux
+
+before:
+  hooks:
+    - go mod verify
+    # Shell completions and the man page come from the CLI itself, built once
+    # for the host. .cache/ is ignored by git, so the tree stays clean.
+    - rm -rf .cache/release-assets
+    - mkdir -p .cache/release-assets/completions .cache/release-assets/manpages
+    - go build -trimpath -o .cache/release-assets/lyna-tmux ./cmd/lyna-tmux
+    # No pipes: sh has no pipefail, and a failing generator must fail the release.
+    - sh -c '.cache/release-assets/lyna-tmux completion bash > .cache/release-assets/completions/lyna-tmux.bash'
+    - sh -c '.cache/release-assets/lyna-tmux completion zsh > .cache/release-assets/completions/_lyna-tmux'
+    - sh -c '.cache/release-assets/lyna-tmux completion fish > .cache/release-assets/completions/lyna-tmux.fish'
+    - sh -c '.cache/release-assets/lyna-tmux man > .cache/release-assets/manpages/lyna-tmux.1'
+    - gzip -n -9 .cache/release-assets/manpages/lyna-tmux.1
+
+builds:
+  - id: lyna-tmux
+    main: ./cmd/lyna-tmux
+    binary: lyna-tmux
+    env:
+      - CGO_ENABLED=0
+    goos: [darwin, linux]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/bayoudhdev/lyna-claude-tmux/internal/version.Version=v{{ .Version }}
+      - -X github.com/bayoudhdev/lyna-claude-tmux/internal/version.Commit={{ .ShortCommit }}
+      - -X github.com/bayoudhdev/lyna-claude-tmux/internal/version.Date={{ .CommitDate }}
+    # Reproducible binaries: file times come from the commit, not the build.
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: lyna-tmux
+    ids: [lyna-tmux]
+    formats: [tar.gz]
+    # scripts/install.sh downloads exactly this name.
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    wrap_in_directory: false
+    # File times come from the commit so rebuilding a tag reproduces the
+    # archives and their checksums.
+    files:
+      - src: LICENSE
+        info: &commit_time
+          mtime: "{{ .CommitDate }}"
+      - src: NOTICE
+        info: *commit_time
+      - src: README.md
+        info: *commit_time
+      - src: .cache/release-assets/completions/*
+        dst: completions
+        strip_parent: true
+        info: *commit_time
+      - src: .cache/release-assets/manpages/*
+        dst: manpages
+        strip_parent: true
+        info: *commit_time
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+sboms:
+  - id: archives
+    artifacts: archive
+
+nfpms:
+  - id: packages
+    ids: [lyna-tmux]
+    package_name: lyna-tmux
+    file_name_template: "{{ .ConventionalFileName }}"
+    vendor: LYNA-IT
+    maintainer: LYNA-IT <bayoudhdev@users.noreply.github.com>
+    homepage: https://github.com/bayoudhdev/lyna-claude-tmux
+    description: |-
+      Preconfigured tmux workspace for Claude Code.
+      Layouts, status line, hooks, review and sandboxing around Claude Code
+      sessions, driven by one tmux server per workspace.
+    license: MIT
+    section: utils
+    formats: [deb, rpm, apk]
+    bindir: /usr/bin
+    dependencies:
+      - tmux
+    recommends:
+      - git
+    mtime: "{{ .CommitDate }}"
+    contents:
+      - src: .cache/release-assets/completions/lyna-tmux.bash
+        dst: /usr/share/bash-completion/completions/lyna-tmux
+        file_info:
+          mode: 0o644
+      # Debian's zsh searches vendor-completions; Fedora and Alpine use site-functions.
+      - src: .cache/release-assets/completions/_lyna-tmux
+        dst: /usr/share/zsh/vendor-completions/_lyna-tmux
+        packager: deb
+        file_info:
+          mode: 0o644
+      - src: .cache/release-assets/completions/_lyna-tmux
+        dst: /usr/share/zsh/site-functions/_lyna-tmux
+        packager: rpm
+        file_info:
+          mode: 0o644
+      - src: .cache/release-assets/completions/_lyna-tmux
+        dst: /usr/share/zsh/site-functions/_lyna-tmux
+        packager: apk
+        file_info:
+          mode: 0o644
+      - src: .cache/release-assets/completions/lyna-tmux.fish
+        dst: /usr/share/fish/vendor_completions.d/lyna-tmux.fish
+        file_info:
+          mode: 0o644
+      - src: .cache/release-assets/manpages/lyna-tmux.1.gz
+        dst: /usr/share/man/man1/lyna-tmux.1.gz
+        file_info:
+          mode: 0o644
+      - src: LICENSE
+        dst: /usr/share/licenses/lyna-tmux/LICENSE
+        file_info:
+          mode: 0o644
+      - src: NOTICE
+        dst: /usr/share/licenses/lyna-tmux/NOTICE
+        file_info:
+          mode: 0o644
+
+homebrew_casks:
+  - name: lyna-tmux
+    ids: [lyna-tmux]
+    binaries: [lyna-tmux]
+    homepage: https://github.com/bayoudhdev/lyna-claude-tmux
+    description: Preconfigured tmux workspace for Claude Code
+    license: MIT
+    dependencies:
+      - formula: tmux
+    completions:
+      bash: completions/lyna-tmux.bash
+      zsh: completions/_lyna-tmux
+      fish: completions/lyna-tmux.fish
+    manpages:
+      - manpages/lyna-tmux.1.gz
+    # The binaries are not notarized: clear the quarantine flag the download
+    # sets, or Gatekeeper refuses to start them.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/lyna-tmux"]
+          end
+    # Published only when the tap token is configured for the release job.
+    skip_upload: '{{ if index .Env "HOMEBREW_TAP_TOKEN" }}false{{ else }}true{{ end }}'
+    repository:
+      owner: bayoudhdev
+      name: homebrew-tap
+      token: '{{ index .Env "HOMEBREW_TAP_TOKEN" }}'
+    commit_author:
+      name: lyna-tmux release
+      email: bayoudhdev@users.noreply.github.com
+    commit_msg_template: "lyna-tmux {{ .Tag }}"
+
+changelog:
+  use: git
+  sort: asc
+  abbrev: 7
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+      - "^Merge "
+  groups:
+    - title: Breaking changes
+      regexp: '^.*?(feat|fix|refactor|perf)(\([[:word:]-]+\))??!:.+$'
+      order: 0
+    - title: Security
+      regexp: '^.*?(sec|security)(\([[:word:]-]+\))??!?:.+$'
+      order: 1
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]-]+\))??:.+$'
+      order: 2
+    - title: Bug fixes
+      regexp: '^.*?fix(\([[:word:]-]+\))??:.+$'
+      order: 3
+    - title: Performance
+      regexp: '^.*?perf(\([[:word:]-]+\))??:.+$'
+      order: 4
+    - title: Dependencies
+      regexp: '^.*?(deps|build\(deps\))(\([[:word:]-]+\))??:.+$'
+      order: 5
+    - title: Other changes
+      order: 999
+
+release:
+  github:
+    owner: bayoudhdev
+    name: lyna-claude-tmux
+  name_template: "{{ .Tag }}"
+  prerelease: auto
+  footer: |
+    ## Verify
+
+    ```sh
+    sha256sum --ignore-missing -c checksums.txt
+    gh attestation verify lyna-tmux_{{ .Version }}_linux_amd64.tar.gz --repo bayoudhdev/lyna-claude-tmux
+    ```
+
+    Each archive has an SPDX SBOM (`*.sbom.json`) and a build provenance attestation.
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+report_sizes: true
