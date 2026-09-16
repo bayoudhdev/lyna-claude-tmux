@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"unicode/utf8"
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/keys"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/theme"
@@ -157,11 +156,27 @@ func (w *workspace) statusCell(t *testing.T, text string) (x, y int) {
 	lines := strings.Split(w.Screen(t), "\n")
 	for y = len(lines) - 1; y >= 0; y-- {
 		if i := strings.Index(lines[y], text); i >= 0 {
-			return utf8.RuneCountInString(lines[y][:i]), y
+			return w.cells(t, lines[y][:i]), y
 		}
 	}
 	t.Fatalf("%q not on screen:\n%s", text, strings.Join(lines, "\n"))
 	return 0, 0
+}
+
+// cells is the number of cells tmux takes to draw s. It is not the number of
+// runes: a character can be drawn two cells wide, and which ones are differs
+// between versions, so the drawing is measured by the tmux under test rather
+// than counted here.
+func (w *workspace) cells(t *testing.T, s string) int {
+	t.Helper()
+	const option = "@lt_measure"
+	w.run(t, "set-option", "-g", option, s)
+	out := w.run(t, "display-message", "-p", "#{w:"+option+"}")
+	n, err := strconv.Atoi(out)
+	if err != nil {
+		t.Fatalf("width of %q: %q", s, out)
+	}
+	return n
 }
 
 // menuKey returns the key of the keys-menu item whose label starts with label.
@@ -179,7 +194,16 @@ func (w *workspace) menuKey(t *testing.T, label string) string {
 // TestE2EWorkspaceKeysMenusMouse drives one workspace through every binding,
 // menu and status button in order; each step starts from the state the
 // previous step left.
+//
+// The status buttons are drawn only where tmux marks a range of the status
+// line as clickable, and each step here starts from what the one before it
+// left, so a tmux without that cannot run a part of the list. Keys, menus and
+// the mouse on panes and window tabs are covered on every supported version by
+// TestE2EHostileProjectPath and by the window menu end to end test.
 func TestE2EWorkspaceKeysMenusMouse(t *testing.T) {
+	if v := installedVersion(t); !v.Has(tmux.FeatureUserRanges) {
+		t.Skipf("tmux %s draws no status buttons; they arrived in 3.4", v)
+	}
 	w := startWorkspace(t, "project")
 	dir := w.dir
 	steps := []struct {

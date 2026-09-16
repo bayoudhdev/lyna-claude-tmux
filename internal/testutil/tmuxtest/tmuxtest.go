@@ -82,7 +82,10 @@ func StartNested(t testing.TB, conf, dir string, cols, rows int) *Nested {
 		t.Fatalf("start inner tmux server: %v", err)
 	}
 	outer := newServer(t, bin, "/dev/null")
-	attach := tmux.ShellJoin(bin, "-L", inner.Name, "attach-session", "-t", "=main")
+	// The client draws the inner server for the test to read, so it declares
+	// UTF-8 the way every client of this CLI does: a machine with no locale
+	// would otherwise get an underscore for each icon of the status line.
+	attach := tmux.ShellJoin(bin, "-L", inner.Name, "-u", "attach-session", "-t", "=main")
 	if _, err := outer.Client.Run(ctx, "new-session", "-d", "-s", "term", "-x", fmt.Sprint(cols), "-y", fmt.Sprint(rows), attach); err != nil {
 		t.Fatalf("start outer tmux server: %v", err)
 	}
