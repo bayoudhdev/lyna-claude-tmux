@@ -2,6 +2,9 @@
 title Alt+s opens a scratch shell
 size 112 34
 pre lyna-tmux kill --all
+# The worktree branches another scene opened would fill the log line with
+# decorations; the branch the pane is on is the one worth showing.
+pre git config log.excludeDecoration refs/heads/worktree-*
 pre rm -rf .devcontainer
 pre lyna-tmux create . --layout duo --detach
 run lyna-tmux create .
