@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -550,6 +551,11 @@ const (
 	reviewHelperEnv       = "LYNA_TMUX_TEST_REVIEW_HELPER"
 	reviewHelperArgsEnv   = "LYNA_TMUX_TEST_REVIEW_ARGS"
 	reviewHelperSourceEnv = "LYNA_TMUX_TEST_REVIEW_SOURCE"
+	// reviewHelperStatusEnv names the file the helper writes its exit status
+	// to. tmux is asked for that status by one format, which the oldest
+	// supported version leaves empty for this program, so the status comes
+	// from the program itself.
+	reviewHelperStatusEnv = "LYNA_TMUX_TEST_REVIEW_STATUS"
 )
 
 // reviewHelperSource is the plugin pin a helper process reviews with: the
@@ -579,7 +585,11 @@ func TestReviewHelperProcess(_ *testing.T) {
 	d := ProcessDeps()
 	root := NewRootWith(Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}, d)
 	reviewUseSource(root, d, app.ReviewPlugin{Pin: src.Pin, GOOS: src.GOOS, GOARCH: src.GOARCH})
-	os.Exit(run(context.Background(), root, args))
+	code := run(context.Background(), root, args)
+	if path := os.Getenv(reviewHelperStatusEnv); path != "" {
+		_ = os.WriteFile(path, []byte(strconv.Itoa(code)), 0o600)
+	}
+	os.Exit(code)
 }
 
 // TestReviewInTmuxPane runs the real binary's `review` inside panes of an
@@ -655,6 +665,14 @@ func TestReviewInTmuxPane(t *testing.T) {
 			}
 			srv := tmuxtest.Start(t)
 			ctx := tmuxtest.Context(t)
+			// A pane that closes with its program takes the exit status with
+			// it: tmux records the status just after the terminal closes, and
+			// a window that is already gone answers nothing. The panes of
+			// this test therefore stay until the test ends, the way the panes
+			// of a workspace do.
+			if _, err := srv.Client.Run(ctx, "set-option", "-g", "remain-on-exit", "on"); err != nil {
+				t.Fatal(err)
+			}
 			if _, err := srv.Client.Run(ctx, "set-option", "-wg", "remain-on-exit", "on"); err != nil {
 				t.Fatal(err)
 			}
@@ -668,6 +686,7 @@ func TestReviewInTmuxPane(t *testing.T) {
 			}
 			sandbox := t.TempDir()
 			record := filepath.Join(t.TempDir(), "record.json")
+			status := filepath.Join(t.TempDir(), "status")
 			argsJSON, err := json.Marshal(tc.args)
 			if err != nil {
 				t.Fatal(err)
@@ -675,8 +694,8 @@ func TestReviewInTmuxPane(t *testing.T) {
 			env := map[string]string{
 				reviewHelperEnv: "1", reviewHelperArgsEnv: string(argsJSON), reviewHelperSourceEnv: string(sourceJSON),
 				"LYNA_TMUX_HOME": home, "HOME": sandbox, "LANG": "en_US.UTF-8", "LYNA_TMUX_TEST_RECORD": record,
-				"PATH":            strings.Join([]string{binDir, filepath.Dir(gitPath), filepath.Dir(srv.Bin), "/usr/bin", "/bin"}, ":"),
-				"XDG_CONFIG_HOME": filepath.Join(sandbox, "config"), "XDG_DATA_HOME": filepath.Join(sandbox, "data"),
+				reviewHelperStatusEnv: status,
+				"XDG_CONFIG_HOME":     filepath.Join(sandbox, "config"), "XDG_DATA_HOME": filepath.Join(sandbox, "data"),
 				"XDG_STATE_HOME": filepath.Join(sandbox, "state"), "XDG_CACHE_HOME": filepath.Join(sandbox, "cache"),
 				"XDG_CONFIG_DIRS": filepath.Join(sandbox, "etc"), "XDG_DATA_DIRS": filepath.Join(sandbox, "share"),
 				"GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1",
@@ -685,9 +704,14 @@ func TestReviewInTmuxPane(t *testing.T) {
 			for k, v := range env {
 				args = append(args, "-e", k+"="+v)
 			}
-			program := []string{exe, "-test.run=^TestReviewHelperProcess$"}
+			// The pane takes its PATH from the server rather than from -e on
+			// tmux 3.3, so the one the review needs (the Neovim of the
+			// fixture, git and the binary under test) is given to the program
+			// itself. Every other variable arrives through -e on all versions.
+			path := strings.Join([]string{binDir, filepath.Dir(gitPath), filepath.Dir(srv.Bin), "/usr/bin", "/bin"}, ":")
+			program := []string{mustLookPath(t, "env"), "PATH=" + path, exe, "-test.run=^TestReviewHelperProcess$"}
 			if tc.shell {
-				program = append([]string{"/bin/sh", "-c", `"$0" "$1"; echo "helper exited $?"; exec sleep 3600`}, program...)
+				program = append([]string{"/bin/sh", "-c", `"$@"; echo "helper exited $?"; exec sleep 3600`, "sh"}, program...)
 			}
 			out, err := srv.Client.Run(ctx, "new-window", append(args, program...)...)
 			if err != nil {
@@ -740,14 +764,15 @@ func TestReviewInTmuxPane(t *testing.T) {
 				}
 			}
 			if tc.wantStatus != "" {
-				var status string
+				var got string
 				tmuxtest.WaitFor(t, "the pane program to exit", func() bool {
-					var isDead bool
-					isDead, status = dead()
-					return isDead
+					isDead, _ := dead()
+					data, err := os.ReadFile(status)
+					got = string(data)
+					return isDead && err == nil
 				})
-				if status != tc.wantStatus {
-					t.Fatalf("exit status %s, want %s", status, tc.wantStatus)
+				if got != tc.wantStatus {
+					t.Fatalf("exit status %s, want %s", got, tc.wantStatus)
 				}
 			}
 			if tc.check != nil {
