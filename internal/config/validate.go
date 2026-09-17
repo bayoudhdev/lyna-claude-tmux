@@ -28,6 +28,7 @@ var choices = map[string][]string{
 	"ui.icons":               {"auto", "unicode", "nerd", "ascii"},
 	"ui.color":               {"auto", "truecolor", "256", "16"},
 	"ui.status_position":     {"top", "bottom"},
+	"ui.agents_sidebar":      {SidebarAuto, SidebarAlways, SidebarKey, SidebarOff},
 	"workspace.layout":       layout.Names(),
 	"claude.effort":          {"low", "medium", "high", "xhigh", "max", "ultracode"},
 	"claude.permission_mode": {"default", "manual", "acceptEdits", "plan", "auto", "dontAsk", "bypassPermissions"},
@@ -108,6 +109,7 @@ func (c Config) Validate() error {
 	v.choice("ui.icons", c.UI.Icons)
 	v.choice("ui.color", c.UI.Color)
 	v.choice("ui.status_position", c.UI.StatusPosition)
+	v.choice("ui.agents_sidebar", c.UI.AgentsSidebar)
 
 	c.validateWorkspace(v)
 	c.validateClaude(v)

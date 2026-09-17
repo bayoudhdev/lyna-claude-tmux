@@ -128,6 +128,7 @@ Look and input model of the workspace.
 | `mouse` | boolean | `true`, `false` | `true` | Turns the tmux `mouse` option on or off. With it off, clicks, menus and wheel scrolling never reach tmux. |
 | `allow_passthrough` | boolean | `true`, `false` | `false` | Lets programs in panes send escape sequences straight to your terminal. Off by default: pane output cannot drive your terminal or clipboard. The pane running the agent always allows them, whatever this says, since that is where its desktop notifications and its progress bar come from. |
 | `focus_events` | boolean | `true`, `false` | `false` | Tells a pane when it gains or loses focus. Off by default, as in tmux itself: a program that asks for focus events without reading them prints each one as typed text, and the agent client is one of them. Turn it on for an editor that reloads a file when its pane regains focus. |
+| `agents_sidebar` | string | `auto`, `always`, `key`, `off` | `"auto"` | When the agents rail is on screen. `auto` opens it with the first agent that joins the workspace and takes it away with the last one, `always` opens it with the workspace and keeps it, `key` opens it only when Alt+A asks for it, and `off` never opens it by itself. The `team` layout carries the rail whatever this says. |
 
 There is no `[keys]` table. Key bindings are configured by `ui.alt_keys` and
 `workspace.prefix` only; anything else under a `keys` name is rejected as an unknown key.
@@ -278,6 +279,8 @@ allow_passthrough = false
 # for focus events without reading them shows them as typed text, and the agent
 # client is one of them.
 focus_events = false
+# When the agents rail is on screen: auto, always, key or off.
+agents_sidebar = "auto"
 
 [workspace]
 # Default layout: solo, duo, trio, quad, review, team, auto (picks by terminal size), or

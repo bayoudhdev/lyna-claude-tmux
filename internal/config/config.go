@@ -44,6 +44,7 @@ type UI struct {
 	Mouse            bool   `toml:"mouse"`
 	AllowPassthrough bool   `toml:"allow_passthrough"`
 	FocusEvents      bool   `toml:"focus_events"`
+	AgentsSidebar    string `toml:"agents_sidebar"`
 }
 
 // Workspace controls sessions and panes.
@@ -137,6 +138,7 @@ func Default() Config {
 			Clock:          true,
 			AltKeys:        true,
 			Mouse:          true,
+			AgentsSidebar:  SidebarAuto,
 		},
 		Workspace: Workspace{
 			Layout:       "auto",
@@ -283,3 +285,16 @@ func Choices(key string) []string {
 	}
 	return nil
 }
+
+// When the agents rail is on screen (ui.agents_sidebar).
+const (
+	// SidebarAuto opens the rail with the first agent that joins the workspace
+	// and takes it away with the last one.
+	SidebarAuto = "auto"
+	// SidebarAlways opens the rail with the workspace and keeps it.
+	SidebarAlways = "always"
+	// SidebarKey opens it only when the key asks for it.
+	SidebarKey = "key"
+	// SidebarOff never opens it; the key still does.
+	SidebarOff = "off"
+)

@@ -29,6 +29,11 @@ allow_passthrough = false
 # client is one of them. Turn it on only when every program you run in a pane
 # handles them (an editor that reloads a file on focus, for example).
 focus_events = false
+# When the agents rail is on screen: auto opens it with the first agent that
+# joins the workspace and takes it away with the last one, always opens it with
+# the workspace and keeps it, key opens it only when you ask for it (Alt+A),
+# off never opens it by itself.
+agents_sidebar = "auto"
 
 [workspace]
 # Default layout: solo, duo, trio, quad, review, team, auto (picks by terminal size), or
