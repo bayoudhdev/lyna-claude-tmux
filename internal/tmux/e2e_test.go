@@ -317,6 +317,17 @@ func TestE2EWorkspaceKeysMenusMouse(t *testing.T) {
 			n, _ := strconv.Atoi(before)
 			w.waitActive(t, "#{window_panes}", strconv.Itoa(n+1))
 		}},
+		// A press that lands inside the double click window arrives as a
+		// SecondClick key, so a button bound to MouseDown alone loses every
+		// quick repeat of a click that just worked.
+		{"a quick second click splits again", func(t *testing.T) {
+			before := w.active(t, "#{window_panes}")
+			x, y := w.statusCell(t, "⊞ split")
+			w.press(t, 0, x, y)
+			w.Click(t, 0, x, y)
+			n, _ := strconv.Atoi(before)
+			w.waitActive(t, "#{window_panes}", strconv.Itoa(n+2))
+		}},
 		{"Claude submenu types a slash command", func(t *testing.T) {
 			w.press(t, 2, 9, 6)
 			w.WaitScreen(t, paneMenu, false)

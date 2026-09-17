@@ -202,19 +202,29 @@ func GenerateConf(o ConfOptions) string {
 	w.blank()
 
 	w.comment("mouse")
-	if l.Buttons {
-		w.bind("-n", "", "MouseDown1Status", ClickSeq())
+	// A press that lands within the time tmux waits for a double click
+	// arrives as a SecondClick key instead of a MouseDown, and on tmux 3.4
+	// that happens whatever button the press before it used. Binding both
+	// names is what keeps a button or a menu answering a quick second click
+	// rather than swallowing it.
+	press := func(suffix string, body Seq) {
+		w.bind("-n", "", "MouseDown"+suffix, body)
+		w.bind("-n", "", "SecondClick"+suffix, body)
 	}
-	w.bind("-n", "", "MouseDown1StatusLeft", DoSeq(DoMenuSession))
-	w.bind("-n", "", "MouseDown3StatusLeft", DoSeq(DoMenuSession))
-	w.bind("-n", "", "MouseDown3Status", DoSeq(DoMenuWindow))
+	if l.Buttons {
+		press("1Status", ClickSeq())
+	}
+	press("1StatusLeft", DoSeq(DoMenuSession))
+	press("3StatusLeft", DoSeq(DoMenuSession))
+	press("3Status", DoSeq(DoMenuWindow))
 	// A program that asked for mouse events (Claude's fullscreen renderer, an
 	// editor) keeps receiving right clicks; Alt+right click always opens the menu.
 	selectMouse := Cmd("select-pane", "-t", "=")
-	w.bind("-n", "", "MouseDown3Pane", Cmd("if-shell", "-F", "-t", "=", "#{mouse_any_flag}",
+	press("3Pane", Cmd("if-shell", "-F", "-t", "=", "#{mouse_any_flag}",
 		selectMouse.Then(Cmd("send-keys", "-M", "-t", "=")).String(),
 		selectMouse.Then(DoSeq(DoMenuPane)).String()))
 	w.bind("-n", "", "M-MouseDown3Pane", selectMouse.Then(DoSeq(DoMenuPane)))
+	w.bind("-n", "", "M-SecondClick3Pane", selectMouse.Then(DoSeq(DoMenuPane)))
 	w.blank()
 
 	if o.LocalConf != "" {
