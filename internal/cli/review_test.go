@@ -551,12 +551,38 @@ const (
 	reviewHelperEnv       = "LYNA_TMUX_TEST_REVIEW_HELPER"
 	reviewHelperArgsEnv   = "LYNA_TMUX_TEST_REVIEW_ARGS"
 	reviewHelperSourceEnv = "LYNA_TMUX_TEST_REVIEW_SOURCE"
-	// reviewHelperStatusEnv names the file the helper writes its exit status
-	// to. tmux is asked for that status by one format, which the oldest
-	// supported version leaves empty for this program, so the status comes
-	// from the program itself.
+	// reviewHelperStatusEnv names the file the pane test reads the exit
+	// status from. tmux has a format for it, but that format is empty on some
+	// supported versions (3.3a for this binary, 3.4 for Neovim), so the
+	// status is recorded by whoever sees the process end: the helper itself
+	// when it is the pane's own program, or the shell it runs under
+	// otherwise, which is the only one still running once the review has
+	// become the editor.
 	reviewHelperStatusEnv = "LYNA_TMUX_TEST_REVIEW_STATUS"
 )
+
+// reviewHelperWrapper runs the helper as the child of a shell, the way a
+// review typed at a prompt runs, and records its exit status the way the
+// helper does when it is the pane's own program. The shell takes the status
+// file for itself so the helper never writes it as well. Nothing after the
+// review depends on tmux: the pane stays on screen through remain-on-exit.
+const reviewHelperWrapper = `f=$` + reviewHelperStatusEnv + `
+unset ` + reviewHelperStatusEnv + `
+"$@"
+s=$?
+echo "helper exited $s"
+printf '%s' "$s" > "$f.tmp" && mv "$f.tmp" "$f"
+exit "$s"
+`
+
+// writeExitStatus records code for the pane test: the file appears with its
+// final content, so a reader never sees a partial write.
+func writeExitStatus(path string, code int) {
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, []byte(strconv.Itoa(code)), 0o600); err == nil {
+		_ = os.Rename(tmp, path)
+	}
+}
 
 // reviewHelperSource is the plugin pin a helper process reviews with: the
 // pane tests install before starting it, so it needs no download locations.
@@ -587,7 +613,7 @@ func TestReviewHelperProcess(_ *testing.T) {
 	reviewUseSource(root, d, app.ReviewPlugin{Pin: src.Pin, GOOS: src.GOOS, GOARCH: src.GOARCH})
 	code := run(context.Background(), root, args)
 	if path := os.Getenv(reviewHelperStatusEnv); path != "" {
-		_ = os.WriteFile(path, []byte(strconv.Itoa(code)), 0o600)
+		writeExitStatus(path, code)
 	}
 	os.Exit(code)
 }
@@ -617,8 +643,12 @@ func TestReviewInTmuxPane(t *testing.T) {
 	cases := []struct {
 		name string
 		args []string
-		// shell runs the review from a shell, which then prints its status,
-		// instead of as the pane's own program.
+		// shell runs the review from a shell (reviewHelperWrapper), which
+		// records and prints its status, instead of as the pane's own
+		// program. The pane's own program is what a layout's review pane
+		// runs, and the review holds its reason on screen only there: the
+		// hold is decided by comparing its pid with the pane's, so the case
+		// that asserts the hold cannot run under a wrapper.
 		shell     bool
 		installed bool
 		realNvim  bool
@@ -626,24 +656,22 @@ func TestReviewInTmuxPane(t *testing.T) {
 		// it must not wait.
 		waiting []string
 		// after is the screen once a shell review returned.
-		after []string
-		// paneStatus reads the exit status from tmux instead of from the file
-		// the helper writes. A review that opens the editor replaces its own
-		// process with it, so no code of ours runs after it: the status is the
-		// editor's, and only tmux has it.
-		paneStatus bool
+		after      []string
 		wantStatus string
 		check      func(t *testing.T, record string)
 	}{
 		{name: "a review pane keeps the reason until q", args: []string{"review", "--dir", f.repo}, waiting: notInstalled, wantStatus: "3"},
-		{name: "a popup keeps the reason until q", args: []string{"review", "--popup"}, shell: true, waiting: notInstalled, after: []string{"helper exited 3"}},
+		{name: "a popup keeps the reason until q", args: []string{"review", "--popup"}, shell: true, waiting: notInstalled, after: []string{"helper exited 3"}, wantStatus: "3"},
 		{
 			name: "a review typed at a shell prompt returns at once", args: []string{"review", "--dir", f.repo}, shell: true,
-			after: []string{"lyna-tmux review install", "helper exited 3"},
+			after: []string{"lyna-tmux review install", "helper exited 3"}, wantStatus: "3",
 		},
 		{
+			// The review replaces its own process with the editor, so no code
+			// of ours runs after it: the status is the editor's, seen by the
+			// shell the review runs under.
 			name: "a review becomes Neovim in the requested directory", args: []string{"review", "--dir", f.repo, "main..."},
-			installed: true, realNvim: true, paneStatus: true, wantStatus: "0",
+			installed: true, realNvim: true, shell: true, wantStatus: "0",
 			check: func(t *testing.T, record string) {
 				t.Helper()
 				var got struct {
@@ -670,14 +698,10 @@ func TestReviewInTmuxPane(t *testing.T) {
 			}
 			srv := tmuxtest.Start(t)
 			ctx := tmuxtest.Context(t)
-			// A pane that closes with its program takes the exit status with
-			// it: tmux records the status just after the terminal closes, and
-			// a window that is already gone answers nothing. The panes of
-			// this test therefore stay until the test ends, the way the panes
-			// of a workspace do.
-			if _, err := srv.Client.Run(ctx, "set-option", "-g", "remain-on-exit", "on"); err != nil {
-				t.Fatal(err)
-			}
+			// A pane that closes with its program takes the screen with it,
+			// and the test reads the screen after the review returned. The
+			// panes of this test therefore stay until the test ends, the way
+			// the panes of a workspace do.
 			if _, err := srv.Client.Run(ctx, "set-option", "-wg", "remain-on-exit", "on"); err != nil {
 				t.Fatal(err)
 			}
@@ -716,7 +740,7 @@ func TestReviewInTmuxPane(t *testing.T) {
 			path := strings.Join([]string{binDir, filepath.Dir(gitPath), filepath.Dir(srv.Bin), "/usr/bin", "/bin"}, ":")
 			program := []string{mustLookPath(t, "env"), "PATH=" + path, exe, "-test.run=^TestReviewHelperProcess$"}
 			if tc.shell {
-				program = append([]string{"/bin/sh", "-c", `"$@"; echo "helper exited $?"; exec sleep 3600`, "sh"}, program...)
+				program = append([]string{"/bin/sh", "-c", reviewHelperWrapper, "sh"}, program...)
 			}
 			out, err := srv.Client.Run(ctx, "new-window", append(args, program...)...)
 			if err != nil {
@@ -738,10 +762,11 @@ func TestReviewInTmuxPane(t *testing.T) {
 					return true
 				}
 			}
-			dead := func() (bool, string) {
-				state, err := srv.Client.Display(ctx, pane, "#{pane_dead} #{pane_dead_status}")
-				flag, status, _ := strings.Cut(state, " ")
-				return err == nil && flag == "1", status
+			// exited reports the status once the review, or the editor it
+			// became, has ended; the file appears only then.
+			exited := func() (string, bool) {
+				data, err := os.ReadFile(status)
+				return string(data), err == nil
 			}
 			t.Cleanup(func() {
 				if t.Failed() {
@@ -751,8 +776,8 @@ func TestReviewInTmuxPane(t *testing.T) {
 
 			if len(tc.waiting) > 0 {
 				tmuxtest.WaitFor(t, "the reason and the prompt", shows(tc.waiting))
-				if isDead, _ := dead(); isDead {
-					t.Fatal("the pane closed before a key was pressed")
+				if got, ok := exited(); ok {
+					t.Fatalf("the review exited %s before a key was pressed", got)
 				}
 				if s := screen(); strings.Contains(s, "helper exited") {
 					t.Fatalf("the review returned before a key was pressed:\n%s", s)
@@ -768,24 +793,14 @@ func TestReviewInTmuxPane(t *testing.T) {
 					t.Fatal("a review started from a shell waited for a key")
 				}
 			}
-			if tc.wantStatus != "" {
-				var got string
-				tmuxtest.WaitFor(t, "the pane program to exit", func() bool {
-					isDead, paneStatus := dead()
-					if !isDead {
-						return false
-					}
-					if tc.paneStatus {
-						got = paneStatus
-						return got != ""
-					}
-					data, err := os.ReadFile(status)
-					got = string(data)
-					return err == nil
-				})
-				if got != tc.wantStatus {
-					t.Fatalf("exit status %s, want %s", got, tc.wantStatus)
-				}
+			var got string
+			tmuxtest.WaitFor(t, "the pane program to exit", func() bool {
+				var ok bool
+				got, ok = exited()
+				return ok
+			})
+			if got != tc.wantStatus {
+				t.Fatalf("exit status %s, want %s", got, tc.wantStatus)
 			}
 			if tc.check != nil {
 				tc.check(t, record)

@@ -13,9 +13,27 @@ import (
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
 )
 
+// editorStatusEnv names the file the pane's shell writes the editor's exit
+// status to. tmux has a format for that status, but it is empty on some
+// supported versions (3.4 for Neovim), so the status comes from the parent
+// of the shell that became the editor.
+const editorStatusEnv = "LYNA_TMUX_TEST_EXIT"
+
+// editorWrapper hands the TmuxShellCommand string to the shell under test
+// with -c, exactly as tmux hands a new-window body to its default-shell, and
+// records the exit status the shell ends with: it replaces itself with the
+// editor, so that status is the editor's. The file appears with its final
+// content, so a reader never sees a partial write.
+const editorWrapper = `f=$` + editorStatusEnv + `
+"$1" -c "$2"
+s=$?
+printf '%s' "$s" > "$f.tmp" && mv "$f.tmp" "$f"
+exit "$s"
+`
+
 // TestTmuxReviewWindow opens the review the way tmux runs it: the
 // TmuxShellCommand string is the body of new-window on an isolated server,
-// run by the server's default-shell, in a real terminal.
+// run by the shell under test as its -c argument, in a real terminal.
 func TestTmuxReviewWindow(t *testing.T) {
 	requireNvim(t)
 	tmuxtest.Require(t)
@@ -61,23 +79,24 @@ func TestTmuxReviewWindow(t *testing.T) {
 			out := t.TempDir()
 			fargsFile := filepath.Join(out, "fargs.json")
 			stateFile := filepath.Join(out, "state.json")
+			exitFile := filepath.Join(out, "exit")
 
 			command, err := TmuxShellCommand(tc.req, LaunchOptions{Paths: paths, Dir: dir, Environ: s.env})
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, opt := range [][]string{{"-g", "default-shell", shell}, {"-wg", "remain-on-exit", "on"}} {
-				if _, err := srv.Client.Run(ctx, "set-option", opt...); err != nil {
-					t.Fatalf("set-option %v: %v", opt, err)
-				}
+			// The pane keeps its screen once the editor has exited, for the
+			// log of a failed case.
+			if _, err := srv.Client.Run(ctx, "set-option", "-wg", "remain-on-exit", "on"); err != nil {
+				t.Fatalf("set-option remain-on-exit: %v", err)
 			}
 			// The pane gets the sandbox home and configuration, so neither the
 			// shell nor the editor can read the developer's own.
 			args := []string{"-d", "-P", "-F", "#{pane_id}", "-t", tmux.ExactSession("base"), "-c", tmux.FormatEscape(dir)}
-			for _, kv := range append(slices.Clone(s.env), "LYNA_TMUX_TEST_FARGS="+fargsFile, "LYNA_TMUX_TEST_STATE="+stateFile) {
+			for _, kv := range append(slices.Clone(s.env), "LYNA_TMUX_TEST_FARGS="+fargsFile, "LYNA_TMUX_TEST_STATE="+stateFile, editorStatusEnv+"="+exitFile) {
 				args = append(args, "-e", kv)
 			}
-			pane, err := srv.Client.Run(ctx, "new-window", append(args, command)...)
+			pane, err := srv.Client.Run(ctx, "new-window", append(args, "/bin/sh", "-c", editorWrapper, "sh", shell, command)...)
 			if err != nil {
 				t.Fatalf("new-window: %v", err)
 			}
@@ -91,10 +110,11 @@ func TestTmuxReviewWindow(t *testing.T) {
 					t.Logf("command: %s\nscreen:\n%s", command, capture())
 				}
 			})
-			deadStatus := func() (bool, string) {
-				state, err := srv.Client.Display(ctx, pane, "#{pane_dead} #{pane_dead_status}")
-				dead, status, _ := strings.Cut(state, " ")
-				return err == nil && dead == "1", status
+			// exited reports the editor's status once it has ended; the file
+			// appears only then.
+			exited := func() (string, bool) {
+				data, err := os.ReadFile(exitFile)
+				return string(data), err == nil
 			}
 
 			if len(tc.screen) > 0 {
@@ -107,8 +127,8 @@ func TestTmuxReviewWindow(t *testing.T) {
 					}
 					return true
 				})
-				if dead, _ := deadStatus(); dead {
-					t.Fatal("the editor closed before a key was pressed")
+				if status, ok := exited(); ok {
+					t.Fatalf("the editor exited %s before a key was pressed", status)
 				}
 				if _, err := srv.Client.Run(ctx, "send-keys", "-t", pane, "Enter"); err != nil {
 					t.Fatal(err)
@@ -116,9 +136,9 @@ func TestTmuxReviewWindow(t *testing.T) {
 			}
 			var status string
 			tmuxtest.WaitFor(t, "the review window to exit", func() bool {
-				var dead bool
-				dead, status = deadStatus()
-				return dead
+				var ok bool
+				status, ok = exited()
+				return ok
 			})
 			if status != tc.wantStatus {
 				t.Fatalf("editor exit status = %s, want %s", status, tc.wantStatus)
