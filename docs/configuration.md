@@ -79,6 +79,13 @@ Details worth knowing:
   key currently has. It is encoded output: comments are not part of it.
 - `lyna-tmux setup` also writes this file, from its own questions. It keeps a `.bak` copy of
   the previous file, and it writes encoded TOML, so comments in the replaced file are lost.
+  It then offers to carry out what the answers need, one question at a time, so the next
+  command works instead of failing on a choice that was only written down: building and
+  starting the project's dev container at container isolation, writing the completion script
+  of your login shell, installing the review plugin. The sandbox runtime of process isolation
+  is never installed for you; setup prints the command. `--yes` accepts every one of these
+  questions. Your shell startup file is never edited: when zsh needs an `fpath` line, setup
+  prints it.
 - `lyna-tmux theme <name>` writes only `ui.theme`, in place: comments, ordering and spacing
   stay exactly as you wrote them.
 
