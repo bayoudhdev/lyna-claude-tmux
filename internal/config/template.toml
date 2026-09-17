@@ -61,6 +61,9 @@ statusline = "auto"
 fullscreen = false
 # Agent teams, with teammates opened as tmux panes.
 teams = false
+# Where a teammate opens: lmux (a labeled pane of this workspace), auto (the
+# agent decides), in-process (inside the lead), iterm2 (a terminal split).
+teammate_mode = "lmux"
 # Base for new worktrees: fresh (origin default branch) or head. Empty uses the default.
 worktree_base = ""
 # Size guideline for dynamic workflows: small, medium, large, unrestricted.

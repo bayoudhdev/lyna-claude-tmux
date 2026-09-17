@@ -13,6 +13,7 @@ import (
 
 	"github.com/pelletier/go-toml/v2"
 
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/claudecfg"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/review"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/fsx"
 )
@@ -63,6 +64,7 @@ type Claude struct {
 	Statusline     string   `toml:"statusline"`
 	Fullscreen     bool     `toml:"fullscreen"`
 	Teams          bool     `toml:"teams"`
+	TeammateMode   string   `toml:"teammate_mode"`
 	WorktreeBase   string   `toml:"worktree_base"`
 	WorkflowSize   string   `toml:"workflow_size"`
 	Bell           bool     `toml:"bell"`
@@ -141,8 +143,9 @@ func Default() Config {
 			Prefix:       "C-b",
 		},
 		Claude: Claude{
-			Statusline: "auto",
-			Bell:       true,
+			Statusline:   "auto",
+			TeammateMode: claudecfg.TeammateLmux,
+			Bell:         true,
 		},
 		Sandbox: Sandbox{
 			Profile:   "standard",

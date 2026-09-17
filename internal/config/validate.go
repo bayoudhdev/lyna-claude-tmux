@@ -11,6 +11,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/claudecfg"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/layout"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/review"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/session"
@@ -31,6 +32,7 @@ var choices = map[string][]string{
 	"claude.effort":          {"low", "medium", "high", "xhigh", "max", "ultracode"},
 	"claude.permission_mode": {"default", "manual", "acceptEdits", "plan", "auto", "dontAsk", "bypassPermissions"},
 	"claude.statusline":      {"auto", "lyna", "off"},
+	"claude.teammate_mode":   claudecfg.TeammateModes(),
 	"claude.worktree_base":   {"fresh", "head"},
 	"claude.workflow_size":   {"small", "medium", "large", "unrestricted"},
 	"sandbox.profile":        {"standard", "strict", "off"},
@@ -177,6 +179,7 @@ func (c Config) validateClaude(v *validator) {
 	v.choice("claude.effort", cl.Effort)
 	v.choice("claude.permission_mode", cl.PermissionMode)
 	v.choice("claude.statusline", cl.Statusline)
+	v.choice("claude.teammate_mode", cl.TeammateMode)
 	v.choice("claude.worktree_base", cl.WorktreeBase)
 	v.choice("claude.workflow_size", cl.WorkflowSize)
 	v.paths("claude.add_dirs", cl.AddDirs)

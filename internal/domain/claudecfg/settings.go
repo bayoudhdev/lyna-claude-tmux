@@ -70,6 +70,10 @@ type SettingsInput struct {
 	Env map[string]string
 	// Teams shows agent team teammates as tmux panes.
 	Teams bool
+	// TeammateMode is claude.teammate_mode: where a teammate opens. It only
+	// matters when Teams is set, and empty means the default, which is the
+	// workspace's own launcher.
+	TeammateMode string
 	// WorktreeBaseRef is worktree.baseRef: fresh, head or empty.
 	WorktreeBaseRef string
 	// WorkflowSize is workflowSizeGuideline: small, medium, large, unrestricted or empty.
@@ -185,7 +189,11 @@ func BuildSettings(in SettingsInput) ([]byte, error) {
 		doc.StatusLine = &statusLine{Type: "command", Command: StatusLineCommand(in.Bin)}
 	}
 	if in.Teams {
-		doc.TeammateMode = "tmux"
+		mode, err := SettingsTeammateMode(in.TeammateMode)
+		if err != nil {
+			return nil, err
+		}
+		doc.TeammateMode = mode
 	}
 	if in.WorktreeBaseRef != "" {
 		doc.Worktree = &worktree{BaseRef: in.WorktreeBaseRef}

@@ -261,6 +261,9 @@ func TestValidate(t *testing.T) {
 		{"mode bypass", func(c *Config) { c.Claude.PermissionMode = "bypassPermissions" }, ""},
 		{"mode bad", func(c *Config) { c.Claude.PermissionMode = "yolo" }, "claude.permission_mode"},
 		{"statusline empty", func(c *Config) { c.Claude.Statusline = "" }, "claude.statusline"},
+		{"teammate mode in process", func(c *Config) { c.Claude.TeammateMode = "in-process" }, ""},
+		{"teammate mode empty", func(c *Config) { c.Claude.TeammateMode = "" }, "claude.teammate_mode"},
+		{"teammate mode is not the backend name", func(c *Config) { c.Claude.TeammateMode = "tmux" }, "claude.teammate_mode"},
 		{"worktree head", func(c *Config) { c.Claude.WorktreeBase = "head" }, ""},
 		{"worktree bad", func(c *Config) { c.Claude.WorktreeBase = "main" }, "claude.worktree_base"},
 		{"workflow large", func(c *Config) { c.Claude.WorkflowSize = "large" }, ""},
@@ -515,7 +518,7 @@ func TestMarshalRoundTrip(t *testing.T) {
 	full.Workspace.Shell = "/bin/zsh"
 	full.Claude = Claude{
 		Command: "/opt/claude", Args: []string{"--verbose", `quote"d`}, Model: "opus", Effort: "xhigh",
-		PermissionMode: "plan", Statusline: "lyna", Fullscreen: true, Teams: true, WorktreeBase: "head",
+		PermissionMode: "plan", Statusline: "lyna", Fullscreen: true, Teams: true, TeammateMode: "in-process", WorktreeBase: "head",
 		WorkflowSize: "small", Bell: false, AddDirs: []string{"~/a"}, MCPConfig: []string{"/m.json"}, PluginDirs: []string{"~/p"},
 	}
 	full.Sandbox = Sandbox{
