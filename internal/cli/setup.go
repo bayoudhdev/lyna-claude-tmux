@@ -276,7 +276,7 @@ func (d Deps) setupCompletion(cmd *cobra.Command, h app.Host, ask func(string) b
 	if err := target.gen(cmd.Root(), &buf); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil { //nolint:gosec // G301: a shell's completion directory, which the shell reads as it finds it, not private state
 		return err
 	}
 	if err := fsx.WriteFileAtomic(path, buf.Bytes(), 0o644); err != nil {
