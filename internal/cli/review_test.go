@@ -593,9 +593,19 @@ func writeReviewDiag(path string, d Deps) {
 		return
 	}
 	term := d.Terminal()
-	line := fmt.Sprintf("pid=%d interactive=%v owns=%v TMUX=%q TMUX_PANE=%q tmux=%q",
+	// The ownership check answers a bool, so the lookup it makes is repeated
+	// here: a pane that is not ours and a tmux that could not be asked look
+	// the same from the outside and need different fixes.
+	found, lookErr := exec.LookPath("tmux")
+	socket, _ := tmux.SocketFromEnv(h.Getenv("TMUX"))
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	pid, dispErr := tmux.New(tmux.Options{Bin: h.TmuxBin, Socket: socket, Env: app.ServerEnviron(h.Environ)}).
+		Display(ctx, h.Getenv("TMUX_PANE"), "#{pane_pid}")
+	line := fmt.Sprintf("pid=%d interactive=%v owns=%v TMUX=%q TMUX_PANE=%q tmux=%q found=%q lookErr=%v pane_pid=%q dispErr=%v PATH=%q",
 		os.Getpid(), term.Interactive, app.ReviewOwnsPane(context.Background(), h, os.Getpid()),
-		h.Getenv("TMUX"), h.Getenv("TMUX_PANE"), h.TmuxBin)
+		h.Getenv("TMUX"), h.Getenv("TMUX_PANE"), h.TmuxBin,
+		found, lookErr, strings.TrimSpace(pid), dispErr, h.Getenv("PATH"))
 	_ = os.WriteFile(path, []byte(line), 0o600)
 }
 
@@ -763,7 +773,13 @@ func TestReviewInTmuxPane(t *testing.T) {
 			// tmux 3.3, so the one the review needs (the Neovim of the
 			// fixture, git and the binary under test) is given to the program
 			// itself. Every other variable arrives through -e on all versions.
-			path := strings.Join([]string{binDir, filepath.Dir(gitPath), filepath.Dir(srv.Bin), "/usr/bin", "/bin"}, ":")
+			//
+			// The tmux this server runs comes first, ahead of the directories
+			// that hold git and the system programs. A client of another
+			// version cannot talk to it ("server exited unexpectedly"), so a
+			// machine with a second tmux in /usr/bin would otherwise leave the
+			// review unable to ask which pane it runs in.
+			path := strings.Join([]string{filepath.Dir(srv.Bin), binDir, filepath.Dir(gitPath), "/usr/bin", "/bin"}, ":")
 			program := []string{mustLookPath(t, "env"), "PATH=" + path, exe, "-test.run=^TestReviewHelperProcess$"}
 			if tc.shell {
 				program = append([]string{"/bin/sh", "-c", reviewHelperWrapper, "sh"}, program...)
