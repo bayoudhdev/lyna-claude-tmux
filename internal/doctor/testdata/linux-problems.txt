@@ -24,6 +24,8 @@ warn  Truecolor           the terminal does not advertise 24-bit color, so lyna-
 warn  Clipboard           no clipboard tool found (xclip, xsel, wl-copy), so copy mode cannot write the system clipboard
                           fix:  sudo apt-get install xclip
 ok    Option as Meta      Alt sends Meta by default on this platform
+warn  Shift+Enter         Shift+Enter may send the prompt instead of adding a line in unknown terminal; doctor cannot press a key to find out
+                          fix:  run /terminal-setup in Claude Code, in this terminal and not inside tmux; a terminal that already sends the key is left as it is
 warn  Claude keybindings  alt+s (Chat, chat:stash) never reaches Claude: M-s is lyna-tmux Scratch shell
                           fix:  edit /home/u/.claude/keybindings.json to use other keys, or set ui.alt_keys = false (and workspace.prefix) in config.toml
 warn  Docker              the Docker daemon is not reachable: permission denied while trying to connect to the Docker daemon socket
@@ -31,4 +33,4 @@ warn  Docker              the Docker daemon is not reachable: permission denied 
 warn  Neovim              Neovim 0.7.2 at /usr/bin/nvim is older than 0.9; the review popup needs 0.9 or newer
                           fix:  sudo apt-get install neovim
 
-2 ok, 5 warn, 5 fail, 1 skipped
+2 ok, 6 warn, 5 fail, 1 skipped

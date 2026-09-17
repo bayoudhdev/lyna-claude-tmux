@@ -34,8 +34,8 @@ func newCreateCmd(d Deps) *cobra.Command {
 		Long: "Open a Claude workspace for the project that contains dir (the current directory\n" +
 			"by default) and attach this terminal to it. A project that already has a running\n" +
 			"workspace is attached as it is. Arguments after -- are passed to claude.",
-		Example: "  lyna-tmux create\n" +
-			"  lyna-tmux create ~/src/api -l trio --model opus\n" +
+		Example: "  lmux create\n" +
+			"  lmux create ~/src/api -l trio --model opus\n" +
 			"  lyna-tmux new -c -- --verbose",
 	}
 	return createFlags(cmd, d, createCommand{
@@ -43,7 +43,7 @@ func newCreateCmd(d Deps) *cobra.Command {
 			return fmt.Sprintf("Workspace %s is already open for %s\n", res.Name, sanitize.Line(res.Project))
 		},
 		Running: func(res app.CreateResult) string {
-			return fmt.Sprintf("Workspace %s is running. Attach with: lyna-tmux attach %s\n", res.Name, res.Name)
+			return fmt.Sprintf("Workspace %s is running. Attach with: lmux attach %s\n", res.Name, res.Name)
 		},
 	})
 }
@@ -52,9 +52,10 @@ func newCreateCmd(d Deps) *cobra.Command {
 // create, launching with what c asks for.
 func createFlags(cmd *cobra.Command, d Deps, c createCommand) *cobra.Command {
 	var (
-		req    app.CreateRequest
-		detach bool
-		nested bool
+		req            app.CreateRequest
+		detach         bool
+		nested         bool
+		startContainer bool
 	)
 	cmd.Args = func(cmd *cobra.Command, args []string) error {
 		if n := cmd.ArgsLenAtDash(); n > 1 || n < 0 && len(args) > 1 {
@@ -64,7 +65,11 @@ func createFlags(cmd *cobra.Command, d Deps, c createCommand) *cobra.Command {
 	}
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		req.Launch.Teams = c.Teams
-		return d.runCreate(cmd, args, req, detach, nested, c)
+		start := containerStartAsk
+		if startContainer {
+			start = containerStartAlways
+		}
+		return d.runCreate(cmd, args, req, detach, nested, start, c)
 	}
 	f := cmd.Flags()
 	f.StringVarP(&req.Layout, "layout", "l", "", "layout: solo, duo, trio, quad, review, auto or a custom layout")
@@ -77,6 +82,7 @@ func createFlags(cmd *cobra.Command, d Deps, c createCommand) *cobra.Command {
 	f.BoolVarP(&req.Launch.Continue, "continue", "c", false, "continue the most recent conversation")
 	f.BoolVarP(&detach, "detach", "d", false, "start the workspace without attaching")
 	f.BoolVar(&nested, "nested", false, "attach even from inside another tmux session")
+	f.BoolVar(&startContainer, "start-container", false, "at container isolation, build and start the dev container without asking")
 	// The size of a terminal this process cannot measure: container isolation
 	// starts create inside the dev container, where the layout is chosen for
 	// the terminal the user sits at, on the host.
@@ -104,7 +110,7 @@ func createFlags(cmd *cobra.Command, d Deps, c createCommand) *cobra.Command {
 
 // runCreate opens the workspace of req and attaches this terminal to it, or
 // reports where it runs when detached.
-func (d Deps) runCreate(cmd *cobra.Command, args []string, req app.CreateRequest, detach, nested bool, c createCommand) error {
+func (d Deps) runCreate(cmd *cobra.Command, args []string, req app.CreateRequest, detach, nested bool, start containerStart, c createCommand) error {
 	ctx, h, s, err := d.openServer(cmd)
 	if err != nil {
 		return err
@@ -123,7 +129,7 @@ func (d Deps) runCreate(cmd *cobra.Command, args []string, req app.CreateRequest
 	if !detach && !term.Interactive {
 		return errors.New("this is not a terminal to attach; pass --detach to start the workspace in the background")
 	}
-	handled, err := d.createIsolated(cmd, s, req, detach)
+	handled, err := d.createIsolated(cmd, s, req, detach, start)
 	if handled || err != nil {
 		return err
 	}

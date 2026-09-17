@@ -69,17 +69,33 @@ func TestDefaultsTables(t *testing.T) {
 	}
 }
 
-// Every action reachable with Alt keys is also reachable after the prefix, so
-// terminals that do not send Option as Meta lose nothing essential.
-func TestPrefixCoversEssentialActions(t *testing.T) {
-	prefixed := map[Action]bool{}
-	for _, b := range Defaults(Options{}) {
-		prefixed[b.Action] = true
-	}
-	for _, a := range []Action{ActionSplitRight, ActionSplitDown, ActionAgents, ActionReview, ActionScratch, ActionMenu, ActionFocusClaude} {
-		if !prefixed[a] {
-			t.Errorf("action %s has no prefix binding", a)
+// TestPrefixCoversEveryAltAction pins the promise the Alt bindings rest on:
+// everything they reach is reachable after the prefix as well. Alt arrives
+// only on a terminal set to send Option as Meta, and on one that is not, a key
+// with no prefix binding is an action with no way to run it. An earlier
+// version of this test listed the actions it considered essential by hand, and
+// closing a pane was not among them.
+func TestPrefixCoversEveryAltAction(t *testing.T) {
+	// The argument is part of the action: window 3 is not window 1.
+	type act struct{ action, arg string }
+	prefixed := map[act]string{}
+	for _, b := range Defaults(Options{AltKeys: true}) {
+		if b.Table == TablePrefix {
+			prefixed[act{string(b.Action), b.Arg}] = b.Key
 		}
+	}
+	root := 0
+	for _, b := range Defaults(Options{AltKeys: true}) {
+		if b.Table != TableRoot {
+			continue
+		}
+		root++
+		if _, ok := prefixed[act{string(b.Action), b.Arg}]; !ok {
+			t.Errorf("%s (%s, %s) has no prefix binding", b.Key, b.Action, b.Help)
+		}
+	}
+	if root == 0 {
+		t.Fatal("no root bindings to cover")
 	}
 }
 

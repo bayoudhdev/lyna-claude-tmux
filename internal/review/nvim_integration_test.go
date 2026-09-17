@@ -327,7 +327,7 @@ func TestNeovimLaunchFailures(t *testing.T) {
 		wantErr    error
 		stderrHas  string
 	}{
-		{name: "no :CodeDiff command", wantErr: ErrUnavailable, stderrHas: "the :CodeDiff command is not available. Install it with: lyna-tmux review install"},
+		{name: "no :CodeDiff command", wantErr: ErrUnavailable, stderrHas: "the :CodeDiff command is not available. Install it with: lmux review install"},
 		{name: "plugin setup fails", withPlugin: true, env: []string{"LYNA_TMUX_TEST_SETUP_FAIL=1"}, wantErr: ErrLaunchFailed, stderrHas: "codediff.nvim setup failed: "},
 		{name: ":CodeDiff raises", withPlugin: true, env: []string{"LYNA_TMUX_TEST_CODEDIFF_FAIL=1"}, wantErr: ErrLaunchFailed, stderrHas: "fake CodeDiff failure"},
 		{name: "arguments are not an array", withPlugin: true, env: []string{`LYNA_TMUX_REVIEW_ARGS={"a":"b"}`}, wantErr: ErrLaunchFailed, stderrHas: "LYNA_TMUX_REVIEW_ARGS is not a JSON array"},

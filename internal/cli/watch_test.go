@@ -422,7 +422,7 @@ func watchSessionID(t *testing.T, s *app.Server, pane string) string {
 }
 
 // TestWatchFollowsRenamedWorkspace runs the signal loop of a pane's changes
-// view on an isolated server, renames the workspace with `lyna-tmux rename`
+// view on an isolated server, renames the workspace with `lmux rename`
 // and checks that signals on the workspace's channel, keyed on a session id
 // the rename keeps, still refresh the view afterwards.
 func TestWatchFollowsRenamedWorkspace(t *testing.T) {
@@ -454,7 +454,7 @@ func TestWatchFollowsRenamedWorkspace(t *testing.T) {
 	}
 	src := &watchFakeSource{}
 	w := view.Watcher
-	w.Source, w.Interval, w.Debounce = src, 0, time.Millisecond
+	w.Source, w.Idle, w.Debounce = src, 0, time.Millisecond
 	runCtx, cancel := context.WithCancel(t.Context())
 	var wg sync.WaitGroup
 	t.Cleanup(func() { cancel(); wg.Wait() })

@@ -87,7 +87,7 @@ func TestCreateCLI(t *testing.T) {
 		{
 			name: "detached from the working directory", args: []string{"create", "--detach"},
 			setup:  func(t *testing.T) { t.Helper(); e.cwd = filepath.Join(api, "pkg") },
-			outHas: []string{"Workspace api is running. Attach with: lyna-tmux attach api"},
+			outHas: []string{"Workspace api is running. Attach with: lmux attach api"},
 			check: func(t *testing.T, _ string) {
 				t.Helper()
 				if inv := invocations(t, 1)[0]; inv.Cwd != api || !slices.Contains(inv.Args, "--name=api") {

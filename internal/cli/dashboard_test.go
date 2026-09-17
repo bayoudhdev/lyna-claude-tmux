@@ -34,7 +34,7 @@ func TestRootWithoutTerminalListsWorkspaces(t *testing.T) {
 		setup  func(t *testing.T)
 		outHas []string
 	}{
-		{name: "no workspaces", outHas: []string{"No workspaces. Start one with: lyna-tmux create"}},
+		{name: "no workspaces", outHas: []string{"No workspaces. Start one with: lmux create"}},
 		{name: "workspaces", setup: func(t *testing.T) { t.Helper(); e.start(t, "api", "/src/api") }, outHas: []string{"NAME", "api", "duo", "/src/api"}},
 	}
 	for _, tc := range cases {
@@ -408,7 +408,7 @@ func TestDashActions(t *testing.T) {
 				// The container command carries the form's request; the
 				// flags it adds beyond them belong to the create command.
 				i := slices.Index(c.Args, "lyna-tmux-tool")
-				head := []string{"lyna-tmux-tool", "lyna-tmux", "create"}
+				head := []string{"lyna-tmux-tool", "lmux", "create"}
 				if i < 0 || len(c.Args)-i < len(head)+1 || !slices.Equal(c.Args[i:i+len(head)], head) || c.Args[len(c.Args)-1] != "/workspace" {
 					t.Fatalf("argv %q, want it to run %q in the container for /workspace", c.Args, head)
 				}

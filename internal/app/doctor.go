@@ -30,10 +30,13 @@ const (
 // directory, the minimum Claude Code release and the configured keys and
 // sandbox are filled in. dir is the working directory the report is about:
 // its project root decides the Claude Code trust check, and an empty dir, or
-// one outside a project, skips that row. A configuration that does not load
-// is a failed row and the other checks run with the defaults. The report
-// starts with the configuration and ends with the review editor.
-func DoctorRun(ctx context.Context, h Host, sys doctor.Deps, dir string) doctor.Report {
+// one outside a project, skips that row. src is the review plugin source the
+// report is about, the same one `review install` and `doctor --fix` install
+// from, so the row reports on the installation those commands would produce.
+// A configuration that does not load is a failed row and the other checks run
+// with the defaults. The report starts with the configuration and ends with
+// the review editor.
+func DoctorRun(ctx context.Context, h Host, sys doctor.Deps, dir string, src ReviewPlugin) doctor.Report {
 	cfg := config.Default()
 	row := doctor.Result{ID: doctorConfigID, Title: "Configuration"}
 	paths, pathsErr := xdg.Resolve(h.Getenv, h.Home)
@@ -43,12 +46,12 @@ func DoctorRun(ctx context.Context, h Host, sys doctor.Deps, dir string) doctor.
 		loaded, found, err := config.Load(paths.ConfigFile())
 		switch {
 		case err != nil:
-			row.Status, row.Detail, row.Fix = doctor.StatusFail, err.Error(), "lyna-tmux config edit"
+			row.Status, row.Detail, row.Fix = doctor.StatusFail, err.Error(), "lmux config edit"
 		case found:
 			cfg = loaded
 			row.Status, row.Detail = doctor.StatusOK, paths.ConfigFile()
 		default:
-			row.Status, row.Detail = doctor.StatusOK, "no file at "+paths.ConfigFile()+", using the defaults (lyna-tmux config init writes one)"
+			row.Status, row.Detail = doctor.StatusOK, "no file at "+paths.ConfigFile()+", using the defaults (lmux config init writes one)"
 		}
 	}
 
@@ -78,7 +81,7 @@ func DoctorRun(ctx context.Context, h Host, sys doctor.Deps, dir string) doctor.
 	if err != nil {
 		editor = domain.EditorIsolated
 	}
-	opts := ReviewPlugin{}.statusOptions(h, paths)
+	opts := src.statusOptions(h, paths)
 	if sys.Run != nil {
 		opts.Run = doctorReviewRun(sys)
 	}
@@ -141,11 +144,14 @@ func doctorReviewResult(editor domain.EditorMode, r review.Report) doctor.Result
 	case r.PlatformProblem != "":
 		res.Status, res.Detail = doctor.StatusWarn, r.PlatformProblem
 	case r.DirProblem != "":
-		res.Status, res.Detail, res.Fix = doctor.StatusFail, r.DirProblem, "lyna-tmux review install"
+		res.Status, res.Detail, res.Fix = doctor.StatusFail, r.DirProblem, "lmux review install"
+		res.Action = doctor.BuiltinFix("Install the review plugin", doctor.FixReviewInstall)
 	case !r.Installed:
-		res.Status, res.Detail, res.Fix = doctor.StatusWarn, "codediff.nvim is not installed, so the review popup cannot open", "lyna-tmux review install"
+		res.Status, res.Detail, res.Fix = doctor.StatusWarn, "codediff.nvim is not installed, so the review popup cannot open", "lmux review install"
+		res.Action = doctor.BuiltinFix("Install the review plugin", doctor.FixReviewInstall)
 	case !r.PluginOK():
-		res.Status, res.Detail, res.Fix = doctor.StatusFail, strings.Join(r.PluginProblems(), "\n"), "lyna-tmux review install --force"
+		res.Status, res.Detail, res.Fix = doctor.StatusFail, strings.Join(r.PluginProblems(), "\n"), "lmux review install --force"
+		res.Action = doctor.BuiltinFix("Reinstall the review plugin at its pinned commit", doctor.FixReviewReinstall)
 	case nvim != "":
 		res.Status, res.Detail = doctor.StatusWarn, "codediff.nvim is verified, but "+nvim
 	default:

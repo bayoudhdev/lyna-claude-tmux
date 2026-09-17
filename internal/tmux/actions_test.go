@@ -41,12 +41,12 @@ func TestActionSeq(t *testing.T) {
 		{
 			"agents",
 			keys.Binding{Action: keys.ActionAgents},
-			"display-popup -E -w 90% -h 85% -d '#{pane_current_path}' -T ' agents ' ''\\''/opt/lyna tools/bin/lyna-tmux'\\'' agents --popup'",
+			"display-popup -E -w 90% -h 85% -d '#{pane_current_path}' -T ' agents ' ''\\''/opt/lyna tools/bin/lmux'\\'' agents --popup'",
 		},
 		{
 			"review",
 			keys.Binding{Action: keys.ActionReview},
-			"display-popup -E -w 95% -h 95% -d '#{pane_current_path}' -T ' review ' ''\\''/opt/lyna tools/bin/lyna-tmux'\\'' review --popup'",
+			"display-popup -E -w 95% -h 95% -d '#{pane_current_path}' -T ' review ' ''\\''/opt/lyna tools/bin/lmux'\\'' review --popup'",
 		},
 		{"scratch", keys.Binding{Action: keys.ActionScratch}, "display-popup -E -w 80% -h 70% -d '#{pane_current_path}' -T ' scratch '"},
 		{"send prefix", keys.Binding{Action: keys.ActionSendPrefix}, "send-prefix"},
@@ -175,7 +175,7 @@ func TestBinCommand(t *testing.T) {
 		args      []string
 		want      string
 	}{
-		{"plain", "/usr/local/bin/lyna-tmux", []string{"agents", "--popup"}, "/usr/local/bin/lyna-tmux agents --popup"},
+		{"plain", "/usr/local/bin/lmux", []string{"agents", "--popup"}, "/usr/local/bin/lmux agents --popup"},
 		{"space in path", "/Users/a b/lyna-tmux", []string{"watch"}, "'/Users/a b/lyna-tmux' watch"},
 		{"hash in path", "/w/#1/lyna-tmux", []string{"x"}, "'/w/##1/lyna-tmux' x"},
 		{"quote in path", "/w/it's/lyna-tmux", nil, `'/w/it'\''s/lyna-tmux'`},

@@ -20,6 +20,7 @@ import (
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/layout"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/sandbox"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/session"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/termx"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/testutil/fakeclaude"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/testutil/tmuxtest"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
@@ -185,6 +186,7 @@ func TestCreateWorkspace(t *testing.T) {
 			Sandbox    struct {
 				Enabled bool `json:"enabled"`
 			} `json:"sandbox"`
+			NotifyChannel string `json:"preferredNotifChannel"`
 		}
 		if err := json.Unmarshal(inv.Settings, &doc); err != nil {
 			t.Fatal(err)
@@ -195,9 +197,34 @@ func TestCreateWorkspace(t *testing.T) {
 		if !strings.Contains(string(doc.Hooks["Stop"]), e.Exe) {
 			t.Fatalf("Stop hook does not run %s: %s", e.Exe, doc.Hooks["Stop"])
 		}
+		// The agent runs in a pane, where the terminal it can see is tmux. The
+		// launch passes the terminal outside, which this environment does not
+		// name, so the alert is the bell every terminal has.
+		if doc.NotifyChannel != termx.NotifyBell {
+			t.Fatalf("preferredNotifChannel = %q, want %q", doc.NotifyChannel, termx.NotifyBell)
+		}
 		opt, err := s.Client.Display(ctx, res.Built.Panes[0], "#{"+tmux.OptSettings+"}")
 		if err != nil || opt != inv.SettingsPath {
 			t.Fatalf("pane settings option %q, %v", opt, err)
+		}
+	})
+
+	// The agent's desktop notifications and progress bar are escape sequences
+	// for the terminal outside tmux. The server refuses them, so a pane running
+	// the user's own programs cannot reach their terminal; the pane running the
+	// agent allows them.
+	t.Run("passthrough is on for the Claude pane and off everywhere else", func(t *testing.T) {
+		// -A resolves what the pane actually uses: a pane with no value of its
+		// own inherits the window's, which is where the server's off lives.
+		for i, want := range []string{"on", "off"} {
+			got, err := s.Client.ShowOption(ctx, "-pA", res.Built.Panes[i], tmux.OptPassthrough)
+			if err != nil || got != want {
+				t.Fatalf("pane %d (%s) allow-passthrough = %q, %v; want %q", i, roles(t, s, "api")[i], got, err, want)
+			}
+		}
+		global, err := s.Client.ShowOption(ctx, "-wg", "", tmux.OptPassthrough)
+		if err != nil || global != "off" {
+			t.Fatalf("server allow-passthrough = %q, %v; want off", global, err)
 		}
 	})
 
@@ -217,6 +244,8 @@ func TestCreateWorkspaceRequests(t *testing.T) {
 	s := openServer(t, e.testHost)
 	other := filepath.Join(e.root, "other", "api")
 	mkdir(t, other)
+	third := filepath.Join(e.root, "third", "api")
+	mkdir(t, third)
 	file := filepath.Join(e.root, "file")
 	if err := os.WriteFile(file, nil, 0o600); err != nil {
 		t.Fatal(err)
@@ -347,6 +376,30 @@ func TestCreateWorkspaceRequests(t *testing.T) {
 				}
 				if inv := nth(t, 3); inv.Env["LYNA_TMUX_SANDBOX"] != "off" {
 					t.Fatalf("pane sandbox env %q", inv.Env["LYNA_TMUX_SANDBOX"])
+				}
+			},
+		},
+		{
+			// The terminal the user is looking at is read outside tmux and
+			// handed to the agent, which cannot see it from inside a pane.
+			name: "the notification channel follows the terminal outside", wantName: "api-3", wantRoles: []string{"claude"},
+			req: CreateRequest{Dir: third, Layout: layout.Solo},
+			setup: func(t *testing.T) {
+				t.Helper()
+				e.env["TERM_PROGRAM"] = "iTerm.app"
+				t.Cleanup(func() { delete(e.env, "TERM_PROGRAM") })
+				e.refreshEnviron()
+			},
+			check: func(t *testing.T, _ CreateResult) {
+				t.Helper()
+				var doc struct {
+					NotifyChannel string `json:"preferredNotifChannel"`
+				}
+				if err := json.Unmarshal(nth(t, 4).Settings, &doc); err != nil {
+					t.Fatal(err)
+				}
+				if doc.NotifyChannel != termx.NotifyITerm2Bell {
+					t.Fatalf("preferredNotifChannel = %q, want %q", doc.NotifyChannel, termx.NotifyITerm2Bell)
 				}
 			},
 		},

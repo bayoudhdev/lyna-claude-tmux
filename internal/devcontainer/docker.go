@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/xdg"
 )
 
 // Command is one docker invocation.
@@ -189,17 +191,17 @@ func ShellArgv(bin string, t Target) []string {
 	return execArgv(bin, t, "bash", "-l")
 }
 
-// CreateArgv runs a lyna-tmux workspace command inside the container, so
+// CreateArgv runs a workspace command inside the container, so
 // tmux, hooks and the status line all live there. args start with the
 // subcommand (create or team) and are passed through as argv elements.
 func CreateArgv(bin string, t Target, args []string) []string {
-	return execArgv(bin, t, append([]string{"lyna-tmux"}, args...)...)
+	return execArgv(bin, t, append([]string{xdg.Command}, args...)...)
 }
 
 // CreateDetachedArgv runs the same command without a terminal: docker refuses
 // --tty when standard input is not one, and a detached workspace needs none.
 func CreateDetachedArgv(bin string, t Target, args []string) []string {
-	argv := []string{bin, "exec", "--user", t.User, "--workdir", WorkspacePath, "--env", "TERM", "--env", "COLORTERM", "--env", "LANG", t.Container(), "lyna-tmux"}
+	argv := []string{bin, "exec", "--user", t.User, "--workdir", WorkspacePath, "--env", "TERM", "--env", "COLORTERM", "--env", "LANG", t.Container(), xdg.Command}
 	return append(argv, args...)
 }
 
@@ -307,7 +309,7 @@ func (d Docker) Up(ctx context.Context, t Target) error {
 		return err
 	}
 	if err := d.attach(ctx, BuildArgv(d.bin(), t)); err != nil {
-		return err
+		return fmt.Errorf("%w: %s: %w; the step it stopped at is the last one above", ErrBuildFailed, t.Image(), err)
 	}
 	state, err := d.State(ctx, t)
 	if err != nil {
@@ -334,7 +336,7 @@ func (d Docker) Shell(ctx context.Context, t Target) error {
 	return d.attach(ctx, ShellArgv(d.bin(), t))
 }
 
-// Create runs lyna-tmux create in a running container.
+// Create runs lmux create in a running container.
 func (d Docker) Create(ctx context.Context, t Target, args []string) error {
 	if err := d.requireRunning(ctx, t); err != nil {
 		return err
@@ -343,7 +345,12 @@ func (d Docker) Create(ctx context.Context, t Target, args []string) error {
 }
 
 // ErrNotRunning is returned when a command needs a running container.
-var ErrNotRunning = errors.New("devcontainer: container is not running (run lyna-tmux sandbox devcontainer up)")
+var ErrNotRunning = errors.New("devcontainer: container is not running (run lmux sandbox devcontainer up)")
+
+// ErrBuildFailed is returned when docker build does not produce the image. The
+// build streams to the terminal, so the reason is on screen above this error
+// and is not repeated inside it.
+var ErrBuildFailed = errors.New("devcontainer: the image build failed")
 
 // requireRunning checks that the container is running and that the tree it was
 // built from is still the one lyna-tmux renders. A shell or a workspace opened

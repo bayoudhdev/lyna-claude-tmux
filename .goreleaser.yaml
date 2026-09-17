@@ -12,18 +12,18 @@ before:
     # for the host. .cache/ is ignored by git, so the tree stays clean.
     - rm -rf .cache/release-assets
     - mkdir -p .cache/release-assets/completions .cache/release-assets/manpages
-    - go build -trimpath -o .cache/release-assets/lyna-tmux ./cmd/lyna-tmux
+    - go build -trimpath -o .cache/release-assets/lmux ./cmd/lmux
     # No pipes: sh has no pipefail, and a failing generator must fail the release.
-    - sh -c '.cache/release-assets/lyna-tmux completion bash > .cache/release-assets/completions/lyna-tmux.bash'
-    - sh -c '.cache/release-assets/lyna-tmux completion zsh > .cache/release-assets/completions/_lyna-tmux'
-    - sh -c '.cache/release-assets/lyna-tmux completion fish > .cache/release-assets/completions/lyna-tmux.fish'
-    - sh -c '.cache/release-assets/lyna-tmux man > .cache/release-assets/manpages/lyna-tmux.1'
-    - gzip -n -9 .cache/release-assets/manpages/lyna-tmux.1
+    - sh -c '.cache/release-assets/lmux completion bash > .cache/release-assets/completions/lmux.bash'
+    - sh -c '.cache/release-assets/lmux completion zsh > .cache/release-assets/completions/_lmux'
+    - sh -c '.cache/release-assets/lmux completion fish > .cache/release-assets/completions/lmux.fish'
+    - sh -c '.cache/release-assets/lmux man > .cache/release-assets/manpages/lmux.1'
+    - gzip -n -9 .cache/release-assets/manpages/lmux.1
 
 builds:
   - id: lyna-tmux
-    main: ./cmd/lyna-tmux
-    binary: lyna-tmux
+    main: ./cmd/lmux
+    binary: lmux
     env:
       - CGO_ENABLED=0
     goos: [darwin, linux]
@@ -94,32 +94,37 @@ nfpms:
       - git
     mtime: "{{ .CommitDate }}"
     contents:
-      - src: .cache/release-assets/completions/lyna-tmux.bash
-        dst: /usr/share/bash-completion/completions/lyna-tmux
+      # The command is lmux; lyna-tmux is the name it had in 1.0.0 and keeps
+      # working, so a script or a shell alias written then still runs.
+      - src: /usr/bin/lmux
+        dst: /usr/bin/lyna-tmux
+        type: symlink
+      - src: .cache/release-assets/completions/lmux.bash
+        dst: /usr/share/bash-completion/completions/lmux
         file_info:
           mode: 0o644
       # Debian's zsh searches vendor-completions; Fedora and Alpine use site-functions.
-      - src: .cache/release-assets/completions/_lyna-tmux
-        dst: /usr/share/zsh/vendor-completions/_lyna-tmux
+      - src: .cache/release-assets/completions/_lmux
+        dst: /usr/share/zsh/vendor-completions/_lmux
         packager: deb
         file_info:
           mode: 0o644
-      - src: .cache/release-assets/completions/_lyna-tmux
-        dst: /usr/share/zsh/site-functions/_lyna-tmux
+      - src: .cache/release-assets/completions/_lmux
+        dst: /usr/share/zsh/site-functions/_lmux
         packager: rpm
         file_info:
           mode: 0o644
-      - src: .cache/release-assets/completions/_lyna-tmux
-        dst: /usr/share/zsh/site-functions/_lyna-tmux
+      - src: .cache/release-assets/completions/_lmux
+        dst: /usr/share/zsh/site-functions/_lmux
         packager: apk
         file_info:
           mode: 0o644
-      - src: .cache/release-assets/completions/lyna-tmux.fish
-        dst: /usr/share/fish/vendor_completions.d/lyna-tmux.fish
+      - src: .cache/release-assets/completions/lmux.fish
+        dst: /usr/share/fish/vendor_completions.d/lmux.fish
         file_info:
           mode: 0o644
-      - src: .cache/release-assets/manpages/lyna-tmux.1.gz
-        dst: /usr/share/man/man1/lyna-tmux.1.gz
+      - src: .cache/release-assets/manpages/lmux.1.gz
+        dst: /usr/share/man/man1/lmux.1.gz
         file_info:
           mode: 0o644
       - src: LICENSE
@@ -134,25 +139,29 @@ nfpms:
 homebrew_casks:
   - name: lyna-tmux
     ids: [lyna-tmux]
-    binaries: [lyna-tmux]
+    binaries: [lmux]
     homepage: https://github.com/bayoudhdev/lyna-claude-tmux
     description: Preconfigured tmux workspace for Claude Code
     license: MIT
     dependencies:
       - formula: tmux
     completions:
-      bash: completions/lyna-tmux.bash
-      zsh: completions/_lyna-tmux
-      fish: completions/lyna-tmux.fish
+      bash: completions/lmux.bash
+      zsh: completions/_lmux
+      fish: completions/lmux.fish
     manpages:
-      - manpages/lyna-tmux.1.gz
+      - manpages/lmux.1.gz
+    # lyna-tmux is the name the command had in 1.0.0, kept as a second link so
+    # a script or a shell alias written then still runs.
+    custom_block: |
+      binary "lmux", target: "lyna-tmux"
     # The binaries are not notarized: clear the quarantine flag the download
     # sets, or Gatekeeper refuses to start them.
     hooks:
       post:
         install: |
           if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/lyna-tmux"]
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/lmux"]
           end
     # Published only when the tap token is configured for the release job.
     skip_upload: '{{ if index .Env "HOMEBREW_TAP_TOKEN" }}false{{ else }}true{{ end }}'

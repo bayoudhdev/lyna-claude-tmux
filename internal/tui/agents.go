@@ -162,7 +162,7 @@ func NewAgents(opts AgentsOptions) *AgentsModel {
 		opts:    opts,
 		ctx:     ctxOr(opts.Context),
 		now:     nowOr(opts.Now),
-		nav:     newNavKeys(),
+		nav:     newNavKeys(opts.Styles.Theme.Icons.Name == "ascii"),
 		width:   w,
 		height:  h,
 		removed: map[string]bool{},
@@ -692,7 +692,7 @@ func (m *AgentsModel) listLines() []string {
 	case len(m.visible) == 0:
 		lines = append(lines, "",
 			s.Text.Render(center("no Claude agents running", m.width, s.Ellipsis)),
-			s.Muted.Render(center("start one with: lyna-tmux create", m.width, s.Ellipsis)))
+			s.Muted.Render(center("start one with: lmux create", m.width, s.Ellipsis)))
 	default:
 		cols := m.columns()
 		end := min(m.list.offset+h, len(m.visible))

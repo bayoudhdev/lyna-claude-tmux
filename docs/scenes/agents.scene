@@ -2,10 +2,10 @@
 title Alt+a opens the agent picker
 env LYNA_TMUX_DEMO_AGENTS=1
 size 112 34
-pre lyna-tmux kill --all
+pre lmux kill --all
 pre rm -rf .devcontainer
-pre lyna-tmux create . --layout trio --detach
-run lyna-tmux create .
+pre lmux create . --layout trio --detach
+run lmux create .
 wait 4
 frame 1.2
 keys M-a

@@ -142,9 +142,13 @@ func infraFakeDocker(t *testing.T, e *infraEnv) (log, state string) {
 	t.Helper()
 	log = filepath.Join(e.host.Home, "docker.log")
 	state = filepath.Join(e.host.Home, "docker.state")
+	// A container that is created or started reports itself as running
+	// afterwards, as the real docker does, so a test can follow a command that
+	// starts the container with one that needs it running.
 	e.bin(t, "docker", "for a in \"$@\"; do printf '%s\\n' \"$a\" >> '"+log+"'; done\n"+
 		"printf -- '--\\n' >> '"+log+"'\n"+
-		"case \"$1 $2\" in 'container ls') cat '"+state+"' 2>/dev/null ;; esac\nexit 0\n")
+		"case \"$1 $2\" in 'container ls') cat '"+state+"' 2>/dev/null ;; esac\n"+
+		"case \"$1\" in run|start) printf 'running\\n' > '"+state+"' ;; esac\nexit 0\n")
 	return log, state
 }
 
@@ -177,14 +181,25 @@ func TestCreateIsolatedCLI(t *testing.T) {
 		state    string
 		noDocker bool
 		term     bool
-		args     []string
+		// files renders the project's dev container, which a build needs.
+		files bool
+		// stdin answers the question a stopped container raises.
+		stdin string
+		args  []string
 		// inner is what the create inside the container prints.
 		inner    string
 		wantCode int
-		wantArgv []string
-		outHas   []string
-		outLacks []string
-		errHas   []string
+		// wantArgv is the argument vector of the last attached command, the
+		// one that opens the workspace, and wantAttached how many attached
+		// commands ran in all (one unless the container was built here).
+		wantArgv     []string
+		wantAttached int
+		// wantDocker lists the captured docker commands by verb; a single
+		// container state query when empty.
+		wantDocker []string
+		outHas     []string
+		outLacks   []string
+		errHas     []string
 	}{
 		{
 			name: "attached create in the running container", state: "running\n", term: true,
@@ -192,7 +207,7 @@ func TestCreateIsolatedCLI(t *testing.T) {
 			wantArgv: []string{
 				"exec", "--interactive", "--tty", "--user", "lyna", "--workdir", "/workspace",
 				"--env", "TERM", "--env", "COLORTERM", "--env", "LANG", "lyna-tmux-api",
-				"lyna-tmux", "create", "--model=opus", "--sandbox=standard", "--width=120", "--height=40",
+				"lmux", "create", "--model=opus", "--sandbox=standard", "--width=120", "--height=40",
 				"--isolation=container", "/workspace", "--", "--verbose",
 			},
 			inner: "the attached workspace writes on this terminal\n",
@@ -205,32 +220,33 @@ func TestCreateIsolatedCLI(t *testing.T) {
 			args: []string{"create", "--isolation", "container", "--detach"},
 			wantArgv: []string{
 				"exec", "--user", "lyna", "--workdir", "/workspace", "--env", "TERM", "--env", "COLORTERM", "--env", "LANG",
-				"lyna-tmux-api", "lyna-tmux", "create", "--sandbox=standard", "--width=120", "--height=40",
+				"lyna-tmux-api", "lmux", "create", "--sandbox=standard", "--width=120", "--height=40",
 				"--isolation=container", "--detach", "/workspace",
 			},
-			inner: "Workspace api is running. Attach with: lyna-tmux attach api\n",
+			inner: "Workspace api is running. Attach with: lmux attach api\n",
 			outHas: []string{
 				"runs in the dev container lyna-tmux-api",
-				"Attach with: lyna-tmux create --isolation container",
+				"Attach with: lmux create --isolation container",
 			},
 			// The command the container prints names its own tmux server,
 			// which this host has no workspace on.
-			outLacks: []string{"lyna-tmux attach api"},
+			outLacks: []string{"lmux attach api"},
 		},
 		{
 			name: "detached team says how to reopen the team", state: "running\n",
 			args: []string{"team", "--isolation", "container", "--detach"},
 			wantArgv: []string{
 				"exec", "--user", "lyna", "--workdir", "/workspace", "--env", "TERM", "--env", "COLORTERM", "--env", "LANG",
-				"lyna-tmux-api", "lyna-tmux", "team", "--sandbox=standard", "--width=120", "--height=40",
+				"lyna-tmux-api", "lmux", "team", "--sandbox=standard", "--width=120", "--height=40",
 				"--isolation=container", "--detach", "/workspace",
 			},
-			outHas: []string{"Attach with: lyna-tmux team --isolation container"},
+			outHas: []string{"Attach with: lmux team --isolation container"},
 		},
 		{
-			name: "the container is not running", state: "exited\n", term: true,
-			args: []string{"create", "--isolation", "container"}, wantCode: 1,
-			errHas: []string{"lyna-tmux-api", "lyna-tmux sandbox devcontainer up"},
+			name: "the container is not running and the question is declined", state: "exited\n", term: true,
+			args: []string{"create", "--isolation", "container"}, wantCode: 1, stdin: "n\n",
+			outHas: []string{"Build and start it now?"},
+			errHas: []string{"lyna-tmux-api", "lmux sandbox devcontainer up"},
 		},
 		{
 			name: "the container was never created", term: true,
@@ -238,9 +254,41 @@ func TestCreateIsolatedCLI(t *testing.T) {
 			errHas: []string{"not running"},
 		},
 		{
+			name: "a stopped container is built and started on a yes", state: "exited\n", term: true, files: true, stdin: "y\n",
+			args: []string{"create", "--isolation", "container"},
+			wantArgv: []string{
+				"exec", "--interactive", "--tty", "--user", "lyna", "--workdir", "/workspace",
+				"--env", "TERM", "--env", "COLORTERM", "--env", "LANG", "lyna-tmux-api",
+				"lmux", "create", "--sandbox=standard", "--width=120", "--height=40",
+				"--isolation=container", "/workspace",
+			},
+			// The image build and the firewall run attached, then the workspace.
+			wantAttached: 3,
+			wantDocker:   []string{"container", "container", "start", "container"},
+			outHas:       []string{"Build and start it now?"},
+			errHas:       []string{"Starting the dev container lyna-tmux-api"},
+		},
+		{
+			name: "start-container builds without a terminal to ask on", state: "exited\n", files: true,
+			args: []string{"create", "--isolation", "container", "--detach", "--start-container"},
+			wantArgv: []string{
+				"exec", "--user", "lyna", "--workdir", "/workspace", "--env", "TERM", "--env", "COLORTERM", "--env", "LANG",
+				"lyna-tmux-api", "lmux", "create", "--sandbox=standard", "--width=120", "--height=40",
+				"--isolation=container", "--detach", "/workspace",
+			},
+			wantAttached: 3,
+			wantDocker:   []string{"container", "container", "start", "container"},
+			outHas:       []string{"runs in the dev container lyna-tmux-api"},
+		},
+		{
+			name: "without a terminal the flag is named", state: "exited\n", files: true,
+			args: []string{"create", "--isolation", "container", "--detach"}, wantCode: 1,
+			errHas: []string{"lmux sandbox devcontainer up", "--start-container"},
+		},
+		{
 			name: "docker is not installed", noDocker: true, term: true,
 			args: []string{"create", "--isolation", "container"}, wantCode: 1,
-			errHas: []string{"docker is not on PATH", "lyna-tmux doctor"},
+			errHas: []string{"docker is not on PATH", "lmux doctor"},
 		},
 		{
 			name: "bash isolation is created on this host", term: true,
@@ -262,6 +310,14 @@ func TestCreateIsolatedCLI(t *testing.T) {
 				}
 			}
 			e.cwd = infraProject(t, e, "api")
+			if tc.files {
+				if code, _, stderr := e.run(t, "sandbox", "devcontainer", "init", "--version", "v1.4.0"); code != 0 {
+					t.Fatalf("init: %s", stderr)
+				}
+			}
+			if tc.stdin != "" {
+				e.stdin = strings.NewReader(tc.stdin)
+			}
 			e.runOut = tc.inner
 			code, stdout, stderr := e.run(t, tc.args...)
 			if code != tc.wantCode {
@@ -288,15 +344,26 @@ func TestCreateIsolatedCLI(t *testing.T) {
 				}
 				return
 			}
-			if len(e.runs) != 1 {
-				t.Fatalf("ran %q, want one docker exec", e.runs)
+			attached := max(tc.wantAttached, 1)
+			if len(e.runs) != attached {
+				t.Fatalf("attached commands %q, want %d", e.runs, attached)
 			}
-			got := e.runs[0]
+			// The workspace is opened by the last attached command: a build
+			// and the firewall come first when the container was started here.
+			got := e.runs[len(e.runs)-1]
 			if got[0] != e.bins["docker"] || !slices.Equal(got[1:], tc.wantArgv) {
 				t.Fatalf("argv %q\nwant %q", got, tc.wantArgv)
 			}
-			if runs := infraDockerRuns(t, log); len(runs) != 1 || runs[0][0] != "container" {
-				t.Fatalf("docker was asked %q, want one container state query", runs)
+			wantDocker := tc.wantDocker
+			if wantDocker == nil {
+				wantDocker = []string{"container"}
+			}
+			var verbs []string
+			for _, argv := range infraDockerRuns(t, log) {
+				verbs = append(verbs, argv[0])
+			}
+			if !slices.Equal(verbs, wantDocker) {
+				t.Fatalf("captured docker commands %q, want %q", verbs, wantDocker)
 			}
 		})
 	}

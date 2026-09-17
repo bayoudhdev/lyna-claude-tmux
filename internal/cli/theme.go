@@ -57,11 +57,11 @@ func themeCommand(d Deps) *cobra.Command {
 		Long: "Without a name, list the themes with a color swatch each and mark the configured one.\n" +
 			"With a name, set ui.theme in the configuration file (its comments and layout are kept)\n" +
 			"and restyle the running workspaces at once. A missing file is created from the template.\n" +
-			"See a theme before switching with: lyna-tmux theme preview [name]",
-		Example: "  lyna-tmux theme\n" +
-			"  lyna-tmux theme preview nord\n" +
-			"  lyna-tmux theme light\n" +
-			"  lyna-tmux theme claude",
+			"See a theme before switching with: lmux theme preview [name]",
+		Example: "  lmux theme\n" +
+			"  lmux theme preview nord\n" +
+			"  lmux theme light\n" +
+			"  lmux theme claude",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: themeNameCompletion,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -112,9 +112,9 @@ func themeList(cmd *cobra.Command, d Deps, h app.Host) error {
 		return err
 	}
 	fmt.Fprintf(&b, "\n* is the configured theme (ui.theme in %s).\n", sanitize.Line(list.ConfigPath))
-	b.WriteString("Preview one with: lyna-tmux theme preview <name>\n")
-	b.WriteString("Switch with: lyna-tmux theme <name>\n")
-	b.WriteString("Give Claude Code matching themes with: lyna-tmux theme claude\n")
+	b.WriteString("Preview one with: lmux theme preview <name>\n")
+	b.WriteString("Switch with: lmux theme <name>\n")
+	b.WriteString("Give Claude Code matching themes with: lmux theme claude\n")
 	_, err = fmt.Fprint(cmd.OutOrStdout(), b.String())
 	return err
 }
@@ -159,8 +159,8 @@ func themePreviewCommand(d Deps) *cobra.Command {
 			"without a name, at the color depth and with the icons the workspace would use. On a\n" +
 			"terminal the preview is drawn in color; elsewhere, or with NO_COLOR set, it names the\n" +
 			"colors instead. The configuration is not changed.",
-		Example: "  lyna-tmux theme preview\n" +
-			"  lyna-tmux theme preview nord",
+		Example: "  lmux theme preview\n" +
+			"  lmux theme preview nord",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: themeNameCompletion,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -219,9 +219,9 @@ func themePreview(cmd *cobra.Command, d Deps, h app.Host, name string) error {
 		}
 	}
 	if name == "" {
-		b.WriteString("\nSwitch with: lyna-tmux theme <name>\n")
+		b.WriteString("\nSwitch with: lmux theme <name>\n")
 	} else {
-		fmt.Fprintf(&b, "\nSwitch with: lyna-tmux theme %s\n", name)
+		fmt.Fprintf(&b, "\nSwitch with: lmux theme %s\n", name)
 	}
 	_, err = fmt.Fprint(cmd.OutOrStdout(), b.String())
 	return err
@@ -329,7 +329,7 @@ func themeClaudeCommand(d Deps) *cobra.Command {
 		Long: "Write one Claude Code theme per workspace theme into the themes directory of your\n" +
 			"Claude Code configuration ($CLAUDE_CONFIG_DIR or ~/.claude). Only lyna-*.json files\n" +
 			"there are written, and a theme file you created or edited is never replaced.",
-		Example: "  lyna-tmux theme claude",
+		Example: "  lmux theme claude",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			h, err := d.Host()

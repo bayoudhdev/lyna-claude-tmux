@@ -12,11 +12,11 @@ The resolved profile and level are written into a per-launch settings file that 
 Inspect any of it without launching anything:
 
 ```sh
-lyna-tmux sandbox profiles                      # what each profile and level protects
-lyna-tmux sandbox show                          # the exact settings file, byte for byte
-lyna-tmux sandbox show strict --dir ~/src/api
-lyna-tmux sandbox show --isolation process | jq .sandbox
-lyna-tmux sandbox status --json                 # the sandbox in effect, plus readiness
+lmux sandbox profiles                      # what each profile and level protects
+lmux sandbox show                          # the exact settings file, byte for byte
+lmux sandbox show strict --dir ~/src/api
+lmux sandbox show --isolation process | jq .sandbox
+lmux sandbox status --json                 # the sandbox in effect, plus readiness
 ```
 
 `sandbox status` reports the profile of the workspace you are in when run from one of its panes or popups, and the configured profile otherwise. It is also the "Sandbox status" entry (key `b`) of the status line session menu.
@@ -159,7 +159,7 @@ Two further restrictions:
 - `off` still refuses `bypassPermissions`: the bypass rule asks for `strict` or a container, and `off` is neither.
 - `off` cannot be combined with process isolation. Resolving that pair fails with `the off profile runs Claude without a sandbox, so it cannot be combined with process isolation`.
 
-`lyna-tmux doctor` skips the platform sandbox checks entirely when the configured profile is `off`, reporting `sandbox.profile = "off"`.
+`lmux doctor` skips the platform sandbox checks entirely when the configured profile is `off`, reporting `sandbox.profile = "off"`.
 
 ## Ecosystem detection
 
@@ -191,7 +191,7 @@ Detection runs for every launch, but the result is used only where an allowlist 
 
 **What is isolated.** Bash tool commands, by Claude Code's own sandbox. Everything else the session does, file tools, hooks, MCP servers, the status line, runs as your user.
 
-**Requirements.** On macOS, `sandbox-exec` (shipped in `/usr/bin`). On Linux and WSL2, `bwrap` and `socat`, plus unprivileged user namespaces. `lyna-tmux doctor` reports each one.
+**Requirements.** On macOS, `sandbox-exec` (shipped in `/usr/bin`). On Linux and WSL2, `bwrap` and `socat`, plus unprivileged user namespaces. `lmux doctor` reports each one.
 
 **How to turn it on.** It is the default. `--isolation bash`, or `isolation = "bash"` in the `[sandbox]` table.
 
@@ -278,9 +278,9 @@ Reads are allowed except `denyRead`; writes are denied except `allowWrite`; egre
 **How to turn it on.**
 
 ```sh
-lyna-tmux sandbox devcontainer init    # write the files
-lyna-tmux sandbox devcontainer up      # build, start, firewall
-lyna-tmux create --isolation container # open the workspace inside it
+lmux sandbox devcontainer init    # write the files
+lmux sandbox devcontainer up      # build, start, firewall
+lmux create --isolation container # open the workspace inside it
 ```
 
 or `isolation = "container"` in the `[sandbox]` table, which makes `create` and `team` take the container path with no flag.
@@ -291,7 +291,7 @@ A launch prepared at `container` isolation on a host that is not itself inside a
 
 ```text
 isolation level unavailable: container isolation runs the workspace inside the project's dev container;
-start it with `lyna-tmux sandbox devcontainer up`, then run `lyna-tmux create --isolation container`
+start it with `lmux sandbox devcontainer up`, then run `lmux create --isolation container`
 ```
 
 ### Boundaries lyna-tmux does not manage
@@ -400,11 +400,11 @@ What it does, in order:
 
 If any step after the root and argument checks fails, the exit trap re-blocks everything and prints `init-firewall: failed; egress stays blocked until this script succeeds`. A container whose firewall did not come up does not keep an open network.
 
-Addresses are resolved when the firewall runs. Rerun `lyna-tmux sandbox devcontainer up` after editing the allowlist, or when an allowed service moves to a new address.
+Addresses are resolved when the firewall runs. Rerun `lmux sandbox devcontainer up` after editing the allowlist, or when an allowed service moves to a new address.
 
 ### `sandbox devcontainer shell`
 
-`docker exec --interactive --tty --user lyna --workdir /workspace <container> bash -l`, forwarding `TERM`, `COLORTERM` and `LANG` so the shell renders as it does outside. It needs a terminal, and it fails with `devcontainer: container is not running (run lyna-tmux sandbox devcontainer up)` if the container is not running. The rendered files are checked first, exactly as they are before a build: a `.devcontainer` the project has rewritten fails with `devcontainer: file is not the one lyna-tmux renders`, because the isolation of the running container could no longer be read from the tree it came from.
+`docker exec --interactive --tty --user lyna --workdir /workspace <container> bash -l`, forwarding `TERM`, `COLORTERM` and `LANG` so the shell renders as it does outside. It needs a terminal, and it fails with `devcontainer: container is not running (run lmux sandbox devcontainer up)` if the container is not running. The rendered files are checked first, exactly as they are before a build: a `.devcontainer` the project has rewritten fails with `devcontainer: file is not the one lyna-tmux renders`, because the isolation of the running container could no longer be read from the tree it came from.
 
 ### `create --isolation container`
 
@@ -413,7 +413,7 @@ When a launch asks for container isolation and the current process is **not** al
 ```sh
 docker exec --interactive --tty --user lyna --workdir /workspace \
   --env TERM --env COLORTERM --env LANG <container> \
-  lyna-tmux create --sandbox <profile> --isolation=container /workspace/<subdirectory>
+  lmux create --sandbox <profile> --isolation=container /workspace/<subdirectory>
 ```
 
 Details that matter:
@@ -423,7 +423,7 @@ Details that matter:
 - The directory is rewritten to its path under `/workspace`, so opening a subdirectory of the project opens the matching subdirectory inside the container. A directory outside the project is refused.
 - The sandbox profile is resolved from the **host's** configuration and passed explicitly, because the container does not share that configuration. A host configuration of `off` is refused here too.
 - With `--detach`, or when standard input is not a terminal, the same command runs without `--tty`, since `docker` refuses `--tty` in that case.
-- If the container is not running, the launch stops with `container isolation opens the workspace in <container> for <project>: devcontainer: container is not running (run lyna-tmux sandbox devcontainer up)`.
+- If the container is not running, `create` and `team` offer to build and start it: `The dev container <container> for <project> is not running. Build and start it now? [y/N]`. A yes runs the same steps as `sandbox devcontainer up`, with the build streaming to the terminal, and then opens the workspace. `--start-container` does it without asking, which is what a script or a `--detach` launch needs. Declined, or with no terminal to ask on, the launch stops with `container isolation opens the workspace in <container> for <project>: devcontainer: container is not running (run lmux sandbox devcontainer up)`, and the message names `--start-container`.
 
 Inside the container the process sees a container marker (`/.dockerenv` or `/run/.containerenv`), so it proceeds as a normal launch and `sandbox status` reports `container` whatever the workspace asked for.
 
@@ -456,15 +456,15 @@ The rule is enforced in three places so no path around it exists: when a workspa
 - At `bash` isolation, escaping the Bash sandbox lands in your own user account: your files, your credentials on disk (denied to sandboxed commands, not removed), and the workspace's tmux socket. File tools, hooks and MCP servers were never inside that boundary to begin with.
 - At `process` isolation, an escape from the runtime lands in the same place. The token variables are in the Claude process environment by design, so a full escape reaches them. The one Unix socket the confined process may use is the workspace's tmux server socket, and on Linux the runtime blocks every Unix socket, so on Linux that path is closed for the confined process and for whatever escapes into it.
 - At `container` isolation, an escape from the Bash boundary is still inside the container, where `/workspace` is a writable bind mount of your real project directory and the Claude volume holds your transcripts. `NET_ADMIN` is held by the container, so root inside it can rewrite the firewall. A container escape is a Docker or kernel vulnerability, not something these files can prevent. No Docker socket is mounted, which is what keeps a container escape from becoming host control through the daemon.
-- `no-new-privileges` is applied by `lyna-tmux sandbox devcontainer up`. An editor that starts the container from `devcontainer.json` applies only the `runArgs` listed there (`--cap-add=NET_ADMIN`, `--init`).
+- `no-new-privileges` is applied by `lmux sandbox devcontainer up`. An editor that starts the container from `devcontainer.json` applies only the `runArgs` listed there (`--cap-add=NET_ADMIN`, `--init`).
 
 **Out of scope.** Vulnerabilities in tmux, Claude Code, `docker` or the operating system sandbox themselves belong upstream, as do attacks that need an attacker who already controls your user account. See [SECURITY.md](../SECURITY.md) for reporting. `lyna-tmux` also does not read or write your own tmux configuration or your own Claude settings, so nothing here hardens those.
 
-**Two deliberate non-defaults.** `enableWeakerNestedSandbox` is never written by `lyna-tmux`: it weakens isolation by reusing a container's `/proc`, so it stays an explicit decision you make in Claude's own settings. The `mask` credential mode is never written either, for the reason given above. `lyna-tmux init --project` can put the project-honored subset of a profile into `.claude/settings.json` for a team, and deliberately leaves out `network.strictAllowlist` (which Claude ignores in a repository file), `disableBypassPermissionsMode` and `enableWeakerNestedSandbox` (launcher and machine decisions, not team policy).
+**Two deliberate non-defaults.** `enableWeakerNestedSandbox` is never written by `lyna-tmux`: it weakens isolation by reusing a container's `/proc`, so it stays an explicit decision you make in Claude's own settings. The `mask` credential mode is never written either, for the reason given above. `lmux init --project` can put the project-honored subset of a profile into `.claude/settings.json` for a team, and deliberately leaves out `network.strictAllowlist` (which Claude ignores in a repository file), `disableBypassPermissionsMode` and `enableWeakerNestedSandbox` (launcher and machine decisions, not team policy).
 
 ## Troubleshooting
 
-`lyna-tmux doctor` reads the machine and prints the exact command or setting for every problem. It never installs or changes anything. `lyna-tmux sandbox status` runs the subset that applies to the profile and isolation level in effect, as a readiness block. Install commands below are the ones for your package manager: the report picks it from the platform (`brew` on macOS, the distribution's own on Linux, read from `/etc/os-release`), and an unrecognized Linux distribution gets both common forms.
+`lmux doctor` reads the machine and prints the exact command or setting for every problem. It changes nothing unless you pass `--fix`, which offers the fixes lyna-tmux can carry out itself one at a time (`--yes` applies them all, `--dry-run` only lists them) and leaves the rest, terminal settings and package installs among them, to you. `lmux sandbox status` runs the subset that applies to the profile and isolation level in effect, as a readiness block. Install commands below are the ones for your package manager: the report picks it from the platform (`brew` on macOS, the distribution's own on Linux, read from `/etc/os-release`), and an unrecognized Linux distribution gets both common forms.
 
 ### macOS
 
@@ -525,7 +525,7 @@ The sandbox check fails with "the Claude Code sandbox supports macOS, Linux and 
 
 ### Other symptoms
 
-- **Bash refuses to run every command.** `failIfUnavailable` is on in `standard` and `strict`: the sandbox could not start. Run `lyna-tmux sandbox status` and fix the failing readiness row.
+- **Bash refuses to run every command.** `failIfUnavailable` is on in `standard` and `strict`: the sandbox could not start. Run `lmux sandbox status` and fix the failing readiness row.
 - **A command fails on network access in `strict`.** The host is not on the allowlist. Add it with `sandbox.allowed_domains` (see [configuration.md](configuration.md)); there is no prompt to accept in `strict`.
 - **A launch says the profile is not honored.** `sandbox.profile = "off"` is in the configuration. Pass `--sandbox off` for this launch, or change the configuration.
-- **A container workspace cannot start.** Check the container with `lyna-tmux sandbox devcontainer up`; the firewall self-test runs on every `up` and its failures name the host it could not reach.
+- **A container workspace cannot start.** Check the container with `lmux sandbox devcontainer up`; the firewall self-test runs on every `up` and its failures name the host it could not reach.

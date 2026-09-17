@@ -142,7 +142,7 @@ func TestLauncherShape(t *testing.T) {
 		{name: "failed exit code", ok: strings.Contains(Launcher, "fail(4, ")},
 		{name: "checks the setup error", ok: strings.Contains(Launcher, "vim.g."+SetupErrorVar)},
 		{name: "quits with the code", ok: strings.Contains(Launcher, `vim.cmd("cquit " .. code)`)},
-		{name: "names the install command", ok: strings.Contains(Launcher, "lyna-tmux review install")},
+		{name: "names the install command", ok: strings.Contains(Launcher, "lmux review install")},
 		{name: "exit codes match constants", ok: ExitUnavailable == 3 && ExitFailed == 4},
 	}
 	for _, tc := range cases {

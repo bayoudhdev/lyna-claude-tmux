@@ -482,7 +482,7 @@ func TestAgentsCLI(t *testing.T) {
 		{
 			name: "no agents", args: []string{"agents"},
 			setup:  func(t *testing.T) { t.Helper(); e.term.Interactive = false; agentsRecords(t, e) },
-			outHas: []string{"No Claude agents running. Start one with: lyna-tmux create"},
+			outHas: []string{"No Claude agents running. Start one with: lmux create"},
 		},
 		{
 			name: "table without a terminal is sanitized",

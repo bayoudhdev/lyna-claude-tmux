@@ -31,7 +31,7 @@ Installs lyna-tmux from a GitHub release after verifying its SHA-256 checksum.
 
 Options:
   --version vX.Y.Z  release to install (default: the latest release)
-  --prefix DIR      directory for the lyna-tmux binary (default: \$HOME/.local/bin)
+  --prefix DIR      directory for the lmux binary (default: \$HOME/.local/bin)
   --base-url URL    https URL of the releases (default: $default_base_url)
   -h, --help        show this help
 EOF
@@ -240,30 +240,38 @@ verify() {
 
 install_binary() {
   mkdir -p "$tmp/extract"
-  tar -xzf "$tmp/$asset" -C "$tmp/extract" lyna-tmux 2>/dev/null ||
-    fail "$asset does not contain lyna-tmux"
-  if [ -L "$tmp/extract/lyna-tmux" ] || [ ! -f "$tmp/extract/lyna-tmux" ]; then
-    fail "lyna-tmux in $asset is not a regular file"
+  tar -xzf "$tmp/$asset" -C "$tmp/extract" lmux 2>/dev/null ||
+    fail "$asset does not contain lmux"
+  if [ -L "$tmp/extract/lmux" ] || [ ! -f "$tmp/extract/lmux" ]; then
+    fail "lmux in $asset is not a regular file"
   fi
 
   mkdir -p "$prefix" 2>/dev/null || fail "cannot create $prefix; choose a directory you own with --prefix"
   if [ ! -d "$prefix" ] || [ ! -w "$prefix" ]; then
     fail "cannot write to $prefix; choose a directory you own with --prefix"
   fi
-  # Stage next to the target and rename, so a running lyna-tmux is replaced
+  # Stage next to the target and rename, so a running lmux is replaced
   # atomically and an interrupted install leaves the old binary in place.
   # mktemp picks an unpredictable name and creates the file exclusively, so a
   # prefix shared with another local account leaves nothing to plant a symlink
   # at; the file type is checked before cp writes through it anyway.
-  staged=$(mktemp "$prefix/.lyna-tmux.install.XXXXXXXXXX") ||
+  staged=$(mktemp "$prefix/.lmux.install.XXXXXXXXXX") ||
     fail "cannot create a staging file in $prefix; choose a directory you own with --prefix"
   if [ -L "$staged" ] || [ ! -f "$staged" ]; then
     fail "refusing to stage on $staged: not a regular file"
   fi
-  if ! { cp "$tmp/extract/lyna-tmux" "$staged" && chmod 0755 "$staged" && mv -f "$staged" "$prefix/lyna-tmux"; }; then
+  if ! { cp "$tmp/extract/lmux" "$staged" && chmod 0755 "$staged" && mv -f "$staged" "$prefix/lmux"; }; then
     fail "cannot install into $prefix"
   fi
   staged=""
+  # lyna-tmux is the name the command had in 1.0.0. It stays as a link to the
+  # new one, so a script or a shell alias written then still runs. A link is
+  # replaced; anything else in its place is left alone and reported.
+  if [ -e "$prefix/lyna-tmux" ] && [ ! -L "$prefix/lyna-tmux" ]; then
+    say "kept $prefix/lyna-tmux as it is: it is not a link to lmux"
+  elif ! ln -sf lmux "$prefix/lyna-tmux"; then
+    say "could not link $prefix/lyna-tmux to lmux; the command is lmux"
+  fi
 }
 
 path_guidance() {
@@ -291,7 +299,7 @@ main() {
   verify
   install_binary
 
-  say "installed lyna-tmux $version to $prefix/lyna-tmux"
+  say "installed lyna-tmux $version to $prefix/lmux"
   path_guidance
 }
 

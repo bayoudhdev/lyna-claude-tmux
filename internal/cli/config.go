@@ -159,7 +159,7 @@ func reportConfig(cmd *cobra.Command, path string) error {
 	}
 	msg := path + " is valid"
 	if !found {
-		msg = "No file at " + path + ", the defaults are in use. Create one with: lyna-tmux config init"
+		msg = "No file at " + path + ", the defaults are in use. Create one with: lmux config init"
 	}
 	_, err = fmt.Fprintln(cmd.OutOrStdout(), msg)
 	return err

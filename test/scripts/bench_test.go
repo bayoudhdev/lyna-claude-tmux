@@ -50,9 +50,9 @@ while [ $# -gt 0 ]; do
 done
 `
 
-const fakeLynaTmux = `#!/bin/sh
+const fakeLmux = `#!/bin/sh
 case $1 in
-version) echo "lyna-tmux v9.9.9 (abc1234, 2026-09-15)" ;;
+version) echo "lmux v9.9.9 (abc1234, 2026-09-15)" ;;
 *) cat > /dev/null ;;
 esac
 `
@@ -77,7 +77,7 @@ func newBenchEnv(t *testing.T, withHyperfine bool) benchEnv {
 	if withHyperfine {
 		writeExecutable(t, filepath.Join(e.bin, "hyperfine"), fakeHyperfine)
 	}
-	writeExecutable(t, filepath.Join(root, "lyna-tmux"), fakeLynaTmux)
+	writeExecutable(t, filepath.Join(root, "lmux"), fakeLmux)
 	return e
 }
 
@@ -128,8 +128,8 @@ func TestBenchScriptArguments(t *testing.T) {
 		wantErr  string
 		golden   string
 	}{
-		{name: "dry run with a binary", args: []string{"--dry-run", "--runs", "3", "--bin", "/opt/lyna tools/lyna-tmux"}, golden: "bench/dry-run-bin.txt"},
-		{name: "dry run builds lyna-tmux", args: []string{"--dry-run"}, golden: "bench/dry-run-build.txt"},
+		{name: "dry run with a binary", args: []string{"--dry-run", "--runs", "3", "--bin", "/opt/lyna tools/lmux"}, golden: "bench/dry-run-bin.txt"},
+		{name: "dry run builds the binary", args: []string{"--dry-run"}, golden: "bench/dry-run-build.txt"},
 		{name: "dry run needs no hyperfine", args: []string{"--dry-run"}, hyperfine: false, wantOut: "hyperfine --shell=none"},
 		{name: "dry run needs no go", args: []string{"--dry-run"}, env: []string{"GO=/nonexistent/go"}, wantOut: "/nonexistent/go build"},
 		{name: "help", args: []string{"--help"}, wantOut: "Usage: scripts/bench.sh [--dry-run] [--bin PATH] [--runs N] [--output FILE]"},
@@ -142,7 +142,7 @@ func TestBenchScriptArguments(t *testing.T) {
 		{name: "hyperfine missing with a binary", args: []string{"--bin", "/bin/sh"}, hyperfine: false, wantExit: 1, wantErr: hyperfineRequired},
 		{name: "go missing", args: nil, hyperfine: true, env: []string{"GO=/nonexistent/go"}, wantExit: 1, wantErr: goRequired},
 		{name: "go missing with a binary", args: []string{"--bin", "/bin/sh"}, hyperfine: true, env: []string{"GO=/nonexistent/go"}, wantExit: 1, wantErr: goRequired},
-		{name: "binary not executable", args: []string{"--bin", "/nonexistent/lyna-tmux"}, hyperfine: true, wantExit: 1, wantErr: "/nonexistent/lyna-tmux is not an executable file"},
+		{name: "binary not executable", args: []string{"--bin", "/nonexistent/lmux"}, hyperfine: true, wantExit: 1, wantErr: "/nonexistent/lmux is not an executable file"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -182,7 +182,7 @@ func TestBenchScriptReport(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			e := newBenchEnv(t, true)
-			lyna := filepath.Join(filepath.Dir(e.bin), "lyna-tmux")
+			lyna := filepath.Join(filepath.Dir(e.bin), "lmux")
 			env := []string{
 				"PATH=" + e.bin + ":/usr/bin:/bin", "TMPDIR=" + e.tmp, "BENCH_LOG=" + e.log,
 				"TMUX=/tmp/tmux-1000/default,1,0", "TMUX_PANE=%1",
@@ -239,7 +239,7 @@ func rewriteWork(s, tmp string) string {
 }
 
 // TestBenchScriptWithHyperfine runs the real hyperfine and go toolchain on a
-// scripted lyna-tmux, proving the hyperfine flags and the table parsing work
+// scripted binary, proving the hyperfine flags and the table parsing work
 // with the installed versions.
 func TestBenchScriptWithHyperfine(t *testing.T) {
 	if testing.Short() {
@@ -261,7 +261,7 @@ func TestBenchScriptWithHyperfine(t *testing.T) {
 		"GOCACHE=" + goEnv(t, "GOCACHE"),
 		"GOPATH=" + goEnv(t, "GOPATH"),
 	}
-	stdout, stderr, exit := runBench(t, env, "--runs", "2", "--bin", filepath.Join(filepath.Dir(e.bin), "lyna-tmux"))
+	stdout, stderr, exit := runBench(t, env, "--runs", "2", "--bin", filepath.Join(filepath.Dir(e.bin), "lmux"))
 	if exit != 0 {
 		t.Fatalf("exit %d\nstderr:\n%s", exit, stderr)
 	}
@@ -271,7 +271,7 @@ func TestBenchScriptWithHyperfine(t *testing.T) {
 			rows++
 		}
 	}
-	if rows != 4 || !strings.Contains(stdout, "| Command | Mean [ms] |") || !strings.Contains(stdout, "lyna-tmux v9.9.9") {
+	if rows != 4 || !strings.Contains(stdout, "| Command | Mean [ms] |") || !strings.Contains(stdout, "lmux v9.9.9") {
 		t.Fatalf("report:\n%s", stdout)
 	}
 }

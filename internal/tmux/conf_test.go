@@ -50,7 +50,7 @@ func (c confCase) options(t *testing.T) ConfOptions {
 		Version: c.version,
 		Look:    Look{Palette: p, Depth: c.depth, Icons: icons, Clock: true},
 		Env: Env{
-			Bin:         "/home/dev/.local/bin/lyna-tmux",
+			Bin:         "/home/dev/.local/bin/lmux",
 			ConfPath:    "/home/dev/.local/state/lyna-tmux/tmux.conf",
 			PopupWidth:  "90%",
 			PopupHeight: "85%",

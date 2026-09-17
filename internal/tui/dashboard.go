@@ -132,7 +132,7 @@ func NewDashboard(opts DashboardOptions) *DashboardModel {
 		opts:   opts,
 		ctx:    ctxOr(opts.Context),
 		now:    nowOr(opts.Now),
-		nav:    newNavKeys(),
+		nav:    newNavKeys(opts.Styles.Theme.Icons.Name == "ascii"),
 		width:  w,
 		height: h,
 		keys: dashKeys{

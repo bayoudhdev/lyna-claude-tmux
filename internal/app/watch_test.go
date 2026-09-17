@@ -4,11 +4,15 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/testutil/tmuxtest"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/tui"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/watch"
 )
 
@@ -22,6 +26,118 @@ func watchExpectWake(t *testing.T, s *Server, signal func(context.Context) error
 	}
 	if err := signal(ctx); err != nil {
 		t.Fatalf("wait after a signal on %s: %v", channel, err)
+	}
+}
+
+// noteText reads the line a failed review action reported to the view.
+func noteText(t *testing.T, msg tea.Msg) string {
+	t.Helper()
+	note, ok := msg.(tui.ChangesNoteMsg)
+	if !ok {
+		t.Fatalf("message %#v is not a changes note", msg)
+	}
+	return note.Text
+}
+
+// fakeSource is a working tree that answers a fixed root, or an error.
+type fakeSource struct {
+	root string
+	err  error
+}
+
+func (s fakeSource) Repo(context.Context, string) (watch.Repo, error) {
+	if s.err != nil {
+		return watch.Repo{}, s.err
+	}
+	return watch.Repo{Root: s.root, GitDir: filepath.Join(s.root, ".git"), CommonDir: filepath.Join(s.root, ".git")}, nil
+}
+
+func (s fakeSource) Changes(context.Context, string) (watch.Changes, error) {
+	return watch.Changes{}, s.err
+}
+
+func TestWatchReviewOpen(t *testing.T) {
+	t.Parallel()
+	const root = "/src/api"
+	cases := []struct {
+		name    string
+		review  watchReview
+		path    string
+		want    tmux.Command
+		wantMsg string
+	}{
+		{
+			name:   "the whole working tree",
+			review: watchReview{src: fakeSource{root: root}, exe: "/opt/bin/lmux", pane: "%7", dir: root + "/internal"},
+			want: tmux.Command{
+				"display-popup", "-t", "%7", "-E", "-w", "95%", "-h", "95%", "-d", root, "-T", " review ",
+				"--", "/opt/bin/lmux", "review", "--popup", "--dir", root,
+			},
+		},
+		{
+			// The path is relative to the top of the working tree, not to the
+			// watched directory, and the review is opened at the top.
+			name:   "one file of a watched subdirectory",
+			review: watchReview{src: fakeSource{root: root}, exe: "/opt/bin/lmux", pane: "%7", dir: root + "/internal"},
+			path:   "internal/tui/changes.go",
+			want: tmux.Command{
+				"display-popup", "-t", "%7", "-E", "-w", "95%", "-h", "95%", "-d", root, "-T", " review ",
+				"--", "/opt/bin/lmux", "review", "--popup", "--dir", root, "--", "internal/tui/changes.go",
+			},
+		},
+		{
+			name:    "a directory that is no repository",
+			review:  watchReview{src: fakeSource{err: watch.ErrNotRepository}, exe: "/opt/bin/lmux", pane: "%7", dir: root},
+			wantMsg: "review: " + watch.ErrNotRepository.Error(),
+		},
+		{
+			name:    "a pane that is no pane",
+			review:  watchReview{src: fakeSource{root: root}, exe: "/opt/bin/lmux", pane: "review", dir: root},
+			wantMsg: "review: popup: pane \"review\" is not a pane id such as %3",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var got []tmux.Command
+			r := tc.review
+			r.run = func(context.Context, tmux.Command) error { return nil }
+			if tc.wantMsg == "" {
+				r.run = func(_ context.Context, cmd tmux.Command) error {
+					got = append(got, cmd)
+					return nil
+				}
+			}
+			msg := r.open(context.Background(), tc.path)()
+			if tc.wantMsg != "" {
+				if text := noteText(t, msg); text != tc.wantMsg {
+					t.Fatalf("note = %q, want %q", text, tc.wantMsg)
+				}
+				if len(got) != 0 {
+					t.Fatalf("ran %q after failing", got)
+				}
+				return
+			}
+			if msg != nil {
+				t.Fatalf("message %#v after opening the review", msg)
+			}
+			if len(got) != 1 || !slices.Equal(got[0], tc.want) {
+				t.Fatalf("commands =\n%q\nwant\n%q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestWatchReviewReportsTheServer checks that a tmux failure reaches the view
+// instead of being swallowed by the command that opened the popup.
+func TestWatchReviewReportsTheServer(t *testing.T) {
+	t.Parallel()
+	r := watchReview{
+		src: fakeSource{root: "/src/api"}, exe: "/opt/bin/lmux", pane: "%1", dir: "/src/api",
+		run: func(context.Context, tmux.Command) error { return errors.New("no server running") },
+	}
+	if text := noteText(t, r.open(context.Background(), "")()); text != "review: no server running" {
+		t.Fatalf("note = %q", text)
 	}
 }
 
@@ -84,8 +200,11 @@ func TestOpenWatch(t *testing.T) {
 				if o.Popup || o.Dir != dir || o.Home != h.Home || o.Styles.Theme.Palette.Name != "lyna" || o.Updates != nil {
 					t.Fatalf("options %+v", o)
 				}
+				if o.Open == nil || o.OpenReview == nil {
+					t.Error("a pane opens no review")
+				}
 				w := v.Watcher
-				if w.Dir != dir || w.Interval != WatchInterval || w.Signal == nil {
+				if w.Dir != dir || w.Idle != WatchIdle || w.Signal == nil {
 					t.Fatalf("watcher %+v", w)
 				}
 				if _, ok := w.Source.(watch.Runner); !ok {
@@ -100,6 +219,10 @@ func TestOpenWatch(t *testing.T) {
 			check: func(t *testing.T, v WatchView) {
 				if !v.Options.Popup || v.Options.Styles.Theme.Palette.Name != "light" {
 					t.Fatalf("options %+v", v.Options)
+				}
+				// A second popup would close this one.
+				if v.Options.Open != nil || v.Options.OpenReview != nil {
+					t.Error("a popup opens a review over itself")
 				}
 			},
 		},
@@ -119,6 +242,10 @@ func TestOpenWatch(t *testing.T) {
 			req:  WatchRequest{Dir: dir, Session: "api"},
 			check: func(t *testing.T, v WatchView) {
 				watchExpectWake(t, s, v.Watcher.Signal, channel("api"))
+				// There is no pane to draw a popup over.
+				if v.Options.Open != nil || v.Options.OpenReview != nil {
+					t.Error("a view outside tmux opens a review")
+				}
 			},
 		},
 		{name: "outside tmux without a session", env: map[string]string{"TMUX": ""}, req: WatchRequest{Dir: dir}, wantErr: ErrWatchNoSession, errHas: "pass --session"},

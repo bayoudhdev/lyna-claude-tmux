@@ -156,7 +156,7 @@ func (d Deps) dashRun(cmd *cobra.Command, ui rootUI, b dashBackend) error {
 		// The dashboard owns the whole terminal, never a popup.
 		return d.agentsPick(cmd, ui, b.agents, false)
 	case tui.NextSetup:
-		return d.setupRun(cmd, ui)
+		return d.setupRun(cmd, ui, app.ReviewPlugin{}, false)
 	case tui.NextNone:
 	}
 	return nil

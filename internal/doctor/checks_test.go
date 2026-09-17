@@ -178,7 +178,13 @@ func TestCheckClaude(t *testing.T) {
 			name: "below minimum",
 			sys:  fakeSystem{bins: bins, outputs: version},
 			edit: func(d *Deps) { d.ClaudeMinVersion = "2.2.0" },
-			want: []Result{{ID: "claude", Title: "Claude Code", Status: StatusFail, Detail: "Claude Code 2.1.273 at /home/u/.local/bin/claude is older than 2.2.0", Fix: "claude update"}},
+			want: []Result{{
+				ID: "claude", Title: "Claude Code", Status: StatusFail,
+				Detail: "Claude Code 2.1.273 at /home/u/.local/bin/claude is older than 2.2.0", Fix: "claude update",
+				// An update doctor can run itself, unlike an install that
+				// pipes a downloaded script into a shell.
+				Action: CommandFix("Update Claude Code", "/home/u/.local/bin/claude", "update"),
+			}},
 		},
 		{
 			name: "unparsable minimum is ignored",
@@ -304,7 +310,8 @@ func TestCheckOptionAsMeta(t *testing.T) {
 			want: []Result{{
 				ID: "option-meta", Title: "Option as Meta", Status: StatusWarn,
 				Detail: "Alt key bindings need Option to send Meta in iTerm2; doctor cannot read the terminal's setting",
-				Fix:    `iTerm2 > Settings > Profiles > Keys > General: set "Left Option key" and "Right Option key" to "Esc+"`,
+				Fix: "iTerm2 > Settings > Profiles > Keys > General: set \"Left Option key\" and \"Right Option key\" to \"Esc+\"" +
+					"\nlmux keys lists the same actions after the prefix, which need no terminal setting",
 			}},
 		},
 		{

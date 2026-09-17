@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"runtime"
 	"runtime/debug"
+
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/xdg"
 )
 
 // Stamped at link time: -X github.com/bayoudhdev/lyna-claude-tmux/internal/version.Version=v1.0.0
@@ -68,7 +70,7 @@ func resolve(v, commit, date string, read func() (*debug.BuildInfo, bool)) Info 
 	return info
 }
 
-// String renders a one-line identity, for example "lyna-tmux v1.0.0 (abc123 2026-09-15) darwin/arm64".
+// String renders a one-line identity, for example "lmux v1.0.0 (abc123 2026-09-15) darwin/arm64".
 func (i Info) String() string {
 	meta := i.Commit
 	if i.Date != "" {
@@ -78,7 +80,7 @@ func (i Info) String() string {
 		meta += i.Date
 	}
 	if meta == "" {
-		return fmt.Sprintf("lyna-tmux %s %s", i.Version, i.Platform)
+		return fmt.Sprintf("%s %s %s", xdg.Command, i.Version, i.Platform)
 	}
-	return fmt.Sprintf("lyna-tmux %s (%s) %s", i.Version, meta, i.Platform)
+	return fmt.Sprintf("%s %s (%s) %s", xdg.Command, i.Version, meta, i.Platform)
 }

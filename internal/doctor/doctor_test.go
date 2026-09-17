@@ -128,7 +128,7 @@ func TestRunOrderIsStable(t *testing.T) {
 	for _, r := range first {
 		ids = append(ids, r.ID)
 	}
-	want := "tmux claude claude-trust git sandbox truecolor clipboard option-meta keybindings docker nvim"
+	want := "tmux claude claude-trust git sandbox truecolor clipboard option-meta shift-enter keybindings docker nvim"
 	if got := strings.Join(ids, " "); got != want {
 		t.Fatalf("ids = %q, want %q", got, want)
 	}

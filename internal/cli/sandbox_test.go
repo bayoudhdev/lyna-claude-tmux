@@ -131,7 +131,7 @@ func TestSandboxStatusCLI(t *testing.T) {
 		{name: "off in the configuration", config: "[sandbox]\nprofile = \"off\"\n", args: []string{"sandbox", "status"}, wantCode: 1, errHas: []string{"--sandbox off"}},
 		{name: "popup waits for a key on a terminal", args: []string{"sandbox", "status", "--popup"}, term: true, stdin: "x", outHas: []string{"Press any key to close"}},
 		{name: "popup without a terminal returns", args: []string{"sandbox", "status", "--popup"}, stdin: "x", leftIn: 1},
-		{name: "popup keeps an error on screen", config: "[sandbox]\nprofile = \"off\"\n", args: []string{"sandbox", "status", "--popup"}, term: true, stdin: "x", wantCode: 1, outHas: []string{"lyna-tmux sandbox status:", "Press any key"}},
+		{name: "popup keeps an error on screen", config: "[sandbox]\nprofile = \"off\"\n", args: []string{"sandbox", "status", "--popup"}, term: true, stdin: "x", wantCode: 1, outHas: []string{"lmux sandbox status:", "Press any key"}},
 		{name: "rejects arguments", args: []string{"sandbox", "status", "extra"}, wantCode: 1, errHas: []string{"unknown command"}},
 	}
 	for _, tc := range cases {

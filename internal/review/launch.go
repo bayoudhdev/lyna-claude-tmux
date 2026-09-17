@@ -20,7 +20,7 @@ import (
 // Errors of a launch.
 var (
 	// ErrNotInstalled reports an isolated launch without an installed plugin.
-	ErrNotInstalled = errors.New("review: codediff.nvim is not installed (run: lyna-tmux review install)")
+	ErrNotInstalled = errors.New("review: codediff.nvim is not installed (run: lmux review install)")
 	// ErrNotPrepared reports an isolated launch before Prepare wrote the init file.
 	ErrNotPrepared = errors.New("review: the review editor init file has not been written")
 	// ErrNvimMissing reports that Neovim was not found.

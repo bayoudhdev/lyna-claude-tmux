@@ -7,8 +7,10 @@ ok    Truecolor           24-bit color in Ghostty
 ok    Clipboard           pbcopy at /usr/bin/pbcopy
 warn  Option as Meta      Alt key bindings need Option to send Meta in Ghostty; doctor cannot read the terminal's setting
                           fix:  Ghostty config: macos-option-as-alt = true
+                                lmux keys lists the same actions after the prefix, which need no terminal setting
+ok    Shift+Enter         nothing to set up in Ghostty: the terminal reports Shift+Enter as its own key and tmux passes it through
 ok    Claude keybindings  no /Users/u/.claude/keybindings.json, so Claude Code uses its default keys
 ok    Docker              Docker server 28.4.0, client at /opt/homebrew/bin/docker
 ok    Neovim              Neovim 0.11.4 at /opt/homebrew/bin/nvim
 
-9 ok, 1 warn, 0 fail, 1 skipped
+10 ok, 1 warn, 0 fail, 1 skipped

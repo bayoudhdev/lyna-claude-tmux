@@ -1,12 +1,12 @@
 # What uninstall removes, listed before anything is removed.
-title lyna-tmux uninstall
+title lmux uninstall
 size 104 30
 run demo-shell
 wait 1
 type clear
 enter
 wait 0.5
-type lyna-tmux uninstall
+type lmux uninstall
 enter
 wait 2.5
 frame 3.5

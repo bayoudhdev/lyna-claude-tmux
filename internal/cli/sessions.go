@@ -55,7 +55,7 @@ func newLsCmd(d Deps) *cobra.Command {
 				return enc.Encode(entries)
 			}
 			if len(sessions) == 0 {
-				_, err := fmt.Fprintln(out, "No workspaces. Start one with: lyna-tmux create")
+				_, err := fmt.Fprintln(out, "No workspaces. Start one with: lmux create")
 				return err
 			}
 			w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
@@ -91,7 +91,7 @@ func newAttachCmd(d Deps) *cobra.Command {
 			// exits with "open terminal failed" after the process was
 			// replaced, where nothing of ours can explain it.
 			if !d.Terminal().Interactive {
-				return errors.New("this is not a terminal to attach; run lyna-tmux ls to list the workspaces instead")
+				return errors.New("this is not a terminal to attach; run lmux ls to list the workspaces instead")
 			}
 			ctx, h, s, err := d.openServer(cmd)
 			if err != nil {
@@ -121,7 +121,7 @@ func onlyWorkspace(cmd *cobra.Command, s *app.Server) (string, error) {
 	}
 	switch len(sessions) {
 	case 0:
-		return "", fmt.Errorf("%w running; start one with: lyna-tmux create", app.ErrNoWorkspace)
+		return "", fmt.Errorf("%w running; start one with: lmux create", app.ErrNoWorkspace)
 	case 1:
 		return sessions[0].Name, nil
 	}

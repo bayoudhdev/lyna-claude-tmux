@@ -144,7 +144,12 @@ func (l Look) StatusRight() string {
 	return b.String()
 }
 
-// BorderFormat labels each pane by role with its agent state.
+// BorderFormat labels each pane by role with its agent state, or with the
+// status its program exited on. A dead pane is kept on screen so the reason
+// stays readable, and the label is what still says so once the pane has been
+// scrolled or the program cleared the screen on its way out. tmux leaves
+// pane_dead_status empty for some programs, so the number is only added when
+// there is one.
 func (l Look) BorderFormat() string {
 	p, i := l.Palette, l.Icons
 	role := "#{" + OptRole + "}"
@@ -158,6 +163,9 @@ func (l Look) BorderFormat() string {
 			cond("#{==:"+state+",idle}", style("fg="+l.c(p.Idle))+text(" "+i.Idle+" idle"), "")))
 	subagents := cond("#{&&:#{"+OptSubagents+"},#{!=:#{"+OptSubagents+"},0}}",
 		style("fg="+l.c(p.Muted))+text(" +")+"#{"+OptSubagents+"}"+text(" subagents"), "")
+	dead := style("fg="+l.c(p.Danger), "bold") + text(" "+i.Waiting+" exited") +
+		cond("#{!=:#{pane_dead_status},}", text(" ")+"#{pane_dead_status}", "")
+	status := cond("#{pane_dead}", dead, stateText+subagents)
 	return cond("#{pane_active}", style("fg="+l.c(p.Accent), "bold"), style("fg="+l.c(p.Muted), "nobold")) +
-		" " + label + stateText + subagents + style("default") + " "
+		" " + label + status + style("default") + " "
 }

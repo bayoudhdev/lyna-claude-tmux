@@ -77,7 +77,7 @@ func TestIsolationAvailable(t *testing.T) {
 		{name: "process with the runtime on PATH", isolation: sandbox.IsolationProcess, bins: map[string]string{"srt": "/opt/bin/srt"}},
 		{name: "process without the runtime", isolation: sandbox.IsolationProcess, wantErr: "install it with `npm install -g @anthropic-ai/sandbox-runtime`"},
 		{name: "process with a relative runtime path", isolation: sandbox.IsolationProcess, bins: map[string]string{"srt": "bin/srt"}, wantErr: "srt is not on PATH"},
-		{name: "container outside a container", isolation: sandbox.IsolationContainer, wantErr: "lyna-tmux sandbox devcontainer up"},
+		{name: "container outside a container", isolation: sandbox.IsolationContainer, wantErr: "lmux sandbox devcontainer up"},
 		{name: "container inside the dev container", isolation: sandbox.IsolationContainer, markers: isolationDevContainerFiles()},
 		{
 			name: "container inside the dev container on an oci runtime", isolation: sandbox.IsolationContainer,
@@ -101,7 +101,7 @@ func TestIsolationAvailable(t *testing.T) {
 		{
 			name: "the image marker alone is not a container", isolation: sandbox.IsolationContainer,
 			markers: []string{sandbox.DevContainerMarker, sandbox.DevContainerWorkspace},
-			wantErr: "lyna-tmux sandbox devcontainer up",
+			wantErr: "lmux sandbox devcontainer up",
 		},
 		{name: "unknown level", isolation: "vm", wantErr: "vm"},
 	}

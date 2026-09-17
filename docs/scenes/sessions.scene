@@ -1,23 +1,23 @@
 # Listing and renaming workspaces.
-title lyna-tmux ls and rename
+title lmux ls and rename
 size 104 30
-pre lyna-tmux kill --all
+pre lmux kill --all
 pre rm -rf .devcontainer
-pre lyna-tmux create ../acme-web --layout duo --detach
-pre lyna-tmux create . --layout trio --detach
+pre lmux create ../acme-web --layout duo --detach
+pre lmux create . --layout trio --detach
 run demo-shell
 wait 1
 type clear
 enter
 wait 0.5
-type lyna-tmux ls
+type lmux ls
 enter
 wait 2
 frame 2.6
-type lyna-tmux rename acme-api gateway
+type lmux rename acme-api gateway
 enter
 wait 1.5
-type lyna-tmux ls
+type lmux ls
 enter
 wait 1.5
 frame 3.5

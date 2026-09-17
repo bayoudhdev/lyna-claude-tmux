@@ -1,7 +1,7 @@
 # The wizard that writes the configuration file.
-title lyna-tmux setup
+title lmux setup
 size 104 30
-run lyna-tmux setup
+run lmux setup
 wait 2
 frame 2
 keys Down

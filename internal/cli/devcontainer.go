@@ -30,9 +30,9 @@ func devcontainerCommand(d Deps) *cobra.Command {
 			"only lets the allowed domains out (sandbox.allowed_domains adds to them) and a volume\n" +
 			"for the Claude configuration. The Docker socket is never mounted. Every command works\n" +
 			"on the directory given, or the current directory: never on a parent of it.",
-		Example: "  lyna-tmux sandbox devcontainer init\n" +
-			"  lyna-tmux sandbox devcontainer up\n" +
-			"  lyna-tmux create --isolation container",
+		Example: "  lmux sandbox devcontainer init\n" +
+			"  lmux sandbox devcontainer up\n" +
+			"  lmux create --isolation container",
 		Args: cobra.NoArgs,
 	}
 	cmd.AddCommand(devcontainerInitCommand(d), devcontainerUpCommand(d), devcontainerShellCommand(d), devcontainerDownCommand(d))
@@ -56,10 +56,10 @@ func devcontainerInitCommand(d Deps) *cobra.Command {
 			"built from, downloaded when the image builds. Without any of these, init fails and names\n" +
 			"the two flags that decide instead: --binary stages a Linux build of your own next to the\n" +
 			"Dockerfile (mode 0755, ignored by git), --version pins a published release.",
-		Example: "  lyna-tmux sandbox devcontainer init\n" +
-			"  lyna-tmux sandbox devcontainer init ~/src/api --force\n" +
-			"  lyna-tmux sandbox devcontainer init --binary ./dist/lyna-tmux-linux-arm64\n" +
-			"  lyna-tmux sandbox devcontainer init --version v1.2.0",
+		Example: "  lmux sandbox devcontainer init\n" +
+			"  lmux sandbox devcontainer init ~/src/api --force\n" +
+			"  lmux sandbox devcontainer init --binary ./dist/lmux-linux-arm64\n" +
+			"  lmux sandbox devcontainer init --version v1.2.0",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			h, err := d.Host()
@@ -105,7 +105,7 @@ func devcontainerInitCommand(d Deps) *cobra.Command {
 			for _, p := range res.Written {
 				fmt.Fprintf(out, "Wrote %s\n", sanitize.Line(p))
 			}
-			_, err = fmt.Fprintln(out, "Start it with: lyna-tmux sandbox devcontainer up")
+			_, err = fmt.Fprintln(out, "Start it with: lmux sandbox devcontainer up")
 			return err
 		},
 	}
@@ -123,10 +123,10 @@ func devcontainerUpCommand(d Deps) *cobra.Command {
 		Long: "Build the image from the .devcontainer directory of dir (the current directory by\n" +
 			"default), create or start the container and apply the egress firewall. The image is the\n" +
 			"isolation boundary, so the files must be the ones lyna-tmux renders: a build refuses any\n" +
-			"other content and names the file to restore with `lyna-tmux sandbox devcontainer init\n" +
+			"other content and names the file to restore with `lmux sandbox devcontainer init\n" +
 			"--force`, as it does when the lyna-tmux binary init staged is gone. Add hosts through\n" +
 			"sandbox.allowed_domains in the configuration, then init --force and up again.",
-		Example: "  lyna-tmux sandbox devcontainer up",
+		Example: "  lmux sandbox devcontainer up",
 		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			t, docker, err := d.devcontainerTarget(cmd, args, true)
@@ -136,7 +136,7 @@ func devcontainerUpCommand(d Deps) *cobra.Command {
 			if err := docker.Up(cmd.Context(), t); err != nil {
 				return err
 			}
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Container %s is running. Open the workspace in it with: lyna-tmux create --isolation container\n", t.Container())
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Container %s is running. Open the workspace in it with: lmux create --isolation container\n", t.Container())
 			return err
 		},
 	}
@@ -146,7 +146,7 @@ func devcontainerShellCommand(d Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:     "shell [dir]",
 		Short:   "Open a shell in the running container",
-		Example: "  lyna-tmux sandbox devcontainer shell",
+		Example: "  lmux sandbox devcontainer shell",
 		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !d.Terminal().Interactive {
@@ -165,7 +165,7 @@ func devcontainerDownCommand(d Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:     "down [dir]",
 		Short:   "Stop and remove the container, keeping its image and Claude volume",
-		Example: "  lyna-tmux sandbox devcontainer down",
+		Example: "  lmux sandbox devcontainer down",
 		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			t, docker, err := d.devcontainerTarget(cmd, args, false)
@@ -224,7 +224,7 @@ func (d Deps) devcontainerTarget(cmd *cobra.Command, args []string, needFiles bo
 func (d Deps) devcontainerDocker(cmd *cobra.Command) (devcontainer.Docker, error) {
 	bin, err := d.LookPath("docker")
 	if err != nil {
-		return devcontainer.Docker{}, fmt.Errorf("container isolation needs Docker, and docker is not on PATH (run lyna-tmux doctor for the install command): %w", err)
+		return devcontainer.Docker{}, fmt.Errorf("container isolation needs Docker, and docker is not on PATH (run lmux doctor for the install command): %w", err)
 	}
 	h, err := d.Host()
 	if err != nil {

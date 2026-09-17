@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# tpm entry point for lyna-tmux plugin mode.
+# tpm entry point for lmux plugin mode.
 #
 # tpm runs every executable *.tmux file of a plugin inside the tmux server
 # (TMUX names that server) and discards its output. This file only hands over
-# to the installed lyna-tmux binary, which renders the plugin configuration and
+# to the installed lmux binary, which renders the plugin configuration and
 # sources it on this server. It never downloads or installs anything: when the
 # binary is missing or fails, it tells the user what to do in a tmux message.
 set -uo pipefail
@@ -14,21 +14,26 @@ readonly hook_index=4217
 readonly repo_url=https://github.com/bayoudhdev/lyna-claude-tmux
 # Messages are expanded as tmux formats: keep them free of # and % characters
 # and of single quotes (they are embedded in a quoted hook command).
-readonly missing_message="lyna-tmux is not installed: see $repo_url for install steps, then reload tmux"
-readonly failed_message='lyna-tmux plugin tmux --apply failed: run it in a shell inside tmux to see the error'
+readonly missing_message="lmux is not installed: see $repo_url for install steps, then reload tmux"
+readonly failed_message='lmux plugin tmux --apply failed: run it in a shell inside tmux to see the error'
 
-find_lyna_tmux() {
-  local candidate
-  if candidate=$(command -v lyna-tmux); then
-    printf '%s\n' "$candidate"
-    return 0
-  fi
-  # The installer's default location, often missing from the PATH the tmux
-  # server started with.
-  if [ -n "${HOME:-}" ] && [ -x "$HOME/.local/bin/lyna-tmux" ]; then
-    printf '%s\n' "$HOME/.local/bin/lyna-tmux"
-    return 0
-  fi
+# find_lmux resolves the binary. lyna-tmux is the name the command had in
+# 1.0.0 and is still installed as a link to it, so an installation from then
+# that was never updated is found too.
+find_lmux() {
+  local name candidate
+  for name in lmux lyna-tmux; do
+    if candidate=$(command -v "$name"); then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+    # The installer's default location, often missing from the PATH the tmux
+    # server started with.
+    if [ -n "${HOME:-}" ] && [ -x "$HOME/.local/bin/$name" ]; then
+      printf '%s\n' "$HOME/.local/bin/$name"
+      return 0
+    fi
+  done
   return 1
 }
 
@@ -53,7 +58,7 @@ notify() {
 
 main() {
   local bin
-  if ! bin=$(find_lyna_tmux); then
+  if ! bin=$(find_lmux); then
     notify "$missing_message"
     return 0
   fi

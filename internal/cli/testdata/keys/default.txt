@@ -23,9 +23,21 @@ Workspace keys, no prefix (Alt is Option on macOS; enable Option as Meta in your
 
 After the prefix Ctrl+b
   PANES
+    o                 Focus next pane
+    ;                 Focus previous pane
+    H                 Resize pane left
+    L                 Resize pane right
+    K                 Resize pane up
+    J                 Resize pane down
     \                 Split right
     -                 Split down
+    z                 Zoom pane
+    x                 Close pane
     C                 Focus Claude pane
+  WINDOWS
+    c                 New window
+    1..9              Window 1 to 9
+    w                 Sessions and windows
   TOOLS
     a                 Agents
     g                 Review changes

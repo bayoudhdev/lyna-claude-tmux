@@ -14,7 +14,7 @@ func TestInitConfigCLI(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, stderr)
 	}
-	for _, want := range []string{"Wrote " + configFile, "Next steps:", "lyna-tmux doctor", "lyna-tmux init --project", "lyna-tmux create"} {
+	for _, want := range []string{"Wrote " + configFile, "Next steps:", "lmux doctor", "lmux init --project", "lmux create"} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("stdout lacks %q:\n%s", want, stdout)
 		}
@@ -83,7 +83,7 @@ func TestInitProjectCLI(t *testing.T) {
 		},
 		{
 			name: "the sandbox may not be off", args: []string{"init", "--project", "--yes"}, config: "[sandbox]\nprofile = \"off\"\n", wantCode: 1,
-			errHas: []string{"lyna-tmux config edit"},
+			errHas: []string{"lmux config edit"},
 		},
 		{
 			name: "strict profile", args: []string{"init", "--project", "--yes"}, config: "[sandbox]\nprofile = \"strict\"\n", wantWrite: true,

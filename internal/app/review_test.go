@@ -267,8 +267,8 @@ func TestReviewLaunch(t *testing.T) {
 		{name: "Neovim missing", install: reviewFakeLibrary, wantErr: ErrReviewNeovim, errHas: "was not found on PATH"},
 		{name: "Neovim too old", version: "v0.8.3", install: reviewFakeLibrary, wantErr: ErrReviewNeovim, errHas: "is too old"},
 		{name: "Neovim too old for the user editor too", config: "[review]\neditor = \"user\"\n", version: "v0.8.3", wantErr: ErrReviewNeovim},
-		{name: "plugin not installed", version: "v0.12.5", wantErr: ErrReviewPlugin, errHas: "run: lyna-tmux review install"},
-		{name: "plugin modified", version: "v0.12.5", install: "tampered library", wantErr: ErrReviewPlugin, errHas: "lyna-tmux review install --force"},
+		{name: "plugin not installed", version: "v0.12.5", wantErr: ErrReviewPlugin, errHas: "run: lmux review install"},
+		{name: "plugin modified", version: "v0.12.5", install: "tampered library", wantErr: ErrReviewPlugin, errHas: "lmux review install --force"},
 		{name: "invalid configuration", config: "[review]\neditor = \"nope\"\n", version: "v0.12.5", errHas: "review.editor"},
 		{
 			name: "init file cannot be written", version: "v0.12.5", install: reviewFakeLibrary, wantErr: ErrReviewLaunch,
@@ -355,10 +355,10 @@ func TestReviewStatus(t *testing.T) {
 		wantPin      string
 	}{
 		{name: "installed and verified", version: "v0.12.5", install: true, src: src, wantReady: true, wantEditor: domain.EditorIsolated, wantPin: src.Pin.Commit},
-		{name: "not installed", version: "v0.12.5", src: src, wantProblems: []string{"lyna-tmux review install"}, wantEditor: domain.EditorIsolated, wantPin: src.Pin.Commit},
+		{name: "not installed", version: "v0.12.5", src: src, wantProblems: []string{"lmux review install"}, wantEditor: domain.EditorIsolated, wantPin: src.Pin.Commit},
 		{name: "user editor ignores the plugin", config: "[review]\neditor = \"user\"\n", version: "v0.12.5", src: src, wantReady: true, wantEditor: domain.EditorUser, wantPin: src.Pin.Commit},
 		{name: "user editor still needs Neovim", config: "[review]\neditor = \"user\"\n", src: src, wantProblems: []string{"Neovim (nvim) was not found"}, wantEditor: domain.EditorUser, wantPin: src.Pin.Commit},
-		{name: "default pin", version: "v0.12.5", wantProblems: []string{"lyna-tmux review install"}, wantEditor: domain.EditorIsolated, wantPin: domain.DefaultPin().Commit},
+		{name: "default pin", version: "v0.12.5", wantProblems: []string{"lmux review install"}, wantEditor: domain.EditorIsolated, wantPin: domain.DefaultPin().Commit},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

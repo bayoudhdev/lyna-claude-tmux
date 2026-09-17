@@ -15,6 +15,37 @@ import (
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/xdg"
 )
 
+// uninstallNames resolves the executable uninstall removes and the link the
+// installers leave under the name the command had in 1.0.0. Run through that
+// link, exe is the link itself, and the binary is the file next to it the link
+// points at; run under its own name, the link is the one beside it that points
+// back. A link to anything else, in either direction, belongs to whoever made
+// it and is left alone, named to the user by uninstallBinary.
+func uninstallNames(exe string) (bin, alias string) {
+	if exe == "" {
+		return "", ""
+	}
+	dir := filepath.Dir(exe)
+	sibling := func(name string) string { return filepath.Join(dir, name) }
+	linksTo := func(link, target string) bool {
+		got, err := os.Readlink(link)
+		if err != nil {
+			return false
+		}
+		if !filepath.IsAbs(got) {
+			got = filepath.Join(filepath.Dir(link), got)
+		}
+		return filepath.Clean(got) == filepath.Clean(target)
+	}
+	if filepath.Base(exe) == xdg.CommandWas && linksTo(exe, sibling(xdg.Command)) {
+		return sibling(xdg.Command), exe
+	}
+	if link := sibling(xdg.CommandWas); link != exe && linksTo(link, exe) {
+		return exe, link
+	}
+	return exe, ""
+}
+
 // uninstallBinary decides what happens to the executable at exe: uninstall
 // removes it, or leaves it to the user with the reason and the command.
 // Uninstall removes it only when it is a regular file the user (uid) owns, in

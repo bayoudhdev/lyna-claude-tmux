@@ -47,7 +47,52 @@ type Result struct {
 	Detail string `json:"detail,omitempty"`
 	// Fix is the exact command or setting that resolves a warn or fail.
 	Fix string `json:"fix,omitempty"`
+	// Action is how `doctor --fix` applies Fix, absent when the fix is
+	// something only the user can carry out.
+	Action *Action `json:"action,omitempty"`
 }
+
+// FixKind says how a fix is applied.
+type FixKind string
+
+// Kinds of fix. Manual fixes are shown and never run: a terminal setting, an
+// account, a package manager that asks for a password. A command is an
+// argument vector run as it stands. A builtin is a step lyna-tmux carries out
+// itself, named by ID.
+const (
+	FixManual  FixKind = "manual"
+	FixCommand FixKind = "command"
+	FixBuiltin FixKind = "builtin"
+)
+
+// Builtin fix identifiers. The doctor package names them; the command layer
+// carries them out, since that is where the rest of lyna-tmux is reachable.
+const (
+	// FixReviewInstall installs the pinned review plugin.
+	FixReviewInstall = "review-install"
+	// FixReviewReinstall reinstalls it over an installation that does not
+	// match its pin.
+	FixReviewReinstall = "review-reinstall"
+)
+
+// Action is a fix that can be applied without the user typing it.
+type Action struct {
+	Kind FixKind `json:"kind"`
+	// What names what applying it does, as one sentence in the imperative.
+	What string `json:"what"`
+	// Argv is the command of a FixCommand action.
+	Argv []string `json:"argv,omitempty"`
+	// ID names the step of a FixBuiltin action.
+	ID string `json:"id,omitempty"`
+}
+
+// CommandFix is an action that runs argv as it stands.
+func CommandFix(what string, argv ...string) *Action {
+	return &Action{Kind: FixCommand, What: what, Argv: argv}
+}
+
+// BuiltinFix is an action lyna-tmux carries out itself.
+func BuiltinFix(what, id string) *Action { return &Action{Kind: FixBuiltin, What: what, ID: id} }
 
 // DefaultTimeout bounds every external command a check runs. A hung docker
 // daemon or a slow network mount must not freeze the report.
@@ -128,6 +173,7 @@ func Run(ctx context.Context, d Deps) []Result {
 		checkTruecolor,
 		checkClipboard,
 		checkOptionAsMeta,
+		checkShiftEnter,
 		checkKeybindings,
 		checkDocker,
 		checkNeovim,

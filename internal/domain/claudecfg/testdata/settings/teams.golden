@@ -276,5 +276,6 @@
   "worktree": {
     "baseRef": "head"
   },
-  "workflowSizeGuideline": "small"
+  "workflowSizeGuideline": "small",
+  "preferredNotifChannel": "terminal_bell"
 }

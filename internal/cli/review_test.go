@@ -132,6 +132,9 @@ func (f *reviewFixture) run(t *testing.T, args ...string) (code int, stdout, std
 	}
 	root := NewRootWith(Streams{In: strings.NewReader(""), Out: &out, Err: &errOut}, d)
 	reviewUseSource(root, d, f.src)
+	// doctor --fix installs the same plugin, so it installs it from the same
+	// local repository and release server.
+	doctorUseSource(root, d, f.src)
 	code = run(t.Context(), root, args)
 	return code, out.String(), errOut.String()
 }
@@ -241,7 +244,7 @@ func TestReviewCLI(t *testing.T) {
 		errLacks []string
 		check    func(t *testing.T, stdout string)
 	}{
-		{name: "status before install", args: []string{"review", "status"}, outHas: []string{"Editor     isolated", "Installed  no", "Neovim     " + f.nvim + " v0.12.5", "Ready      no", "Problems\n  codediff.nvim is not installed (run: lyna-tmux review install)"}},
+		{name: "status before install", args: []string{"review", "status"}, outHas: []string{"Editor     isolated", "Installed  no", "Neovim     " + f.nvim + " v0.12.5", "Ready      no", "Problems\n  codediff.nvim is not installed (run: lmux review install)"}},
 		{name: "status json before install", args: []string{"review", "status", "--json"}, check: statusJSON(func(t *testing.T, r reviewStatusReport) {
 			t.Helper()
 			if r.Editor != "isolated" || r.Ready || r.Plugin.Installed || r.Plugin.PinnedCommit != f.src.Pin.Commit || r.Plugin.PinnedVersion != "4.0.6" ||
@@ -249,8 +252,8 @@ func TestReviewCLI(t *testing.T) {
 				t.Fatalf("report %+v", r)
 			}
 		})},
-		{name: "review before install names the install command", args: []string{"review"}, wantCode: 3, errHas: []string{"the review editor is not ready", "lyna-tmux review install"}, errLacks: []string{"Press Enter"}},
-		{name: "popup keeps the reason on screen", args: []string{"review", "--popup"}, wantCode: 3, errHas: []string{"lyna-tmux review: the review editor is not ready", "Press Enter or q to close"}},
+		{name: "review before install names the install command", args: []string{"review"}, wantCode: 3, errHas: []string{"the review editor is not ready", "lmux review install"}, errLacks: []string{"Press Enter"}},
+		{name: "popup keeps the reason on screen", args: []string{"review", "--popup"}, wantCode: 3, errHas: []string{"lmux review: the review editor is not ready", "Press Enter or q to close"}},
 		{
 			name: "no terminal: no prompt", setup: func(*testing.T) { e.term.Interactive = false }, args: []string{"review", "--popup"}, wantCode: 3,
 			errLacks: []string{"Press Enter"},
@@ -673,7 +676,7 @@ func TestReviewInTmuxPane(t *testing.T) {
 	gitPath := mustLookPath(t, "git")
 	nvimPath, nvimErr := exec.LookPath("nvim")
 	emptyHome := t.TempDir()
-	notInstalled := []string{"lyna-tmux review install", "Press Enter or q to close."}
+	notInstalled := []string{"lmux review install", "Press Enter or q to close."}
 
 	cases := []struct {
 		name string
@@ -699,7 +702,7 @@ func TestReviewInTmuxPane(t *testing.T) {
 		{name: "a popup keeps the reason until q", args: []string{"review", "--popup"}, shell: true, waiting: notInstalled, after: []string{"helper exited 3"}, wantStatus: "3"},
 		{
 			name: "a review typed at a shell prompt returns at once", args: []string{"review", "--dir", f.repo}, shell: true,
-			after: []string{"lyna-tmux review install", "helper exited 3"}, wantStatus: "3",
+			after: []string{"lmux review install", "helper exited 3"}, wantStatus: "3",
 		},
 		{
 			// The review replaces its own process with the editor, so no code

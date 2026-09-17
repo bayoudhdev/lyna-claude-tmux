@@ -189,7 +189,7 @@ size 100 30
 dir /src/acme-api
 env LYNA_TMUX_DEMO=1
 env TERM_PROGRAM=demo
-run lyna-tmux attach api
+run lmux attach api
 wait 2
 frame
 keys M-\\

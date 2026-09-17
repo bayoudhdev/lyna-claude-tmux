@@ -16,7 +16,7 @@ func layoutCommand(d Deps) *cobra.Command {
 		Long: "Open a new window in the workspace of the pane, laid out as <name> with the same panes\n" +
 			"create starts, and select it. A window of that layout already open is selected as it is,\n" +
 			"and other open windows are left alone. Without --pane, the pane this runs in is used.",
-		Example: "  lyna-tmux layout trio\n  lyna-tmux layout review --pane %3",
+		Example: "  lmux layout trio\n  lmux layout review --pane %3",
 		Args:    cobra.ExactArgs(1),
 		ValidArgsFunction: func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
 			return layoutChoices(d), cobra.ShellCompDirectiveNoFileComp

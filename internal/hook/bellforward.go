@@ -15,7 +15,7 @@ import (
 // occur inside a field. tmux.SplitFields reads the reply back, including from
 // the version that prints the separator as its octal escape.
 
-// BellForwardInput is one `lyna-tmux bell-forward <session-id>` invocation,
+// BellForwardInput is one `lmux bell-forward <session-id>` invocation,
 // run by the alert-bell hook of the plugin-mode configuration with
 // #{hook_session}.
 type BellForwardInput struct {

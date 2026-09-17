@@ -12,7 +12,7 @@ import (
 )
 
 func TestPluginOptionsFor(t *testing.T) {
-	const bin = "/usr/local/bin/lyna-tmux"
+	const bin = "/usr/local/bin/lmux"
 	str := func(s string) *string { return &s }
 	cases := []struct {
 		name    string
@@ -77,7 +77,7 @@ func TestPluginSourceLine(t *testing.T) {
 	home := filepath.Join(root, `it's [a]*? #{x} \ ;`)
 	env := map[string]string{"LYNA_TMUX_HOME": home}
 	h := Host{Getenv: func(k string) string { return env[k] }, Home: root}
-	opts := tmux.PluginOptions{Bin: "/opt/lyna-tmux", LaunchKey: "y", ListKey: "u", ForwardBell: true}
+	opts := tmux.PluginOptions{Bin: "/opt/lmux", LaunchKey: "y", ListKey: "u", ForwardBell: true}
 	path, err := WritePluginConf(h, opts)
 	if err != nil {
 		t.Fatal(err)
@@ -104,7 +104,7 @@ func TestPluginSourceLine(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(keys, "/opt/lyna-tmux popup launch --pane") {
+	if !strings.Contains(keys, "/opt/lmux popup launch --pane") {
 		t.Fatalf("plugin bindings not loaded from %s:\n%s", path, keys)
 	}
 	if decoy, _ := srv.Client.ShowOption(ctx, "-g", "", "@decoy"); decoy != "" {

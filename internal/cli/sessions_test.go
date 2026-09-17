@@ -46,7 +46,7 @@ func newCLIEnv(t *testing.T) *cliEnv {
 	}
 	e := &cliEnv{env: env, cwd: root, term: Terminal{Interactive: true, Width: 160, Height: 48}, host: app.Host{
 		Getenv: func(k string) string { return env[k] }, Environ: environ, Home: root,
-		Exe: filepath.Join(root, "lyna-tmux"), TmuxBin: bin,
+		Exe: filepath.Join(root, "lmux"), TmuxBin: bin,
 	}}
 	return e
 }
@@ -164,7 +164,7 @@ func TestSessionCommandsCLI(t *testing.T) {
 		}
 	}
 	steps := []step{
-		{name: "ls without workspaces", args: []string{"ls"}, outHas: []string{"No workspaces. Start one with: lyna-tmux create"}},
+		{name: "ls without workspaces", args: []string{"ls"}, outHas: []string{"No workspaces. Start one with: lmux create"}},
 		{name: "ls json without workspaces", args: []string{"ls", "--json"}, check: func(t *testing.T, stdout string) {
 			t.Helper()
 			if strings.TrimSpace(stdout) != "[]" {

@@ -12,7 +12,7 @@ import (
 
 func testEnv() Env {
 	return Env{
-		Bin:         "/opt/lyna tools/bin/lyna-tmux",
+		Bin:         "/opt/lyna tools/bin/lmux",
 		ConfPath:    "/state/lyna-tmux/tmux.conf",
 		PopupWidth:  "90%",
 		PopupHeight: "85%",

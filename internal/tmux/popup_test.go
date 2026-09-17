@@ -27,7 +27,22 @@ func TestPopupSpecCommand(t *testing.T) {
 			spec: PopupSpec{Client: "client-1", Argv: []string{"/usr/bin/tmux", "attach-session"}},
 			want: Command{"display-popup", "-c", "client-1", "-E", "--", "/usr/bin/tmux", "attach-session"},
 		},
-		{name: "no client", spec: PopupSpec{Argv: argv}, wantErr: "no client"},
+		{
+			name: "over a pane",
+			spec: PopupSpec{Pane: "%12", Width: "95%", Height: "95%", Dir: "/src/api", Title: "review", Argv: []string{"/opt/lmux", "review", "--popup"}},
+			want: Command{
+				"display-popup", "-t", "%12", "-E", "-w", "95%", "-h", "95%",
+				"-d", "/src/api", "-T", " review ", "--", "/opt/lmux", "review", "--popup",
+			},
+		},
+		{
+			name: "client and pane",
+			spec: PopupSpec{Client: "client-1", Pane: "%0", Argv: []string{"/usr/bin/tmux", "attach-session"}},
+			want: Command{"display-popup", "-c", "client-1", "-t", "%0", "-E", "--", "/usr/bin/tmux", "attach-session"},
+		},
+		{name: "no client and no pane", spec: PopupSpec{Argv: argv}, wantErr: "no client and no pane"},
+		{name: "pane is not a pane id", spec: PopupSpec{Pane: "review", Argv: argv}, wantErr: "not a pane id"},
+		{name: "NUL in the pane", spec: PopupSpec{Client: "c", Pane: "%1\x00", Argv: argv}, wantErr: "not a pane id"},
 		{name: "single argument would reach the shell", spec: PopupSpec{Client: "c", Argv: []string{"/bin/true"}}, wantErr: "at least one argument"},
 		{name: "empty program", spec: PopupSpec{Client: "c", Argv: []string{"", "x"}}, wantErr: "at least one argument"},
 		{name: "relative directory", spec: PopupSpec{Client: "c", Dir: "src", Argv: argv}, wantErr: "not absolute"},

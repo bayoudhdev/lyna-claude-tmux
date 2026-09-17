@@ -103,7 +103,7 @@ func DevcontainerInit(ctx context.Context, h Host, req DevcontainerInitRequest) 
 		return DevcontainerInitResult{}, err
 	}
 	if !req.Named && dir != filepath.Clean(req.Cwd) {
-		return DevcontainerInitResult{}, fmt.Errorf("%w: refusing to write %s into %s; name the directory: lyna-tmux sandbox devcontainer init %s",
+		return DevcontainerInitResult{}, fmt.Errorf("%w: refusing to write %s into %s; name the directory: lmux sandbox devcontainer init %s",
 			ErrDevcontainerUnnamed, devcontainer.Dir, dir, dir)
 	}
 	_, cfg, err := LoadConfig(h)
@@ -249,7 +249,7 @@ func DevcontainerTarget(dir string, needFiles bool) (devcontainer.Target, error)
 		dockerfile := filepath.Join(root, filepath.FromSlash(devcontainer.FileDockerfile))
 		info, err := os.Lstat(dockerfile)
 		if errors.Is(err, fs.ErrNotExist) {
-			return devcontainer.Target{}, fmt.Errorf("%w: %s is missing; run `lyna-tmux sandbox devcontainer init` first", ErrDevcontainerMissing, dockerfile)
+			return devcontainer.Target{}, fmt.Errorf("%w: %s is missing; run `lmux sandbox devcontainer init` first", ErrDevcontainerMissing, dockerfile)
 		}
 		if err != nil {
 			return devcontainer.Target{}, err

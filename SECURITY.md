@@ -15,7 +15,7 @@ Please report vulnerabilities privately through GitHub: open the repository's **
 
 Include what you can of the following:
 
-- the lyna-tmux version (`lyna-tmux version`), operating system, tmux version and Claude Code version;
+- the lmux version (`lmux version`), operating system, tmux version and Claude Code version;
 - the isolation level in use (`sandbox.profile`, `sandbox.isolation`);
 - steps to reproduce, and the impact you observed or expect;
 - whether the issue is already public anywhere.
@@ -26,9 +26,9 @@ The maintainers aim to acknowledge a report within three business days and to ag
 
 In scope:
 
-- the `lyna-tmux` binary and everything it generates: tmux configuration, per-launch Claude Code settings, hook and status line handlers, the tmux plugin entry point (`lyna-tmux.tmux`);
+- the `lmux` binary and everything it generates: tmux configuration, per-launch Claude Code settings, hook and status line handlers, the tmux plugin entry point (`lyna-tmux.tmux`);
 - escaping of text that reaches tmux or a terminal (pane titles, branch names, paths, agent output);
-- the sandbox profiles and the dev container files (`lyna-tmux sandbox devcontainer init`), including the egress firewall;
+- the sandbox profiles and the dev container files (`lmux sandbox devcontainer init`), including the egress firewall;
 - `scripts/install.sh` and the release artifacts.
 
 Out of scope: vulnerabilities in tmux, Claude Code, Docker or the operating system sandbox themselves (report those upstream), and attacks that require an attacker who already controls the user's account.
@@ -39,8 +39,8 @@ Out of scope: vulnerabilities in tmux, Claude Code, Docker or the operating syst
 - Processes are started with argument vectors, never through a shell with interpolated data. Text shown in a terminal is sanitized first.
 - Hooks read at most 1 MiB of standard input, never execute it and always exit 0.
 - `bypassPermissions` is refused unless the sandbox profile is `strict` or isolation is `container`.
-- The dev container runs Claude Code as a non-root user, never mounts the Docker socket, keeps the Claude configuration in a per-project named volume and starts with a default-deny egress firewall. The firewall allows DNS to the configured resolvers and the addresses of a root-owned domain allowlist, verifies itself at start and leaves egress blocked if any step fails. Addresses are resolved when the container starts; rerun the firewall (`lyna-tmux sandbox devcontainer up`) when an allowed service moves.
-- `lyna-tmux doctor` only reports: it never installs packages or changes system settings.
+- The dev container runs Claude Code as a non-root user, never mounts the Docker socket, keeps the Claude configuration in a per-project named volume and starts with a default-deny egress firewall. The firewall allows DNS to the configured resolvers and the addresses of a root-owned domain allowlist, verifies itself at start and leaves egress blocked if any step fails. Addresses are resolved when the container starts; rerun the firewall (`lmux sandbox devcontainer up`) when an allowed service moves.
+- `lmux doctor` only reports: it never installs packages or changes system settings.
 
 ## Verifying a release
 

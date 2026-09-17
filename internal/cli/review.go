@@ -56,18 +56,18 @@ func reviewCommand(d Deps, src app.ReviewPlugin) *cobra.Command {
 		Long: "Open a live review of a git repository: a side-by-side diff explorer that refreshes as\n" +
 			"files change, with stage, unstage and discard per hunk. It runs codediff.nvim in Neovim:\n" +
 			"by default a private Neovim setup with the pinned, verified plugin that\n" +
-			"`lyna-tmux review install` puts in lyna-tmux's data directory; set review.editor = \"user\"\n" +
+			"`lmux review install` puts in lyna-tmux's data directory; set review.editor = \"user\"\n" +
 			"or pass --user-nvim to use your own Neovim configuration and plugins.\n\n" +
 			"Without arguments the working tree and the index are reviewed. REV compares the working\n" +
 			"tree with a revision, REV REV2 compares two revisions, and base... or base...target\n" +
 			"compares with their merge base. Paths after -- limit the review.\n\n" +
 			"Exit status 3 means Neovim or the plugin is missing, 4 that the review could not start.",
-		Example: "  lyna-tmux review\n" +
-			"  lyna-tmux review main...\n" +
-			"  lyna-tmux review --staged -- src/\n" +
-			"  lyna-tmux review --pr 42 --remote upstream\n" +
-			"  lyna-tmux review --history HEAD~20.. -- README.md\n" +
-			"  lyna-tmux review install",
+		Example: "  lmux review\n" +
+			"  lmux review main...\n" +
+			"  lmux review --staged -- src/\n" +
+			"  lmux review --pr 42 --remote upstream\n" +
+			"  lmux review --history HEAD~20.. -- README.md\n" +
+			"  lmux review install",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if before, _ := reviewSplitArgs(cmd, args); len(before) > 2 {
 				return errors.New("pass at most two revisions; put paths after --")
@@ -219,7 +219,7 @@ func reviewExit(err error) error {
 // reviewHold shows the error and waits for Enter, q, Ctrl+C, Ctrl+D or the
 // end of input. A terminal is put in raw mode so a single q is enough.
 func reviewHold(in io.Reader, out io.Writer, err error) {
-	fmt.Fprintf(out, "lyna-tmux review: %s\n\nPress Enter or q to close.\n", sanitize.Line(err.Error()))
+	fmt.Fprintf(out, "lmux review: %s\n\nPress Enter or q to close.\n", sanitize.Line(err.Error()))
 	if f, ok := in.(*os.File); ok {
 		fd := int(f.Fd())
 		if term.IsTerminal(fd) {

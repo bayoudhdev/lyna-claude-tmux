@@ -129,7 +129,7 @@ func TestPluginHooksMatchRegistrations(t *testing.T) {
 			if h.Async == nil || !*h.Async {
 				t.Fatal("handler must be async so the turn never waits on tmux")
 			}
-			want := `case ":$PATH:" in *:[!/]*) exit 0;; esac; bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case "$bin" in /*) ;; *) exit 0;; esac; exec "$bin" hook --plugin ` + string(regs[i].Event)
+			want := `case ":$PATH:" in *:[!/]*) exit 0;; esac; bin=$(command -v lmux 2>/dev/null) || bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case "$bin" in /*) ;; *) exit 0;; esac; exec "$bin" hook --plugin ` + string(regs[i].Event)
 			if h.Command != want {
 				t.Fatalf("command %q; want %q", h.Command, want)
 			}
@@ -191,7 +191,7 @@ func TestPluginCommandRunsThroughShell(t *testing.T) {
 		{name: "relative path element", path: "bin", cwd: filepath.Dir(planted)},
 		{name: "relative element before an absolute one", path: "." + string(os.PathListSeparator) + withBin, cwd: planted},
 	}
-	// The relative element case looks the planted binary up as "bin/lyna-tmux".
+	// The relative element case looks the planted binary up as "bin/lmux".
 	if err := os.Symlink(planted, filepath.Join(filepath.Dir(planted), "bin")); err != nil {
 		t.Fatal(err)
 	}

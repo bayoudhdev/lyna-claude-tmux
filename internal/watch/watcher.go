@@ -56,9 +56,11 @@ type Watcher struct {
 	// Debounce is the quiet period after an event before refreshing;
 	// 0 means DefaultDebounce.
 	Debounce time.Duration
-	// Interval refreshes periodically, catching edits no event reports (a
-	// file saved deep in the tree from a shell); 0 disables it.
-	Interval time.Duration
+	// Idle refreshes when nothing else has refreshed for that long, catching
+	// edits no event reports (a file saved deep in the tree from a shell).
+	// Every refresh puts the fallback off again, so a working tree that
+	// reports its changes is never read on a timer; 0 disables it.
+	Idle time.Duration
 }
 
 // TmuxSignal returns a Signal that waits on the changes channel of the
@@ -118,7 +120,7 @@ func (w *Watcher) Run(ctx context.Context, emit func(Update)) {
 
 	fsw, err := fsnotify.NewWatcher()
 	if err != nil {
-		// Without file events the signal and the interval still refresh.
+		// Without file events the signal and the idle fallback still refresh.
 		fsw = nil
 	} else {
 		defer func() { _ = fsw.Close() }()
@@ -132,16 +134,24 @@ func (w *Watcher) Run(ctx context.Context, emit func(Update)) {
 	if debounce <= 0 {
 		debounce = DefaultDebounce
 	}
+	// The fallback is a timer, not a ticker: it is reset by every refresh, so
+	// it only fires when nothing else has.
+	var idle *time.Timer
 	var tick <-chan time.Time
-	if w.Interval > 0 {
-		ticker := time.NewTicker(w.Interval)
-		defer ticker.Stop()
-		tick = ticker.C
+	if w.Idle > 0 {
+		idle = time.NewTimer(w.Idle)
+		defer idle.Stop()
+		tick = idle.C
 	}
 
 	var repo *Repo
 	watched := make(map[string]bool)
 	refresh := func() {
+		if idle != nil {
+			// Go 1.23 timer channels are unbuffered, so a reset drops a tick
+			// the loop has not received yet instead of firing at once.
+			idle.Reset(w.Idle)
+		}
 		if fsw != nil {
 			if repo == nil {
 				if r, err := w.Source.Repo(ctx, w.Dir); err == nil {
@@ -249,7 +259,7 @@ func relevant(ev fsnotify.Event) bool {
 // addWatches watches the worktree root (top-level edits), the git directory
 // (index, HEAD), the common directory (packed-refs) and the local and remote
 // ref directories (commits, fetches). Nested working tree directories are not
-// watched: Claude's edits arrive through Signal and the rest through Interval.
+// watched: Claude's edits arrive through Signal and the rest through Idle.
 func addWatches(fsw *fsnotify.Watcher, repo Repo, watched map[string]bool) {
 	add := func(dir string) {
 		if watched[dir] || len(watched) >= maxWatchedDirs {

@@ -36,7 +36,7 @@ func TestStartupInitCost(t *testing.T) {
 	if err != nil {
 		t.Skip("go toolchain not on PATH")
 	}
-	bin := filepath.Join(t.TempDir(), "lyna-tmux")
+	bin := filepath.Join(t.TempDir(), "lmux")
 	build := exec.CommandContext(t.Context(), goBin, "build", "-trimpath", "-o", bin, ".")
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("go build: %v\n%s", err, out)
@@ -133,7 +133,7 @@ func TestParseInitTrace(t *testing.T) {
 		},
 		{
 			name:  "program output ignored",
-			input: "lyna-tmux dev darwin/arm64\ninit os @2.2 ms, 0.17 ms clock, 4304 bytes, 20 allocs\n",
+			input: "lmux dev darwin/arm64\ninit os @2.2 ms, 0.17 ms clock, 4304 bytes, 20 allocs\n",
 			want:  map[string]initCost{"os": {ms: 0.17, allocs: 20}},
 		},
 		{

@@ -64,7 +64,7 @@ func TestTeamCLI(t *testing.T) {
 		{name: "invalid effort", args: []string{"team", "-d", w.project, "--effort", "extreme"}, wantCode: 1, errHas: []string{"extreme"}},
 		{
 			name: "detached from the working directory", setup: func(*testing.T) { w.cwd = w.project }, args: []string{"team", "-d"},
-			outHas: []string{"Workspace api is running with agent teams. Attach with: lyna-tmux attach api"},
+			outHas: []string{"Workspace api is running with agent teams. Attach with: lmux attach api"},
 			check: func(t *testing.T) {
 				t.Helper()
 				inv := w.invocations(t, 1)[0]

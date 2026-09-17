@@ -42,7 +42,7 @@ func popupSubcommand(d Deps, name, short, long string, run func(*cobra.Command, 
 		Use:     name + " --pane <pane_id> --client <client_name>",
 		Short:   short,
 		Long:    long,
-		Example: "  bind-key -T prefix y run-shell -b 'lyna-tmux popup " + name + " --pane #{pane_id} --client #{q:client_name}'",
+		Example: "  bind-key -T prefix y run-shell -b 'lmux popup " + name + " --pane #{pane_id} --client #{q:client_name}'",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			h, err := d.Host()

@@ -7,7 +7,7 @@ A `lyna-tmux` workspace installs two kinds of key binding:
 - **Prefix keys**, which fire after the tmux prefix. They cover the same actions, so a
   terminal that cannot send Meta still reaches everything.
 
-`lyna-tmux keys` prints what your configuration installs right now, and `lyna-tmux keys
+`lmux keys` prints what your configuration installs right now, and `lmux keys
 --json` prints the same as machine-readable JSON. Run it after changing `ui.alt_keys` or
 `workspace.prefix`; both live in [configuration.md](configuration.md).
 
@@ -99,10 +99,10 @@ What changes:
 - The menu has nothing left to list, so it falls back to three entries: Agents, Review
   changes and Scratch shell.
 - Mouse behavior is unchanged. It is controlled by `ui.mouse`, not by `ui.alt_keys`.
-- `lyna-tmux doctor` skips its Option as Meta check and reports `Alt key bindings are
+- `lmux doctor` skips its Option as Meta check and reports `Alt key bindings are
   disabled (ui.alt_keys = false)`.
 
-Running `lyna-tmux keys` with the setting off prints only the prefix section and the keys
+Running `lmux keys` with the setting off prints only the prefix section and the keys
 left to Claude Code.
 
 Changing `workspace.prefix` is the other half of this: set it to `C-a`, `C-Space` or any
@@ -148,7 +148,7 @@ opens a submenu that types a slash command into that pane: Workflows, Deep resea
 Compact context, Security review, Sandbox, Fullscreen renderer, Resume conversation, Usage.
 Commands that need an argument are typed without being submitted, so you can finish them.
 
-A `Layout:` entry opens a new window laid out that way, with the panes `lyna-tmux create`
+A `Layout:` entry opens a new window laid out that way, with the panes `lmux create`
 would start; the windows already open are left as they are. `Even tiles` retiles the window
 under the pointer. `auto` is not offered, because it only makes sense at creation, when the
 terminal size is known.
@@ -168,6 +168,31 @@ modal pane scrollbars, so a scrolled pane shows one.
 
 `claude.fullscreen = true` starts Claude Code with the flicker-free fullscreen renderer,
 which handles the wheel itself.
+
+## Inside the live changes view
+
+The changes view reads the keys itself, in the `changes` pane of a layout as well as in the
+popup, so the pane is a list you move through and not one you can only read the top of.
+
+| Key or click | What happens |
+| --- | --- |
+| `Down`, `j`, `Ctrl+n`, wheel down | Next file |
+| `Up`, `k`, `Ctrl+p`, wheel up | Previous file |
+| `PageDown`, `Ctrl+f`, `PageUp`, `Ctrl+b` | One screen of files |
+| `g`, `Home` and `G`, `End` | First and last file |
+| Click | Select the file under the pointer |
+| `Enter`, double click | Review that file alone |
+| `o` | Review the whole working tree |
+| `q`, `Esc` | Close, in the popup only |
+
+The review opens in a popup over the pane and gives it back when it closes. In a pane of a
+layout `q` and `Esc` do nothing, so a stray key never takes the changes out of the layout;
+`Ctrl+c` closes the view everywhere. The review keys do nothing in the changes popup: tmux
+shows one popup per client, so opening a second would close the first.
+
+The list is redrawn when a file changes, not on a timer: Claude's edits arrive through the
+hook, git and top-level edits through file events, and anything neither reports is picked up
+by a reading that runs when nothing else has for fifteen seconds.
 
 ## Keys left to Claude Code
 
@@ -228,9 +253,9 @@ The note on `Ctrl+b` is printed only while `Ctrl+b` is your prefix. Choose anoth
 
 Two checks keep this honest:
 
-- `lyna-tmux keys` ends with a `Conflicts` section whenever a root binding lands on one of
+- `lmux keys` ends with a `Conflicts` section whenever a root binding lands on one of
   these keys, or a key is bound twice in one table. A clean run prints no such section.
-- `lyna-tmux doctor` reads your own `keybindings.json` from the Claude Code configuration
+- `lmux doctor` reads your own `keybindings.json` from the Claude Code configuration
   directory (`$CLAUDE_CONFIG_DIR`, or `~/.claude`) and warns about each binding whose first
   keystroke is a workspace root key or the prefix, naming the key and what takes it. Later
   keystrokes of a chord are safe: once the first key reaches Claude Code, tmux has no
@@ -239,7 +264,7 @@ Two checks keep this honest:
 ## Option as Meta, per terminal
 
 On Linux and other non-macOS platforms, Alt already sends Meta and there is nothing to do.
-On macOS, Option inserts composed characters until you change one setting. `lyna-tmux doctor`
+On macOS, Option inserts composed characters until you change one setting. `lmux doctor`
 identifies your terminal from `TERM_PROGRAM`, from `LC_TERMINAL`, or from the marker
 variables terminals export (`KITTY_WINDOW_ID`, `ALACRITTY_WINDOW_ID`, `ALACRITTY_SOCKET`,
 `WEZTERM_PANE`, `WEZTERM_EXECUTABLE`, `GHOSTTY_RESOURCES_DIR`), then prints the exact
@@ -264,16 +289,48 @@ them.
 never a failure. If you would rather not change the terminal at all, set `ui.alt_keys =
 false` and use the prefix bindings.
 
+## Shift+Enter, per terminal
+
+`Shift+Enter` adds a line to the agent's prompt instead of sending it. tmux forwards the key
+already: the generated configuration sets `extended-keys on` and `terminal-features
+*:extkeys`, so what is left is whether the terminal sends the key at all. `lmux doctor`
+identifies the terminal the same way it does for Option as Meta and prints one of these:
+
+| Terminal | What to do |
+| --- | --- |
+| Ghostty, kitty, WezTerm, Alacritty | Nothing: the terminal reports `Shift+Enter` as its own key and tmux passes it through |
+| iTerm2, VS Code terminal | Run `/terminal-setup` in Claude Code, in the terminal itself and not inside tmux, then restart the terminal. It writes the key binding the terminal needs |
+| Terminal | It sends `Shift+Enter` as a plain `Enter` and has no setting for it. Use `Option+Enter`, which needs Option sent as Meta, or paste text that already has newlines |
+| Anything else | Run `/terminal-setup` in Claude Code, in the terminal itself and not inside tmux |
+
+`doctor` never presses a key, so this check reports the step to take, not what your terminal
+did.
+
+## Notifications
+
+The agent tells you it needs you in two ways, and both work inside a workspace.
+
+The tmux bell is ours: a hook rings it on the pane, and the status line, the window tab and
+the pane border show it until you look. It needs nothing from the terminal.
+
+A desktop notification is an escape sequence meant for the terminal outside tmux, which tmux
+only forwards when passthrough is allowed. The server keeps passthrough off, so a pane
+running your own programs cannot drive your terminal or your clipboard; the pane running the
+agent allows it, because that is where the notification comes from. Which channel the agent
+uses is decided when the workspace starts, from the terminal you started it in, since from
+inside a pane the only terminal it can see is tmux: iTerm2 gets a notification and the bell,
+kitty gets its own notification, and every other terminal gets the bell.
+
 ## Reloading the configuration
 
 The key bindings, the status line and the mouse behavior all come from one generated file,
 `<state>/tmux.conf`. You never edit it: it is rewritten from `config.toml`. The `<state>` and
 `<config>` directories are the ones listed in [configuration.md](configuration.md).
 
-1. Edit `config.toml`, for example with `lyna-tmux config edit`, and check it with
-   `lyna-tmux config validate`.
+1. Edit `config.toml`, for example with `lmux config edit`, and check it with
+   `lmux config validate`.
 2. Regenerate the tmux configuration by running any command that opens the server, for
-   example `lyna-tmux ls`. The file is rewritten only when its content actually changed.
+   example `lmux ls`. The file is rewritten only when its content actually changed.
 3. Load it into the running server. Creating or attaching a workspace, and the dashboard,
    do this by themselves whenever the file changed. To do it by hand, press the prefix and
    then `r`, or choose `Reload configuration` from the workspace menu.
@@ -283,8 +340,8 @@ step 2 before it if you have only edited `config.toml`.
 
 Two shortcuts:
 
-- `lyna-tmux theme <name>` writes `ui.theme` and restyles the running workspaces at once.
-- `lyna-tmux setup` applies its result the same way when it finishes.
+- `lmux theme <name>` writes `ui.theme` and restyles the running workspaces at once.
+- `lmux setup` applies its result the same way when it finishes.
 
 Claude Code panes are not affected by a reload: their settings are written per launch. Open
 a new pane, window or workspace for a change under `[claude]` or `[sandbox]`.

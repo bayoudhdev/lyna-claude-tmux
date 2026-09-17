@@ -322,3 +322,73 @@ func TestOptionAsMeta(t *testing.T) {
 		})
 	}
 }
+
+func TestShiftEnter(t *testing.T) {
+	cases := []struct {
+		name    string
+		program Program
+		works   bool
+		setting string
+	}{
+		{"ghostty reports the key", ProgramGhostty, true, "reports Shift+Enter as its own key"},
+		{"kitty reports the key", ProgramKitty, true, "passes it through"},
+		{"wezterm reports the key", ProgramWezTerm, true, "tmux passes it through"},
+		{"alacritty reports the key", ProgramAlacritty, true, "reports Shift+Enter as its own key"},
+		{"iterm2 needs the binding", ProgramITerm2, false, "/terminal-setup"},
+		{"vscode needs the binding", ProgramVSCode, false, "/terminal-setup"},
+		{"terminal cannot send it", ProgramAppleTerminal, false, "Option+Enter"},
+		{"unknown terminal", ProgramUnknown, false, "/terminal-setup"},
+		{"custom program", Program("SomeTerm"), false, "/terminal-setup"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := ShiftEnter(tc.program)
+			if g.Program != tc.program || g.Works != tc.works || !strings.Contains(g.Setting, tc.setting) {
+				t.Fatalf("ShiftEnter(%q) = %+v, want works=%v and setting containing %q", tc.program, g, tc.works, tc.setting)
+			}
+		})
+	}
+}
+
+// A terminal that needs a step must say which step, and one that needs none
+// must not send the user looking for one.
+func TestShiftEnterGuidanceIsActionable(t *testing.T) {
+	for _, p := range []Program{
+		ProgramUnknown, ProgramAppleTerminal, ProgramITerm2, ProgramWezTerm,
+		ProgramGhostty, ProgramKitty, ProgramAlacritty, ProgramVSCode, Program("SomeTerm"),
+	} {
+		g := ShiftEnter(p)
+		if g.Setting == "" {
+			t.Fatalf("ShiftEnter(%q) has no setting", p)
+		}
+		step := strings.Contains(g.Setting, "/terminal-setup") || strings.Contains(g.Setting, "Option+Enter")
+		if g.Works == step {
+			t.Fatalf("ShiftEnter(%q) = %+v: a terminal that works names a step, or one that does not names none", p, g)
+		}
+	}
+}
+
+func TestNotifyChannel(t *testing.T) {
+	cases := []struct {
+		name    string
+		program Program
+		want    string
+	}{
+		{"iterm2 posts and rings", ProgramITerm2, NotifyITerm2Bell},
+		{"kitty posts", ProgramKitty, NotifyKitty},
+		{"terminal rings", ProgramAppleTerminal, NotifyBell},
+		{"ghostty rings", ProgramGhostty, NotifyBell},
+		{"wezterm rings", ProgramWezTerm, NotifyBell},
+		{"alacritty rings", ProgramAlacritty, NotifyBell},
+		{"vscode rings", ProgramVSCode, NotifyBell},
+		{"unknown rings", ProgramUnknown, NotifyBell},
+		{"custom program rings", Program("SomeTerm"), NotifyBell},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := NotifyChannel(tc.program); got != tc.want {
+				t.Fatalf("NotifyChannel(%q) = %q, want %q", tc.program, got, tc.want)
+			}
+		})
+	}
+}

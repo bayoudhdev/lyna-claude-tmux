@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"charm.land/bubbles/v2/key"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/theme"
@@ -113,7 +114,7 @@ func TestListView(t *testing.T) {
 
 func TestNavKeys(t *testing.T) {
 	t.Parallel()
-	k := newNavKeys()
+	k := newNavKeys(false)
 	cases := []struct {
 		key  string
 		want int
@@ -144,6 +145,16 @@ func TestNavKeys(t *testing.T) {
 	}
 	if got, _ := k.delta(press("pgdown"), 20, 0); got != 1 {
 		t.Errorf("page of zero rows moves %d, want 1", got)
+	}
+	// The help of the vertical keys is drawn in the footer of views the ascii
+	// icon set has no arrow glyph for.
+	for _, b := range []key.Binding{newNavKeys(true).Up, newNavKeys(true).Down} {
+		if h := b.Help().Key; strings.ContainsFunc(h, func(r rune) bool { return r > 0x7e }) {
+			t.Errorf("the ascii help of %q is not ascii", h)
+		}
+	}
+	if h := newNavKeys(false).Down.Help().Key; h != "↓/j" {
+		t.Errorf("the unicode help of the down key is %q", h)
 	}
 }
 

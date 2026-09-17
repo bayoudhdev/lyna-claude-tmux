@@ -1,5 +1,5 @@
 // Package hookevent names the Claude Code hook events lyna-tmux registers in
-// the per-launch settings file and handles with `lyna-tmux hook <event>`.
+// the per-launch settings file and handles with `lmux hook <event>`.
 //
 // It is the contract between the settings generator (which writes the hook
 // entries) and the hook handler (which maps each event to agent state), so both

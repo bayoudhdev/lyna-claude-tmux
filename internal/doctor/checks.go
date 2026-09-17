@@ -114,6 +114,7 @@ func checkClaude(ctx context.Context, d Deps) []Result {
 		minimum, ok := ParseVersion(d.ClaudeMinVersion)
 		if ok && v.Less(minimum) {
 			r.Status, r.Detail, r.Fix = StatusFail, fmt.Sprintf("Claude Code %s at %s is older than %s", v, path, minimum), fixUpdateClaude
+			r.Action = CommandFix("Update Claude Code", path, "update")
 			return []Result{r}
 		}
 	}
@@ -189,6 +190,30 @@ func checkOptionAsMeta(_ context.Context, d Deps) []Result {
 	}
 	r.Status = StatusWarn
 	r.Detail = "Alt key bindings need Option to send Meta in " + info.Program.Name() + "; doctor cannot read the terminal's setting"
+	// Every action bound to an Alt key is bound after the prefix as well, so
+	// the workspace stays usable while the terminal is set up, and a terminal
+	// nobody changes stays usable for good.
+	r.Fix = g.Setting + "\nlmux keys lists the same actions after the prefix, which need no terminal setting"
+	return []Result{r}
+}
+
+// checkShiftEnter reports whether Shift+Enter adds a line to the agent's
+// prompt instead of sending it. tmux forwards the key, since the generated
+// configuration turns extended keys on, so what is left is the terminal: some
+// report the key themselves, some need the binding Claude Code writes with
+// /terminal-setup, and Terminal cannot send it at all. Nothing is read from
+// the terminal, so the result is a step to take, never an observation, and it
+// is a note rather than a warning: the prompt is usable without it.
+func checkShiftEnter(_ context.Context, d Deps) []Result {
+	r := Result{ID: "shift-enter", Title: "Shift+Enter"}
+	info := termx.Detect(d.Getenv)
+	g := termx.ShiftEnter(info.Program)
+	if g.Works {
+		r.Status, r.Detail = StatusOK, "nothing to set up in "+info.Program.Name()+": "+g.Setting
+		return []Result{r}
+	}
+	r.Status = StatusWarn
+	r.Detail = "Shift+Enter may send the prompt instead of adding a line in " + info.Program.Name() + "; doctor cannot press a key to find out"
 	r.Fix = g.Setting
 	return []Result{r}
 }
@@ -244,6 +269,12 @@ func checkDocker(ctx context.Context, d Deps) []Result {
 			r.Fix = `sudo usermod -aG docker "$USER" (then log out and back in)`
 		case d.GOOS == "darwin":
 			r.Fix = "colima start (or open -a Docker)"
+			// The daemon on macOS runs in a virtual machine of its own, and
+			// starting colima needs no privileges; a Docker Desktop install
+			// has no colima, so the command is offered only when it is there.
+			if colima, lookErr := d.LookPath("colima"); lookErr == nil {
+				r.Action = CommandFix("Start the Docker virtual machine", colima, "start")
+			}
 		default:
 			r.Fix = "sudo systemctl start docker"
 		}

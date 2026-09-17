@@ -1,10 +1,10 @@
 # Moving the focus and resizing, with the pane borders naming each role.
 title Alt+] and Alt+[ move, Alt+Shift+arrows resize, Alt+c returns to Claude
 size 112 34
-pre lyna-tmux kill --all
+pre lmux kill --all
 pre rm -rf .devcontainer
-pre lyna-tmux create . --layout trio --detach
-run lyna-tmux create .
+pre lmux create . --layout trio --detach
+run lmux create .
 wait 3
 frame 1.4
 keys M-]

@@ -69,15 +69,18 @@ type UninstallPlan struct {
 	Dirs []string
 	// Themes are the Claude Code theme files lyna-tmux generated and nobody changed since.
 	Themes []string
-	// Completions are the shell completion scripts `lyna-tmux completion`
+	// Completions are the shell completion scripts `lmux completion`
 	// wrote where setup told the user to put them.
 	Completions []string
 	// KeptConfig is the configuration directory left in place without purge,
 	// empty when it is removed or absent.
 	KeptConfig string
-	// Binary is the lyna-tmux executable when uninstall removes it, last of
-	// all; empty when it is gone or left to the user.
+	// Binary is the lmux executable when uninstall removes it, last of all;
+	// empty when it is gone or left to the user.
 	Binary string
+	// Alias is the link under the name the command had in 1.0.0, removed
+	// with the binary it points at; empty when there is none.
+	Alias string
 	// Manual is what remains for the user once Apply is done.
 	Manual []UninstallManual
 }
@@ -85,7 +88,8 @@ type UninstallPlan struct {
 // Empty reports a plan that stops nothing and removes nothing, so that
 // confirming it would change nothing.
 func (p UninstallPlan) Empty() bool {
-	return p.ServerSocket == "" && len(p.Dirs) == 0 && len(p.Themes) == 0 && len(p.Completions) == 0 && p.Binary == ""
+	return p.ServerSocket == "" && len(p.Dirs) == 0 && len(p.Themes) == 0 && len(p.Completions) == 0 &&
+		p.Binary == "" && p.Alias == ""
 }
 
 // UninstallPlanFor lists what uninstall stops and removes. purge adds the
@@ -130,12 +134,17 @@ func UninstallPlanFor(h Host, purge bool) (UninstallPlan, error) {
 	// The binary goes first in the manual list: without it the rest of the
 	// list is what a fresh machine would still show.
 	var manual *UninstallManual
-	p.Binary, manual, err = uninstallBinary(h.Exe, os.Getuid())
+	bin, alias := uninstallNames(h.Exe)
+	p.Binary, manual, err = uninstallBinary(bin, os.Getuid())
 	if err != nil {
 		return UninstallPlan{}, err
 	}
 	if manual != nil {
 		p.Manual = append(p.Manual, *manual)
+	}
+	// The link goes only where the binary it points at goes.
+	if p.Binary != "" {
+		p.Alias = alias
 	}
 	var foreign []UninstallManual
 	p.Completions, foreign, err = uninstallCompletions(h.Getenv, paths.Home)
@@ -188,7 +197,7 @@ func uninstallAwaitStopped(ctx context.Context, socket string, answers func(stri
 	return nil
 }
 
-// uninstallCompletionPaths are the completion scripts `lyna-tmux setup` tells
+// uninstallCompletionPaths are the completion scripts `lmux setup` tells
 // the user to write, one per shell, plus the places bash and fish load from
 // when the XDG variables move them: a user who followed the guidance to the
 // letter and one who adapted it to their layout both get found.
@@ -205,16 +214,20 @@ func uninstallCompletionPaths(getenv func(string) string, home string) []string 
 		}
 		return fallback
 	}
-	add(filepath.Join(home, ".local", "share", "bash-completion", "completions", xdg.AppName))
-	add(filepath.Join(xdgDir("XDG_DATA_HOME", filepath.Join(home, ".local", "share")), "bash-completion", "completions", xdg.AppName))
-	add(filepath.Join(home, ".zfunc", "_"+xdg.AppName))
-	add(filepath.Join(home, ".config", "fish", "completions", xdg.AppName+".fish"))
-	add(filepath.Join(xdgDir("XDG_CONFIG_HOME", filepath.Join(home, ".config")), "fish", "completions", xdg.AppName+".fish"))
+	// Both names: the scripts of an installation from 1.0.0 are named after
+	// the command as it was then, and nothing renamed them.
+	for _, name := range []string{xdg.Command, xdg.CommandWas} {
+		add(filepath.Join(home, ".local", "share", "bash-completion", "completions", name))
+		add(filepath.Join(xdgDir("XDG_DATA_HOME", filepath.Join(home, ".local", "share")), "bash-completion", "completions", name))
+		add(filepath.Join(home, ".zfunc", "_"+name))
+		add(filepath.Join(home, ".config", "fish", "completions", name+".fish"))
+		add(filepath.Join(xdgDir("XDG_CONFIG_HOME", filepath.Join(home, ".config")), "fish", "completions", name+".fish"))
+	}
 	return out
 }
 
 // uninstallCompletions sorts the completion paths into the scripts
-// `lyna-tmux completion` wrote, which are removed, and files of another
+// `lmux completion` wrote, which are removed, and files of another
 // origin at those paths, which are named to the user: a dotfile manager's
 // link or an edited script is not lyna-tmux's to delete.
 func uninstallCompletions(getenv func(string) string, home string) (remove []string, manual []UninstallManual, err error) {
@@ -231,7 +244,7 @@ func uninstallCompletions(getenv func(string) string, home string) (remove []str
 			continue
 		}
 		manual = append(manual, UninstallManual{
-			Step: "remove " + path + " if it is lyna-tmux's: it is not the script `lyna-tmux completion` writes",
+			Step: "remove " + path + " if it is lyna-tmux's: it is not the script `lmux completion` writes",
 			How:  "rm " + path,
 		})
 	}
@@ -239,13 +252,20 @@ func uninstallCompletions(getenv func(string) string, home string) (remove []str
 }
 
 // uninstallCompletionHeaders are the first lines of the completion scripts
-// the CLI generates, as words, one per shell. The bash and fish headers go on
-// with an editor mode marker, which is not compared.
-var uninstallCompletionHeaders = [][]string{
-	{"#", "bash", "completion", "V2", "for", xdg.AppName},
-	{"#compdef", xdg.AppName},
-	{"#", "fish", "completion", "for", xdg.AppName},
-}
+// the CLI generates, as words, one per shell and per name the command has
+// been installed under, so a script written for 1.0.0 is recognized as ours
+// too. The bash and fish headers go on with an editor mode marker, which is
+// not compared.
+var uninstallCompletionHeaders = func() [][]string {
+	var headers [][]string
+	for _, name := range []string{xdg.Command, xdg.CommandWas} {
+		headers = append(headers,
+			[]string{"#", "bash", "completion", "V2", "for", name},
+			[]string{"#compdef", name},
+			[]string{"#", "fish", "completion", "for", name})
+	}
+	return headers
+}()
 
 // uninstallGeneratedCompletion reports whether path is a regular file that
 // starts like a completion script the CLI generates for its own name.
@@ -287,11 +307,18 @@ func uninstallClaudePluginInstalled(claudeHome string) bool {
 	return ok
 }
 
+// uninstallConfMarkers are the strings that make a line of the user's tmux
+// configuration ours: the plugin manager entry, the directory name, which is
+// in every path of the layout, and both names of the command.
+var uninstallConfMarkers = []string{uninstallTPMPlugin, xdg.AppName, xdg.Command, xdg.CommandWas}
+
 // uninstallTmuxConfLines finds the lines of the user's tmux configuration
-// that mention lyna-tmux: the plugin manager entry and the source-file line
-// of plugin mode, which would break their tmux start once the state directory
-// is gone. The files tmux reads are looked at, links followed because dotfile
-// managers link them, and nothing is written.
+// that mention us: the plugin manager entry and the source-file line of
+// plugin mode, which would break their tmux start once the state directory is
+// gone, plus anything naming the command or the directory, a binding that runs
+// it for instance. Both names of the command are looked for, so a line written
+// against 1.0.0 is found as well. The files tmux reads are looked at, links
+// followed because dotfile managers link them, and nothing is written.
 func uninstallTmuxConfLines(getenv func(string) string, home string) ([]UninstallManual, error) {
 	configHome := filepath.Join(home, ".config")
 	if v := getenv("XDG_CONFIG_HOME"); v != "" && filepath.IsAbs(v) {
@@ -307,9 +334,10 @@ func uninstallTmuxConfLines(getenv func(string) string, home string) ([]Uninstal
 			return nil, err
 		}
 		for i, line := range strings.Split(string(data), "\n") {
-			if strings.Contains(line, uninstallTPMPlugin) || strings.Contains(line, xdg.AppName) {
-				out = append(out, UninstallManual{Step: fmt.Sprintf("remove line %d of %s", i+1, file), How: strings.TrimSpace(line)})
+			if !slices.ContainsFunc(uninstallConfMarkers, func(m string) bool { return strings.Contains(line, m) }) {
+				continue
 			}
+			out = append(out, UninstallManual{Step: fmt.Sprintf("remove line %d of %s", i+1, file), How: strings.TrimSpace(line)})
 		}
 	}
 	return out, nil
@@ -423,7 +451,7 @@ func (p UninstallPlan) Apply(ctx context.Context, h Host) (UninstallResult, erro
 	var res UninstallResult
 	socket := SocketPath(h.Getenv, p.SocketName)
 	if current, _, ok := strings.Cut(h.Getenv("TMUX"), ","); ok && filepath.Clean(current) == socket {
-		return res, fmt.Errorf("%w; run lyna-tmux uninstall from a terminal outside lyna-tmux", ErrUninstallInside)
+		return res, fmt.Errorf("%w; run lmux uninstall from a terminal outside lyna-tmux", ErrUninstallInside)
 	}
 	client := tmux.New(tmux.Options{Bin: h.TmuxBin, Socket: tmux.Socket{Name: p.SocketName}, Env: ServerEnviron(h.Environ)})
 	_, err := client.Run(ctx, "kill-server")
@@ -478,13 +506,26 @@ func (p UninstallPlan) Apply(ctx context.Context, h Host) (UninstallResult, erro
 	}
 	// The binary goes last so that a refusal or a failure here leaves
 	// everything else removed rather than a half-removed state. It is
-	// classified again: the file may have been replaced since the plan.
+	// classified again, before anything is unlinked: the file may have been
+	// replaced since the plan, and one that stopped being ours to remove keeps
+	// the link under the old name, which is then still the way to it.
 	remove, manual, err := uninstallBinary(p.Binary, os.Getuid())
 	if err != nil {
 		return res, err
 	}
 	if manual != nil {
 		return res, fmt.Errorf("%s (%s)", manual.Step, manual.How)
+	}
+	// The link goes before the binary: removed after it, a failure in between
+	// would leave it pointing at nothing. It too is checked again, and left
+	// alone unless it still points at the binary beside it.
+	if p.Alias != "" {
+		if _, alias := uninstallNames(p.Alias); alias == p.Alias {
+			if err := os.Remove(p.Alias); err != nil && !errors.Is(err, fs.ErrNotExist) {
+				return res, fmt.Errorf("remove %s: %w", p.Alias, err)
+			}
+			res.Removed = append(res.Removed, p.Alias)
+		}
 	}
 	if remove == "" {
 		return res, nil

@@ -55,12 +55,12 @@ func linuxELF(t *testing.T, path string) string {
 }
 
 // fakeCheckout writes a minimal checkout of the lyna-tmux module at root,
-// whose cmd/lyna-tmux builds in a second.
+// whose cmd/lmux builds in a second.
 func fakeCheckout(t *testing.T, root string) string {
 	t.Helper()
 	for name, content := range map[string]string{
-		"go.mod":                "module " + devcontainer.ModulePath + "\n",
-		"cmd/lyna-tmux/main.go": "package main\n\nfunc main() {}\n",
+		"go.mod":           "module " + devcontainer.ModulePath + "\n",
+		"cmd/lmux/main.go": "package main\n\nfunc main() {}\n",
 	} {
 		path := filepath.Join(root, filepath.FromSlash(name))
 		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
@@ -95,7 +95,7 @@ func TestDevcontainerInitCLI(t *testing.T) {
 		{
 			name: "writes into the current directory, not the repository root", release: "v1.4.0",
 			wantDir: "sub",
-			outHas:  []string{"Dev container directory: ", "/sub/.devcontainer", "lyna-tmux in the image: release v1.4.0", "Wrote ", "lyna-tmux sandbox devcontainer up"},
+			outHas:  []string{"Dev container directory: ", "/sub/.devcontainer", "lyna-tmux in the image: release v1.4.0", "Wrote ", "lmux sandbox devcontainer up"},
 		},
 		{
 			name: "writes into the named directory", release: "v1.4.0",
@@ -121,23 +121,23 @@ func TestDevcontainerInitCLI(t *testing.T) {
 		{
 			name: "stages the binary given to --binary", release: "dev",
 			setup: func(t *testing.T, e *infraEnv, _ string) []string {
-				return []string{"--binary", linuxELF(t, filepath.Join(e.host.Home, "dist", "lyna-tmux"))}
+				return []string{"--binary", linuxELF(t, filepath.Join(e.host.Home, "dist", "lmux"))}
 			},
 			wantDir: "sub", wantStaged: true,
-			outHas: []string{"lyna-tmux in the image: staged from ", "/dist/lyna-tmux", "/sub/.devcontainer/lyna-tmux", "/sub/.devcontainer/.gitignore"},
+			outHas: []string{"lyna-tmux in the image: staged from ", "/dist/lmux", "/sub/.devcontainer/lmux", "/sub/.devcontainer/.gitignore"},
 		},
 		{
 			name: "a home-relative --binary", release: "dev",
 			setup: func(t *testing.T, e *infraEnv, _ string) []string {
-				linuxELF(t, filepath.Join(e.host.Home, "dist", "lyna-tmux"))
-				return []string{"--binary", "~/dist/lyna-tmux"}
+				linuxELF(t, filepath.Join(e.host.Home, "dist", "lmux"))
+				return []string{"--binary", "~/dist/lmux"}
 			},
 			wantDir: "sub", wantStaged: true,
 		},
 		{
 			name: "refuses a --binary that is not a Linux build", release: "dev",
 			setup: func(t *testing.T, e *infraEnv, _ string) []string {
-				path := filepath.Join(e.host.Home, "dist", "lyna-tmux")
+				path := filepath.Join(e.host.Home, "dist", "lmux")
 				if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 					t.Fatal(err)
 				}
@@ -157,7 +157,7 @@ func TestDevcontainerInitCLI(t *testing.T) {
 		{
 			name: "--binary and --version exclude each other", release: "dev",
 			setup: func(t *testing.T, e *infraEnv, _ string) []string {
-				return []string{"--binary", linuxELF(t, filepath.Join(e.host.Home, "dist", "lyna-tmux")), "--version", "v2.0.0"}
+				return []string{"--binary", linuxELF(t, filepath.Join(e.host.Home, "dist", "lmux")), "--version", "v2.0.0"}
 			},
 			wantCode: 1, errHas: []string{"binary", "version"},
 		},
@@ -264,7 +264,7 @@ func TestDevcontainerInitCLI(t *testing.T) {
 			if err != nil || !strings.Contains(string(domains), "pkg.internal.example") {
 				t.Fatalf("allowed domains %q, %v", domains, err)
 			}
-			info, err := os.Lstat(filepath.Join(dir, "lyna-tmux"))
+			info, err := os.Lstat(filepath.Join(dir, "lmux"))
 			switch {
 			case tc.wantStaged && (err != nil || info.Mode().Perm() != 0o755):
 				t.Fatalf("staged binary: %v, %v", info, err)
@@ -273,7 +273,7 @@ func TestDevcontainerInitCLI(t *testing.T) {
 			}
 			if tc.wantStaged {
 				ignore, err := os.ReadFile(filepath.Join(dir, ".gitignore"))
-				if err != nil || !strings.Contains(string(ignore), "\nlyna-tmux\n") {
+				if err != nil || !strings.Contains(string(ignore), "\nlmux\n") {
 					t.Fatalf(".gitignore = %q, %v", ignore, err)
 				}
 			}
@@ -318,11 +318,11 @@ func TestDevcontainerLifecycleCLI(t *testing.T) {
 				{"exec", "--interactive", "--user", "root", "--env", "codeload.github.com\n", "lyna-tmux-api", "/bin/bash", "-s"},
 			},
 			wantDocker: []string{"container", "run"},
-			outHas:     []string{"Container lyna-tmux-api is running", "lyna-tmux create --isolation container"},
+			outHas:     []string{"Container lyna-tmux-api is running", "lmux create --isolation container"},
 		},
 		{
 			name: "up without the rendered files", args: []string{"sandbox", "devcontainer", "up"}, term: true, wantCode: 1,
-			errHas: []string{"lyna-tmux sandbox devcontainer init"},
+			errHas: []string{"lmux sandbox devcontainer init"},
 		},
 		{
 			name: "up refuses a Dockerfile the project ships", args: []string{"sandbox", "devcontainer", "up"}, files: true, term: true, wantCode: 1,
@@ -350,11 +350,11 @@ func TestDevcontainerLifecycleCLI(t *testing.T) {
 		{
 			name: "up fails before docker when the staged binary is missing", args: []string{"sandbox", "devcontainer", "up"}, files: true, staged: true, term: true, wantCode: 1,
 			tamper: func(t *testing.T, project string) {
-				if err := os.Remove(filepath.Join(project, ".devcontainer", "lyna-tmux")); err != nil {
+				if err := os.Remove(filepath.Join(project, ".devcontainer", "lmux")); err != nil {
 					t.Fatal(err)
 				}
 			},
-			errHas: []string{".devcontainer/lyna-tmux", "staged lyna-tmux binary is missing", "init --force"},
+			errHas: []string{".devcontainer/lmux", "staged lyna-tmux binary is missing", "init --force"},
 		},
 		{
 			name: "up builds a staged image", args: []string{"sandbox", "devcontainer", "up"}, files: true, staged: true, term: true,
@@ -368,7 +368,7 @@ func TestDevcontainerLifecycleCLI(t *testing.T) {
 		{
 			name: "up refuses a swapped staged binary", args: []string{"sandbox", "devcontainer", "up"}, files: true, staged: true, term: true, wantCode: 1,
 			tamper: func(t *testing.T, project string) {
-				devcontainerTamper(t, project, "lyna-tmux", "\x7fELF swapped\n")
+				devcontainerTamper(t, project, "lmux", "\x7fELF swapped\n")
 			},
 			errHas: []string{"Dockerfile", "is not the one lyna-tmux renders", "init --force"},
 		},
@@ -417,7 +417,7 @@ func TestDevcontainerLifecycleCLI(t *testing.T) {
 			if tc.files {
 				args := []string{"sandbox", "devcontainer", "init", "--version", "v1.4.0"}
 				if tc.staged {
-					args = []string{"sandbox", "devcontainer", "init", "--binary", linuxELF(t, filepath.Join(e.host.Home, "dist", "lyna-tmux"))}
+					args = []string{"sandbox", "devcontainer", "init", "--binary", linuxELF(t, filepath.Join(e.host.Home, "dist", "lmux"))}
 				}
 				if code, _, stderr := e.run(t, args...); code != 0 {
 					t.Fatalf("init: %s", stderr)

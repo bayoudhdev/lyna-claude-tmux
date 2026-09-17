@@ -238,7 +238,7 @@ func goBin(t *testing.T) string {
 	return bin
 }
 
-// fakeModule writes a minimal checkout of ModulePath whose cmd/lyna-tmux
+// fakeModule writes a minimal checkout of ModulePath whose cmd/lmux
 // prints its stamped version, so that Build can be exercised in a second
 // rather than by compiling the whole CLI.
 func fakeModule(t *testing.T) string {
@@ -246,7 +246,7 @@ func fakeModule(t *testing.T) string {
 	root := t.TempDir()
 	mustWrite(t, filepath.Join(root, "go.mod"), "module "+ModulePath+"\n")
 	mustWrite(t, filepath.Join(root, "internal", "version", "version.go"), "package version\n\nvar Version = \"\"\n")
-	mustWrite(t, filepath.Join(root, "cmd", "lyna-tmux", "main.go"),
+	mustWrite(t, filepath.Join(root, "cmd", "lmux", "main.go"),
 		"package main\n\nimport (\n\t\"fmt\"\n\n\t\""+ModulePath+"/internal/version\"\n)\n\nfunc main() { fmt.Println(version.Version) }\n")
 	return root
 }
@@ -266,7 +266,7 @@ func TestBuild(t *testing.T) {
 		{name: "empty checkout", root: func(t *testing.T) string { return t.TempDir() }, goarch: runtime.GOARCH, wantErr: "go build in"},
 		{name: "broken source", root: func(t *testing.T) string {
 			root := fakeModule(t)
-			mustWrite(t, filepath.Join(root, "cmd", "lyna-tmux", "main.go"), "package main\n\nfunc main() { undefined() }\n")
+			mustWrite(t, filepath.Join(root, "cmd", "lmux", "main.go"), "package main\n\nfunc main() { undefined() }\n")
 			return root
 		}, goarch: runtime.GOARCH, wantErr: "undefined: undefined"},
 	}
@@ -324,7 +324,7 @@ var checkoutBuild = sync.OnceValues(func() ([]byte, error) {
 	return Build(context.Background(), bin, root, runtime.GOARCH, Identity{Version: "e2e-test"})
 })
 
-// buildFromCheckout compiles cmd/lyna-tmux of this checkout for a Linux image
+// buildFromCheckout compiles cmd/lmux of this checkout for a Linux image
 // of goarch, skipping when there is no toolchain or in short mode: it is the
 // only test build that compiles the whole CLI.
 func buildFromCheckout(t *testing.T, goarch string) []byte {
@@ -550,15 +550,15 @@ func TestIgnoreBinary(t *testing.T) {
 		want        string
 		wantErr     error
 	}{
-		{name: "creates the file", wantChanged: true, want: ignoreHeader + "lyna-tmux\n"},
-		{name: "appends to an existing file", existing: ptr("*.log\n"), wantChanged: true, want: "*.log\n" + ignoreHeader + "lyna-tmux\n"},
-		{name: "terminates an unfinished last line first", existing: ptr("*.log"), wantChanged: true, want: "*.log\n" + ignoreHeader + "lyna-tmux\n"},
-		{name: "empty file", existing: ptr(""), wantChanged: true, want: ignoreHeader + "lyna-tmux\n"},
-		{name: "entry already present", existing: ptr("# mine\nlyna-tmux\n"), want: "# mine\nlyna-tmux\n"},
-		{name: "anchored entry already present", existing: ptr("/lyna-tmux\n"), want: "/lyna-tmux\n"},
-		{name: "entry with surrounding spaces", existing: ptr("  lyna-tmux  \n"), want: "  lyna-tmux  \n"},
-		{name: "a different entry does not count", existing: ptr("lyna-tmux.bak\n"), wantChanged: true, want: "lyna-tmux.bak\n" + ignoreHeader + "lyna-tmux\n"},
-		{name: "a commented entry does not count", existing: ptr("# lyna-tmux\n"), wantChanged: true, want: "# lyna-tmux\n" + ignoreHeader + "lyna-tmux\n"},
+		{name: "creates the file", wantChanged: true, want: ignoreHeader + "lmux\n"},
+		{name: "appends to an existing file", existing: ptr("*.log\n"), wantChanged: true, want: "*.log\n" + ignoreHeader + "lmux\n"},
+		{name: "terminates an unfinished last line first", existing: ptr("*.log"), wantChanged: true, want: "*.log\n" + ignoreHeader + "lmux\n"},
+		{name: "empty file", existing: ptr(""), wantChanged: true, want: ignoreHeader + "lmux\n"},
+		{name: "entry already present", existing: ptr("# mine\nlmux\n"), want: "# mine\nlmux\n"},
+		{name: "anchored entry already present", existing: ptr("/lmux\n"), want: "/lmux\n"},
+		{name: "entry with surrounding spaces", existing: ptr("  lmux  \n"), want: "  lmux  \n"},
+		{name: "a different entry does not count", existing: ptr("lmux.bak\n"), wantChanged: true, want: "lmux.bak\n" + ignoreHeader + "lmux\n"},
+		{name: "a commented entry does not count", existing: ptr("# lmux\n"), wantChanged: true, want: "# lmux\n" + ignoreHeader + "lmux\n"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

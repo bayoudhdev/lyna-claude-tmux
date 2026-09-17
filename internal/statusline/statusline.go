@@ -1,4 +1,4 @@
-// Package statusline renders the line `lyna-tmux statusline` prints for Claude
+// Package statusline renders the line `lmux statusline` prints for Claude
 // Code's statusLine command: model and effort, sandbox profile, context usage,
 // session cost, directory and git branch, rate limits and output style.
 //

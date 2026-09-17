@@ -13,6 +13,18 @@ import (
 // AppName is the directory name used under each XDG root.
 const AppName = "lyna-tmux"
 
+// Names of the command itself, which are not the directory name: the
+// directories keep the name of 1.0.0, so an installation from then is found
+// where it already is, without a migration.
+const (
+	// Command is the name the CLI is installed and invoked under.
+	Command = "lmux"
+	// CommandWas is the name the command had in 1.0.0. The installers still
+	// put it next to Command as a link, so a script or a shell alias written
+	// then keeps working.
+	CommandWas = "lyna-tmux"
+)
+
 // Paths are the absolute directories lyna-tmux owns.
 type Paths struct {
 	Home   string

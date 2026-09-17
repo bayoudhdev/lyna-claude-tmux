@@ -1,0 +1,20 @@
+ ± changes  ⎇ feature/agents ↑2 ↓1      8 files  +1084 -518
+ M  api/handler.go                                    +12 -3
+  M api/handler_test.go                               +40 -0
+▌RM docs/old guide.md → docs/guide.md                  +1 -1
+ AD go.sum                                             +0 -0
+ UU internal/merge.go                                  +7 -2
+ M  logo.png                                             bin
+ ?? notes/                                               new
+  M web/src/components/very/deep/directory/str…   +1024 -512
+
+
+
+
+
+
+
+
+
+
+ updated 12:00:00  4 staged   ↓/j down  enter diff  o review

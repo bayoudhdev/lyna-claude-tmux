@@ -1,20 +1,20 @@
  ± changes  ⎇ feature/agents ↑2 ↓1     48 files  +1084 -518
-  M gen/file11.go                                     +11 -0
-  M gen/file12.go                                     +12 -0
-  M gen/file13.go                                     +13 -0
-  M gen/file14.go                                     +14 -0
-  M gen/file15.go                                     +15 -0
-  M gen/file16.go                                     +16 -0
-  M gen/file17.go                                     +17 -0
-  M gen/file18.go                                     +18 -0
-  M gen/file19.go                                     +19 -0
-  M gen/file20.go                                     +20 -0
-  M gen/file21.go                                     +21 -0
-  M gen/file22.go                                     +22 -0
-  M gen/file23.go                                     +23 -0
-  M gen/file24.go                                     +24 -0
-  M gen/file25.go                                     +25 -0
-  M gen/file26.go                                     +26 -0
-  M gen/file27.go                                     +27 -0
-  M gen/file28.go                                     +28 -0
- updated 12:00:00  4 staged
+ RM docs/old guide.md → docs/guide.md                  +1 -1
+ AD go.sum                                             +0 -0
+ UU internal/merge.go                                  +7 -2
+ M  logo.png                                             bin
+ ?? notes/                                               new
+  M web/src/components/very/deep/directory/str…   +1024 -512
+  M gen/file0.go                                       +0 -0
+  M gen/file1.go                                       +1 -0
+  M gen/file2.go                                       +2 -0
+  M gen/file3.go                                       +3 -0
+  M gen/file4.go                                       +4 -0
+  M gen/file5.go                                       +5 -0
+  M gen/file6.go                                       +6 -0
+  M gen/file7.go                                       +7 -0
+  M gen/file8.go                                       +8 -0
+  M gen/file9.go                                       +9 -0
+  M gen/file10.go                                     +10 -0
+▌ M gen/file11.go                                     +11 -0
+ updated 12:00:00  4 staged                         ↓/j down

@@ -14,7 +14,7 @@ import (
 
 // InstallGuidance tells a user how to get Claude Code.
 const InstallGuidance = "install Claude Code with `curl -fsSL https://claude.ai/install.sh | bash` " +
-	"(see https://code.claude.com/docs/en/setup), or set claude.command in the lyna-tmux config"
+	"(see https://code.claude.com/docs/en/setup), or set claude.command in the lmux config"
 
 // ErrNotFound matches every NotFoundError.
 var ErrNotFound = errors.New("claude: Claude Code executable not found")

@@ -5,7 +5,7 @@ value below falls back to its built-in default.
 
 There is deliberately no per-project configuration file. A repository cannot change how
 `lyna-tmux` launches Claude Code. What a repository can carry is the settings Claude Code
-itself honors in a project: `lyna-tmux init --project` adds the sandbox part of
+itself honors in a project: `lmux init --project` adds the sandbox part of
 `.claude/settings.json`, the `.worktreeinclude` patterns for local environment files, and
 the `.gitignore` entries for worktrees and personal settings. Existing files are merged,
 never replaced, and every change is shown and confirmed unless `--yes` is passed. See
@@ -37,7 +37,7 @@ Rules that apply to that lookup:
 Print the path without guessing:
 
 ```sh
-lyna-tmux config path
+lmux config path
 ```
 
 ### The other directories lyna-tmux owns
@@ -61,12 +61,12 @@ when `LYNA_TMUX_HOME` is set, otherwise the `lyna-tmux` directory under `XDG_CON
 
 | Command | What it does |
 | --- | --- |
-| `lyna-tmux config path` | prints the configuration file path |
-| `lyna-tmux config init` | writes the documented template with the defaults |
-| `lyna-tmux config init --force` | replaces an existing file, keeping a `.bak` copy |
-| `lyna-tmux config show` | prints the effective configuration: the file merged over the defaults |
-| `lyna-tmux config validate` | checks the file and reports every problem |
-| `lyna-tmux config edit` | opens the file in your editor, then checks it |
+| `lmux config path` | prints the configuration file path |
+| `lmux config init` | writes the documented template with the defaults |
+| `lmux config init --force` | replaces an existing file, keeping a `.bak` copy |
+| `lmux config show` | prints the effective configuration: the file merged over the defaults |
+| `lmux config validate` | checks the file and reports every problem |
+| `lmux config edit` | opens the file in your editor, then checks it |
 
 Details worth knowing:
 
@@ -77,9 +77,16 @@ Details worth knowing:
   time a `lyna-tmux` command runs.
 - `config show` prints the merged result, so it is the fastest way to see which default a
   key currently has. It is encoded output: comments are not part of it.
-- `lyna-tmux setup` also writes this file, from its own questions. It keeps a `.bak` copy of
+- `lmux setup` also writes this file, from its own questions. It keeps a `.bak` copy of
   the previous file, and it writes encoded TOML, so comments in the replaced file are lost.
-- `lyna-tmux theme <name>` writes only `ui.theme`, in place: comments, ordering and spacing
+  It then offers to carry out what the answers need, one question at a time, so the next
+  command works instead of failing on a choice that was only written down: building and
+  starting the project's dev container at container isolation, writing the completion script
+  of your login shell, installing the review plugin. The sandbox runtime of process isolation
+  is never installed for you; setup prints the command. `--yes` accepts every one of these
+  questions. Your shell startup file is never edited: when zsh needs an `fpath` line, setup
+  prints it.
+- `lmux theme <name>` writes only `ui.theme`, in place: comments, ordering and spacing
   stay exactly as you wrote them.
 
 ## How the file is read
@@ -91,10 +98,10 @@ The document is decoded on top of the defaults:
 - Every syntax problem and every invalid value is reported at once, with its line or key.
 
 ```console
-$ lyna-tmux config validate
+$ lmux config validate
 ERROR  /home/you/.config/lyna-tmux/config.toml: invalid config: line 3: ui.themes: unknown key.
 
-$ lyna-tmux config validate
+$ lmux config validate
 ERROR  /home/you/.config/lyna-tmux/config.toml: invalid config:
 workspace.layout: must be one of solo, duo, trio, quad, review, auto or a [layouts.<name>] table (got "nope");
 workspace.split_ratio: must be between 20 and 80 (got 95).
@@ -112,14 +119,14 @@ Look and input model of the workspace.
 
 | Key | Type | Values | Default | Effect |
 | --- | --- | --- | --- | --- |
-| `theme` | string | `lyna`, `slate`, `dusk`, `contrast`, `nord`, `rose`, `mono`, `solar-dark`, `earth-dark`, `light`, `solar-light`, `earth-light`, `ansi` | `"lyna"` | Palette of the status line, pane borders, menus and popups. The first nine are dark, the next three light, and `ansi` uses the terminal's own palette. `lyna-tmux theme` lists them with swatches and `lyna-tmux theme preview [name]` draws a workspace in each one. |
+| `theme` | string | `lyna`, `slate`, `dusk`, `contrast`, `nord`, `rose`, `mono`, `solar-dark`, `earth-dark`, `light`, `solar-light`, `earth-light`, `ansi` | `"lyna"` | Palette of the status line, pane borders, menus and popups. The first nine are dark, the next three light, and `ansi` uses the terminal's own palette. `lmux theme` lists them with swatches and `lmux theme preview [name]` draws a workspace in each one. |
 | `icons` | string | `auto`, `unicode`, `nerd`, `ascii` | `"auto"` | Glyph set in the status line, borders and pickers. `auto` picks `unicode` when the effective locale (`LC_ALL`, then `LC_CTYPE`, then `LANG`) is UTF-8, and `ascii` otherwise, including under the East Asian locales (`ja`, `zh`, `ko`), where terminals draw the ambiguous width glyphs two cells wide and every segment would sit one cell further right than the layout expects. Set `icons = "unicode"` to use them anyway. `nerd` needs a patched font and is never chosen automatically. |
 | `color` | string | `auto`, `truecolor`, `256`, `16` | `"auto"` | Color depth the theme is rendered at. `auto` reads `COLORTERM=truecolor` or `24bit` as 24-bit, a `TERM` containing `256color` as 256 colors, `xterm-direct` and `tmux-direct` as 24-bit, anything else as the basic 16. |
 | `status_position` | string | `top`, `bottom` | `"bottom"` | Which edge the status line sits on. |
 | `clock` | boolean | `true`, `false` | `true` | Draws the `%H:%M` clock at the right end of the status line. |
 | `alt_keys` | boolean | `true`, `false` | `true` | Installs the prefix-free Alt bindings. See [keys.md](keys.md). |
 | `mouse` | boolean | `true`, `false` | `true` | Turns the tmux `mouse` option on or off. With it off, clicks, menus and wheel scrolling never reach tmux. |
-| `allow_passthrough` | boolean | `true`, `false` | `false` | Lets programs in panes send escape sequences straight to your terminal. Off by default: pane output cannot drive your terminal or clipboard. |
+| `allow_passthrough` | boolean | `true`, `false` | `false` | Lets programs in panes send escape sequences straight to your terminal. Off by default: pane output cannot drive your terminal or clipboard. The pane running the agent always allows them, whatever this says, since that is where its desktop notifications and its progress bar come from. |
 | `focus_events` | boolean | `true`, `false` | `false` | Tells a pane when it gains or loses focus. Off by default, as in tmux itself: a program that asks for focus events without reading them prints each one as typed text, and the agent client is one of them. Turn it on for an editor that reloads a file when its pane regains focus. |
 
 There is no `[keys]` table. Key bindings are configured by `ui.alt_keys` and
@@ -169,7 +176,7 @@ How Claude Code is launched in managed panes.
 ## `[sandbox]`
 
 Which sandbox every launch gets, and what you add to it. What each profile and isolation
-level actually protects is in [sandbox.md](sandbox.md); `lyna-tmux sandbox profiles` prints
+level actually protects is in [sandbox.md](sandbox.md); `lmux sandbox profiles` prints
 the same facts from the binary.
 
 | Key | Type | Values | Default | Effect |
@@ -200,13 +207,13 @@ The live code review: a side-by-side diff explorer that refreshes as files chang
 
 | Key | Type | Values | Default | Effect |
 | --- | --- | --- | --- | --- |
-| `editor` | string | `isolated`, `user` | `"isolated"` | `isolated` runs `nvim` without your configuration, with the pinned and checksum-verified `codediff.nvim` that `lyna-tmux review install` puts in the data directory. `user` runs your own `nvim` configuration and plugin install. |
+| `editor` | string | `isolated`, `user` | `"isolated"` | `isolated` runs `nvim` without your configuration, with the pinned and checksum-verified `codediff.nvim` that `lmux review install` puts in the data directory. `user` runs your own `nvim` configuration and plugin install. |
 | `layout` | string | `default`, `inline`, `side-by-side` | `"default"` | How diffs are drawn. `default` leaves the choice to the plugin configuration. |
 
 ## `[layouts.<name>]`
 
 A custom layout is a named list of panes. Use its name anywhere a layout name is accepted:
-`workspace.layout`, `lyna-tmux create -l <name>`, `lyna-tmux layout <name>`.
+`workspace.layout`, `lmux create -l <name>`, `lmux layout <name>`.
 
 ```toml
 [layouts.tests]
@@ -239,19 +246,19 @@ Fields of one pane:
 
 ## The template
 
-`lyna-tmux config init` writes exactly this file. It is the recommended starting point:
+`lmux config init` writes exactly this file. It is the recommended starting point:
 every key is present or shown commented out, next to what it does.
 
 ```toml
 # lyna-tmux configuration
 #
 # Every key is optional: a missing key keeps its default value, and an
-# unknown key is an error. Check this file with `lyna-tmux config validate`.
+# unknown key is an error. Check this file with `lmux config validate`.
 
 [ui]
 # Color theme. Dark: lyna, slate, dusk, contrast, nord, rose, mono, solar-dark,
 # earth-dark. Light: light, solar-light, earth-light. ansi uses the terminal's
-# own palette. Preview them with `lyna-tmux theme preview`.
+# own palette. Preview them with `lmux theme preview`.
 theme = "lyna"
 # Icon set: auto, unicode, nerd (needs a Nerd Font), ascii.
 icons = "auto"
@@ -261,7 +268,7 @@ color = "auto"
 status_position = "bottom"
 clock = true
 # Prefix-free Alt (Option) key bindings such as Alt+[ and Alt+] to move between
-# panes and Alt+\\ to split. Run `lyna-tmux keys` for the full list.
+# panes and Alt+\\ to split. Run `lmux keys` for the full list.
 alt_keys = true
 mouse = true
 # Let programs in panes send escape sequences straight to your terminal.
@@ -334,7 +341,7 @@ session_prefix = "claude-"
 
 [review]
 # Live code review with side-by-side diffs in Neovim. isolated runs a private
-# Neovim with a pinned, checksum-verified codediff.nvim (`lyna-tmux review
+# Neovim with a pinned, checksum-verified codediff.nvim (`lmux review
 # install`) and never touches your Neovim setup; user runs your own Neovim and
 # plugin install.
 editor = "isolated"
@@ -432,7 +439,7 @@ height = "70%"
 session_prefix = "cc-"
 ```
 
-Check any of these with `lyna-tmux config validate` before relying on them.
+Check any of these with `lmux config validate` before relying on them.
 
 ## Precedence
 
@@ -459,10 +466,10 @@ Flags that override a configuration key:
 Two cases do not follow the simple rule:
 
 - `sandbox.profile = "off"` in the file is refused. Launching without a sandbox has to be an
-  explicit request on the command line: `lyna-tmux create --sandbox off`.
-- `lyna-tmux team` turns agent teams on for that launch even when `claude.teams = false`. It
+  explicit request on the command line: `lmux create --sandbox off`.
+- `lmux team` turns agent teams on for that launch even when `claude.teams = false`. It
   can only add teams, never take them away, so a file with `claude.teams = true` keeps them
-  on for `lyna-tmux create` as well.
+  on for `lmux create` as well.
 
 Per launch only, with no configuration key at all:
 
@@ -496,17 +503,17 @@ built into `lyna-tmux` and needs no external program to filter with.
 for a shell, `--append-system-prompt "be brief"`, and is split into arguments without
 running one, so a `$`, a backquote or a `*` stays the text you typed. Both replace their
 configuration counterpart rather than adding to it, so what a popup runs is what the tmux
-options say. These two are read for popups only: `lyna-tmux create` takes its command and
+options say. These two are read for popups only: `lmux create` takes its command and
 its arguments from the configuration file.
 
 ## When a change takes effect
 
 | Change | How it reaches a running workspace |
 | --- | --- |
-| Look and key bindings (`[ui]`, `workspace.prefix`, `workspace.history_limit`, `workspace.shell`, `[popup]`) | The generated `<state>/tmux.conf` is rewritten by any `lyna-tmux` command that opens the server, for example `lyna-tmux ls`. A running server sources it again when you create or attach a workspace, or from the dashboard. The prefix binding `r` sources the generated file on the spot. |
-| `ui.theme` through `lyna-tmux theme <name>` | Written and applied to the running workspaces immediately. |
+| Look and key bindings (`[ui]`, `workspace.prefix`, `workspace.history_limit`, `workspace.shell`, `[popup]`) | The generated `<state>/tmux.conf` is rewritten by any `lyna-tmux` command that opens the server, for example `lmux ls`. A running server sources it again when you create or attach a workspace, or from the dashboard. The prefix binding `r` sources the generated file on the spot. |
+| `ui.theme` through `lmux theme <name>` | Written and applied to the running workspaces immediately. |
 | Claude launch settings (`[claude]`, `[sandbox]`) | Written per launch into `<state>/settings/`. Panes that are already running keep the settings they started with; open a new pane, window or workspace to pick up the change. |
-| `[layouts.<name>]` and `workspace.layout` | Used when a window is laid out: `lyna-tmux create`, `lyna-tmux layout <name>`. |
+| `[layouts.<name>]` and `workspace.layout` | Used when a window is laid out: `lmux create`, `lmux layout <name>`. |
 
 Your own tmux settings belong in `<config>/tmux.local.conf`. The generated configuration
 sources it last, so anything you set there wins over the generated lines, and it survives

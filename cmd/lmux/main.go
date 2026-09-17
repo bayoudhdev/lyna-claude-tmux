@@ -1,4 +1,4 @@
-// Command lyna-tmux turns tmux into a preconfigured Claude Code workspace.
+// Command lmux turns tmux into a preconfigured Claude Code workspace.
 package main
 
 import (

@@ -16,7 +16,7 @@ func TestShellQuote(t *testing.T) {
 		want string
 	}{
 		{name: "empty", in: "", want: "''"},
-		{name: "safe path stays bare", in: "/usr/local/bin/lyna-tmux", want: "/usr/local/bin/lyna-tmux"},
+		{name: "safe path stays bare", in: "/usr/local/bin/lmux", want: "/usr/local/bin/lmux"},
 		{name: "safe punctuation", in: "a-b_c.d/e:f@g%h+i,j", want: "a-b_c.d/e:f@g%h+i,j"},
 		{name: "space", in: "/My Tools/x", want: "'/My Tools/x'"},
 		{name: "single quote", in: "it's", want: `'it'\''s'`},

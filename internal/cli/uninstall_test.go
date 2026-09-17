@@ -22,13 +22,13 @@ const uninstallTmuxConfLine = "set -g @plugin 'bayoudhdev/lyna-claude-tmux'"
 func uninstallFiles(t *testing.T, e *infraEnv) (bystander string) {
 	t.Helper()
 	_, completion, stderr := e.run(t, "completion", "zsh")
-	if !strings.HasPrefix(completion, "#compdef lyna-tmux\n") {
+	if !strings.HasPrefix(completion, "#compdef lmux\n") {
 		t.Fatalf("completion zsh:\n%s\n%s", completion, stderr)
 	}
 	files := map[string]string{
 		"state/tmux.conf": "# generated", "cache/agents.json": "[]", "data/review/VERSION": "2.1.0",
 		"config/config.toml": "[ui]\n", "notes/keep.txt": "keep",
-		"lyna-tmux": "#!/bin/sh\nexit 0\n", ".zfunc/_lyna-tmux": completion,
+		"lmux": "#!/bin/sh\nexit 0\n", ".zfunc/_lmux": completion,
 		".tmux.conf": "set -g mouse on\n" + uninstallTmuxConfLine + "\n",
 	}
 	for rel, content := range files {
@@ -60,12 +60,12 @@ func TestUninstallCLI(t *testing.T) {
 			name: "confirmed on a terminal", args: []string{"uninstall"}, term: true, stdin: "y\n", wantRemove: true, wantConfig: true,
 			outHas: []string{
 				"This stops the lyna-tmux server on socket lt-test-", "[y/N]", "Removed ", "Stopped the lyna-tmux server",
-				"(the lyna-tmux binary)", "(a shell completion lyna-tmux generated)",
+				"(the lmux binary)", "(a shell completion lyna-tmux generated)",
 				"Left to do by hand:", "remove line 2 of ", uninstallTmuxConfLine,
 			},
 			// No Claude plugin registry means no plugin to uninstall, and the
 			// removed binary and completion need no manual step.
-			outLacks: []string{"/plugin uninstall", "remove the binary", "lyna-tmux completion`"},
+			outLacks: []string{"/plugin uninstall", "remove the binary", "lmux completion`"},
 		},
 		{
 			name: "--yes without a terminal", args: []string{"uninstall", "--yes"}, wantRemove: true, wantConfig: true,
@@ -126,7 +126,7 @@ func TestUninstallCLI(t *testing.T) {
 			if _, err := os.Stat(project); err != nil {
 				t.Fatalf("the project was removed: %v", err)
 			}
-			for _, rel := range []string{"state", "cache", "data", "lyna-tmux", ".zfunc/_lyna-tmux"} {
+			for _, rel := range []string{"state", "cache", "data", "lmux", ".zfunc/_lmux"} {
 				_, err := os.Stat(filepath.Join(e.host.Home, filepath.FromSlash(rel)))
 				if (err != nil) != tc.wantRemove {
 					t.Fatalf("%s removed %v, want %v", rel, err != nil, tc.wantRemove)
@@ -293,7 +293,7 @@ func TestUninstallNothingCLI(t *testing.T) {
 				"Nothing to remove", "Left to do by hand:",
 				"remove line 1 of ", uninstallTmuxConfLine,
 				"in Claude Code, remove the companion plugin", "/plugin uninstall lyna-tmux@lyna-tmux",
-				"it is not the script `lyna-tmux completion` writes",
+				"it is not the script `lmux completion` writes",
 			},
 			outLacks: []string{"[y/N]", "Nothing is left to do by hand.", "remove the binary"},
 		},

@@ -26,6 +26,23 @@ func installedVersion(t *testing.T) tmux.Version {
 	return v
 }
 
+// unescapeKey undoes the escaping list-keys applies to the key column. tmux
+// prints a key that would not survive being read back as a token with a
+// backslash in front of it: ';' comes out as '\;', '#' as '\#' and 'M-\' as
+// 'M-\\'. Comparing the printed column to the key we asked for needs the
+// backslashes removed, otherwise a binding that is installed reads as missing.
+func unescapeKey(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+1 < len(s) {
+			i++
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
+}
+
 type lookSpec struct {
 	palette, icons string
 	depth          theme.Depth
@@ -123,7 +140,7 @@ func TestIntegrationConfLoads(t *testing.T) {
 					for _, line := range strings.Split(out, "\n") {
 						f := strings.Fields(line)
 						if len(f) >= 5 && f[0] == "bind-key" {
-							listed[f[2]+" "+strings.ReplaceAll(f[3], `\\`, `\`)] = strings.Join(f[4:], " ")
+							listed[f[2]+" "+unescapeKey(f[3])] = strings.Join(f[4:], " ")
 						}
 					}
 				}
@@ -344,6 +361,68 @@ func TestIntegrationStatusFormats(t *testing.T) {
 	}
 }
 
+// TestIntegrationBorderShowsAFailedPane asserts on a real server that the
+// border of a pane whose program exited says so, and says it instead of the
+// agent state the pane carried while it was alive. A pane kept on screen after
+// a failure is only useful if the label explains why it is still there.
+func TestIntegrationBorderShowsAFailedPane(t *testing.T) {
+	srv := tmuxtest.Start(t)
+	ctx := tmuxtest.Context(t)
+	p, err := theme.Get("lyna")
+	if err != nil {
+		t.Fatal(err)
+	}
+	icons, err := theme.GetIcons("unicode")
+	if err != nil {
+		t.Fatal(err)
+	}
+	look := tmux.Look{Palette: p, Depth: theme.DepthTrue, Icons: icons}
+
+	if _, err := srv.Client.Run(ctx, "new-session", "-d", "-s", "ws", "sleep 3600"); err != nil {
+		t.Fatal(err)
+	}
+	out, err := srv.Client.Run(ctx, "split-window", "-d", "-P", "-F", "#{pane_id}", "-t", tmux.ExactSession("ws"), "sleep 3600")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pane := strings.TrimSpace(out)
+	if _, err := srv.Client.Batch(ctx,
+		tmux.Command{"set-option", "-p", "-t", pane, tmux.OptRole, tmux.RoleChanges},
+		tmux.Command{"set-option", "-p", "-t", pane, tmux.OptState, "idle"},
+		tmux.Command{"set-option", "-p", "-t", pane, "remain-on-exit", "failed"},
+		tmux.Command{"respawn-pane", "-k", "-t", pane, "exit 7"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	tmuxtest.WaitFor(t, "the pane to die", func() bool {
+		dead, err := srv.Client.Display(ctx, pane, "#{pane_dead}")
+		return err == nil && strings.TrimSpace(dead) == "1"
+	})
+
+	got, err := srv.Client.Display(ctx, pane, look.BorderFormat())
+	if err != nil {
+		t.Fatal(err)
+	}
+	drawnLabel := drawn(got)
+	for _, want := range []string{"± changes", "exited"} {
+		if !strings.Contains(drawnLabel, want) {
+			t.Errorf("border %q lacks %q", drawnLabel, want)
+		}
+	}
+	if strings.Contains(drawnLabel, "idle") {
+		t.Errorf("border %q still shows the agent state of a dead pane", drawnLabel)
+	}
+	// tmux leaves pane_dead_status empty for some programs, so the number is
+	// asserted only where this tmux reports one.
+	status, err := srv.Client.Display(ctx, pane, "#{pane_dead_status}")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s := strings.TrimSpace(status); s != "" && !strings.Contains(drawnLabel, "exited "+s) {
+		t.Errorf("border %q lacks the exit status %q", drawnLabel, s)
+	}
+}
+
 // TestIntegrationStatusLeftFitsTheLongestName asserts on a real server that a
 // workspace named up to session.MaxNameLen is drawn whole: tmux truncates
 // status-left at status-left-length, counting the columns the brand block
@@ -360,7 +439,7 @@ func TestIntegrationStatusLeftFitsTheLongestName(t *testing.T) {
 		t.Run(look.icons, func(t *testing.T) {
 			srv := tmuxtest.Start(t)
 			ctx := tmuxtest.Context(t)
-			o := confOptions(t, installed, look, tmux.Env{Bin: "/opt/lyna-tmux", ConfPath: "/state/tmux.conf"})
+			o := confOptions(t, installed, look, tmux.Env{Bin: "/opt/lmux", ConfPath: "/state/tmux.conf"})
 			path := writeConf(t, tmux.GenerateConf(o))
 			if out, err := srv.Client.Run(ctx, "source-file", path); err != nil {
 				t.Fatalf("source-file: %v %s", err, out)

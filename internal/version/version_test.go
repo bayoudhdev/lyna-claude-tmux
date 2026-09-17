@@ -47,10 +47,10 @@ func TestInfoString(t *testing.T) {
 		info Info
 		want string
 	}{
-		{name: "full", info: Info{Version: "v1.0.0", Commit: "abc", Date: "2026-09-15", Platform: "linux/amd64"}, want: "lyna-tmux v1.0.0 (abc 2026-09-15) linux/amd64"},
-		{name: "commit only", info: Info{Version: "dev", Commit: "abc", Platform: "darwin/arm64"}, want: "lyna-tmux dev (abc) darwin/arm64"},
-		{name: "date only", info: Info{Version: "dev", Date: "2026", Platform: "darwin/arm64"}, want: "lyna-tmux dev (2026) darwin/arm64"},
-		{name: "bare", info: Info{Version: "dev", Platform: "darwin/arm64"}, want: "lyna-tmux dev darwin/arm64"},
+		{name: "full", info: Info{Version: "v1.0.0", Commit: "abc", Date: "2026-09-15", Platform: "linux/amd64"}, want: "lmux v1.0.0 (abc 2026-09-15) linux/amd64"},
+		{name: "commit only", info: Info{Version: "dev", Commit: "abc", Platform: "darwin/arm64"}, want: "lmux dev (abc) darwin/arm64"},
+		{name: "date only", info: Info{Version: "dev", Date: "2026", Platform: "darwin/arm64"}, want: "lmux dev (2026) darwin/arm64"},
+		{name: "bare", info: Info{Version: "dev", Platform: "darwin/arm64"}, want: "lmux dev darwin/arm64"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

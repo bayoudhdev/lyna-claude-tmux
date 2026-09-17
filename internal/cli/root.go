@@ -1,4 +1,4 @@
-// Package cli defines the lyna-tmux command tree. Commands parse flags and
+// Package cli defines the lmux command tree. Commands parse flags and
 // arguments, then delegate to internal/app; they hold no business logic.
 package cli
 
@@ -66,9 +66,9 @@ func NewRoot(s Streams) *cobra.Command { return NewRootWith(s, ProcessDeps()) }
 // NewRootWith builds the full command tree with explicit dependencies.
 func NewRootWith(s Streams, d Deps) *cobra.Command {
 	root := &cobra.Command{
-		Use:   "lyna-tmux",
+		Use:   "lmux",
 		Short: "Claude Code workspaces on tmux, preconfigured and sandboxed",
-		Long: "lyna-tmux turns tmux into a ready-made Claude Code workspace: styled split layouts,\n" +
+		Long: "lmux turns tmux into a ready-made Claude Code workspace: styled split layouts,\n" +
 			"an agent picker, per-launch sandbox and hook settings, all on a dedicated tmux server\n" +
 			"that never reads or writes your own tmux or Claude settings.",
 		// A root without RunE is not runnable, and cobra then skips argument

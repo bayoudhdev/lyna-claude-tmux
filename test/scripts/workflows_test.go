@@ -662,7 +662,8 @@ func TestReleaseArtifactsMatchInstaller(t *testing.T) {
 			strings.Contains(installer, "asset=lyna-tmux_${version#v}_${os}_${arch}.tar.gz")},
 		{"archive format", slices.Equal(values(find(entries, "archives", "-", "formats")), []string{"[tar.gz]"})},
 		{"flat archive", slices.Equal(values(find(entries, "archives", "-", "wrap_in_directory")), []string{"false"}) &&
-			strings.Contains(installer, `-C "$tmp/extract" lyna-tmux`)},
+			strings.Contains(installer, `-C "$tmp/extract" lmux`) &&
+			slices.Equal(values(find(entries, "builds", "-", "binary")), []string{"lmux"})},
 		{"checksums", slices.Equal(values(find(entries, "checksum", "name_template")), []string{"checksums.txt"}) &&
 			slices.Equal(values(find(entries, "checksum", "algorithm")), []string{"sha256"}) &&
 			strings.Contains(installer, `/download/$version/checksums.txt"`)},

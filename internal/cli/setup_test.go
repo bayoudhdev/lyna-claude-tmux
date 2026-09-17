@@ -1,16 +1,20 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/spf13/cobra"
 
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/app"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/config"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/testutil/tmuxtest"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tui"
@@ -32,7 +36,7 @@ func TestSetupCLI(t *testing.T) {
 		{
 			name: "not a terminal", args: []string{"setup"}, wantCode: 1,
 			setup:      func(t *testing.T, e *cliEnv) { t.Helper(); e.term.Interactive = false },
-			errHas:     []string{"setup needs a terminal", "lyna-tmux config edit", "lyna-tmux config init"},
+			errHas:     []string{"setup needs a terminal", "lmux config edit", "lmux config init"},
 			wantConfig: "-",
 		},
 		{name: "extra argument", args: []string{"setup", "now"}, wantCode: 1, errHas: []string{`unknown command "now"`}, wantConfig: "-"},
@@ -122,6 +126,30 @@ func setupWriteConfig(t *testing.T, e *cliEnv, content string) {
 	}
 }
 
+// setupDeps are what the steps after the wizard need: the working directory
+// they look for a project in, PATH lookups, a terminal to ask on and a runner.
+// The terminal is not interactive, so a step that asks is skipped unless the
+// case passes --yes.
+func setupDeps(e *cliEnv) Deps {
+	return Deps{
+		Host: func() (app.Host, error) { return e.host, nil },
+		// Nothing the steps look for is on this PATH, so a case reports the
+		// missing tool rather than whatever the machine happens to have.
+		LookPath: func(string) (string, error) { return "", exec.ErrNotFound },
+		Getwd:    func() (string, error) { return e.cwd, nil },
+		Terminal: func() Terminal { return Terminal{} },
+		Run:      func(context.Context, []string, Streams) error { return nil },
+		Now:      time.Now,
+	}
+}
+
+// setupWith returns a copy of cfg with edit applied, for a case that differs
+// from the saved configuration in one field.
+func setupWith(cfg config.Config, edit func(*config.Config)) config.Config {
+	edit(&cfg)
+	return cfg
+}
+
 // setupFinished is a wizard that has already finished with a result.
 type setupFinished struct {
 	res  tui.SetupResult
@@ -150,6 +178,10 @@ func TestSetupWizardSaves(t *testing.T) {
 		errHas     []string
 		wantTheme  string
 		wantBackup bool
+		// yes carries out what the saved settings need without asking, and
+		// wantFile is a path that must exist afterwards.
+		yes      bool
+		wantFile []string
 	}{
 		{
 			name:  "saved to a running server",
@@ -181,6 +213,37 @@ func TestSetupWizardSaves(t *testing.T) {
 			model:  setupFinished{res: tui.SetupResult{Config: edited, Saved: true}},
 			outHas: []string{"Setup canceled; nothing was written"},
 		},
+		{
+			name:  "completion is written for the login shell",
+			model: setupFinished{res: tui.SetupResult{Config: setupWith(edited, func(c *config.Config) { c.Review.Editor = "user" }), Saved: true}, done: true},
+			yes:   true,
+			// The line the shell startup file still needs stays the user's.
+			outHas:    []string{"Wrote ", "_lmux", "One line is still yours to add"},
+			wantFile:  []string{".zfunc", "_lmux"},
+			wantTheme: "light",
+		},
+		{
+			name:      "a declined completion writes nothing",
+			model:     setupFinished{res: tui.SetupResult{Config: setupWith(edited, func(c *config.Config) { c.Review.Editor = "user" }), Saved: true}, done: true},
+			outHas:    []string{"Skipped; the commands are above."},
+			wantTheme: "light",
+		},
+		{
+			name: "process isolation names the sandbox runtime it never installs",
+			model: setupFinished{res: tui.SetupResult{Config: setupWith(edited, func(c *config.Config) {
+				c.Review.Editor, c.Sandbox.Isolation = "user", "process"
+			}), Saved: true}, done: true},
+			outHas:    []string{"srt", "npm install -g @anthropic-ai/sandbox-runtime"},
+			wantTheme: "light",
+		},
+		{
+			name: "container isolation says how to give a project one",
+			model: setupFinished{res: tui.SetupResult{Config: setupWith(edited, func(c *config.Config) {
+				c.Review.Editor, c.Sandbox.Isolation = "user", "container"
+			}), Saved: true}, done: true},
+			outHas:    []string{"lmux sandbox devcontainer init"},
+			wantTheme: "light",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -197,7 +260,10 @@ func TestSetupWizardSaves(t *testing.T) {
 			}
 			term := newAgentsTerm(t)
 			ui := rootUI{host: e.host, config: config.Default(), term: e.term}
-			wait := term.start(t, func(cmd *cobra.Command) error { return Deps{}.setupWizard(cmd, ui, tc.model) })
+			d := setupDeps(e)
+			wait := term.start(t, func(cmd *cobra.Command) error {
+				return d.setupWizard(cmd, ui, tc.model, app.ReviewPlugin{}, tc.yes)
+			})
 			if err := wait(); err != nil {
 				t.Fatal(err)
 			}
@@ -225,6 +291,13 @@ func TestSetupWizardSaves(t *testing.T) {
 			if _, err := os.Stat(setupConfigPath(e) + ".bak"); (err == nil) != tc.wantBackup {
 				t.Fatalf("backup present = %v, want %v", err == nil, tc.wantBackup)
 			}
+			if len(tc.wantFile) > 0 {
+				path := filepath.Join(append([]string{e.host.Home}, tc.wantFile...)...)
+				data, err := os.ReadFile(path)
+				if err != nil || len(data) == 0 {
+					t.Fatalf("%s: %v (%d bytes)\n%s", path, err, len(data), out)
+				}
+			}
 			if tc.running {
 				got, err := agentsServer(e).ShowOption(tmuxtest.Context(t), "-g", "", "status-position")
 				if err != nil || got != "top" {
@@ -246,17 +319,17 @@ func TestSetupGuidance(t *testing.T) {
 	}{
 		{
 			name: "zsh on macOS in Ghostty", env: map[string]string{"SHELL": "/bin/zsh", "TERM_PROGRAM": "ghostty"}, goos: "darwin", altKeys: true,
-			has:   []string{"Shell completion for zsh", "lyna-tmux completion zsh > ~/.zfunc/_lyna-tmux", "fpath=(~/.zfunc $fpath)", "Alt keys need Option sent as Meta in Ghostty", "macos-option-as-alt = true"},
+			has:   []string{"Shell completion for zsh", "lmux completion zsh > ~/.zfunc/_lmux", "fpath=(~/.zfunc $fpath)", "Alt keys need Option sent as Meta in Ghostty", "macos-option-as-alt = true"},
 			lacks: []string{"completion bash", "completion fish"},
 		},
 		{
 			name: "bash on Linux", env: map[string]string{"SHELL": "/usr/bin/bash", "TERM_PROGRAM": "WezTerm"}, goos: "linux", altKeys: true,
-			has:   []string{"lyna-tmux completion bash > ~/.local/share/bash-completion/completions/lyna-tmux", "Alt keys in WezTerm", "Alt sends Meta by default"},
+			has:   []string{"lmux completion bash > ~/.local/share/bash-completion/completions/lmux", "Alt keys in WezTerm", "Alt sends Meta by default"},
 			lacks: []string{"completion zsh", "need Option"},
 		},
 		{
 			name: "fish in Apple Terminal", env: map[string]string{"SHELL": "/opt/homebrew/bin/fish", "TERM_PROGRAM": "Apple_Terminal"}, goos: "darwin", altKeys: true,
-			has: []string{"lyna-tmux completion fish > ~/.config/fish/completions/lyna-tmux.fish", `enable "Use Option as Meta Key"`},
+			has: []string{"lmux completion fish > ~/.config/fish/completions/lmux.fish", `enable "Use Option as Meta Key"`},
 		},
 		{
 			name: "WezTerm on macOS already sends Meta", env: map[string]string{"SHELL": "/bin/zsh", "TERM_PROGRAM": "WezTerm"}, goos: "darwin", altKeys: true,
