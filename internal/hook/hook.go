@@ -409,14 +409,23 @@ func ringTTY(open func(string) (io.WriteCloser, error), path string) error {
 // logf appends one line to the diagnostic log. Logging failures are dropped:
 // there is nowhere left to report them without disturbing Claude Code.
 func (d Deps) logf(name, format string, args ...any) {
-	if d.LogPath == "" {
+	Log(d.LogPath, d.Now(), name, format, args...)
+}
+
+// Log appends one line to the diagnostic log at path, which is where every
+// part of lyna-tmux that runs inside a pane of the agent reports what it could
+// not do: a hook, and the teammate launcher. An empty path logs nothing, and a
+// line that cannot be written is dropped rather than reported, since there is
+// nowhere left to report it without disturbing Claude Code.
+func Log(path string, now time.Time, name, format string, args ...any) {
+	if path == "" {
 		return
 	}
-	line := d.Now().UTC().Format(time.RFC3339) + " " + name + ": " + sanitize.Line(fmt.Sprintf(format, args...))
-	err := fsx.AppendCapped(d.LogPath, []byte(line), LogMaxBytes)
+	line := now.UTC().Format(time.RFC3339) + " " + name + ": " + sanitize.Line(fmt.Sprintf(format, args...))
+	err := fsx.AppendCapped(path, []byte(line), LogMaxBytes)
 	if errors.Is(err, os.ErrNotExist) {
-		if fsx.EnsurePrivateDir(filepath.Dir(d.LogPath)) == nil {
-			_ = fsx.AppendCapped(d.LogPath, []byte(line), LogMaxBytes)
+		if fsx.EnsurePrivateDir(filepath.Dir(path)) == nil {
+			_ = fsx.AppendCapped(path, []byte(line), LogMaxBytes)
 		}
 	}
 }

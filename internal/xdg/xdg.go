@@ -89,6 +89,10 @@ func (p Paths) TmuxConf() string { return filepath.Join(p.State, "tmux.conf") }
 // SettingsDir holds the content-addressed per-launch Claude Code settings files.
 func (p Paths) SettingsDir() string { return filepath.Join(p.State, "settings") }
 
+// LaunchersDir holds the content-addressed teammate launcher scripts, one per
+// pair of binaries a workspace resolved.
+func (p Paths) LaunchersDir() string { return filepath.Join(p.State, "launchers") }
+
 // LogFile is the size-capped diagnostic log written by hooks and background commands.
 func (p Paths) LogFile() string { return filepath.Join(p.State, "lyna-tmux.log") }
 

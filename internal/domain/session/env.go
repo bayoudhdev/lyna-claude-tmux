@@ -33,6 +33,10 @@ const (
 	EnvClaudeEnvScrub = "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"
 	// EnvClaudeTeams enables experimental agent teams.
 	EnvClaudeTeams = "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"
+	// EnvClaudeTeammateCommand replaces the executable Claude Code runs for a
+	// teammate. It holds one path, not a command line: Claude Code quotes what
+	// it reads as a single word and appends the teammate's own arguments.
+	EnvClaudeTeammateCommand = "CLAUDE_CODE_TEAMMATE_COMMAND"
 	// EnvClaudeConfigDir relocates Claude Code's user directory.
 	EnvClaudeConfigDir = "CLAUDE_CONFIG_DIR"
 )

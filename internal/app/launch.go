@@ -19,6 +19,7 @@ import (
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/sandbox"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/session"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/fsx"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/hook"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/termx"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/xdg"
@@ -134,12 +135,17 @@ func (s *Server) prepareLaunch(h Host, root, name string, o LaunchOptions) (laun
 		return launchPlan{}, err
 	}
 	teams := cfg.Claude.Teams || o.Teams
+	launcher := ""
+	if teams && claudecfg.TeammateInWorkspace(cfg.Claude.TeammateMode) {
+		launcher = s.teammateLauncher(h, claudePath)
+	}
 	data, err := claudecfg.BuildSettings(claudecfg.SettingsInput{
 		Bin:               h.Exe,
 		StatusLine:        mode,
 		UserHasStatusLine: userHas,
 		Sandbox:           res,
 		Teams:             teams,
+		TeammateMode:      cfg.Claude.TeammateMode,
 		WorktreeBaseRef:   cfg.Claude.WorktreeBase,
 		WorkflowSize:      cfg.Claude.WorkflowSize,
 		NotifyChannel:     termx.NotifyChannel(termx.Detect(h.Getenv).Program),
@@ -171,22 +177,43 @@ func (s *Server) prepareLaunch(h Host, root, name string, o LaunchOptions) (laun
 		session.EnvTheme + "=" + cfg.UI.Theme,
 	}
 	return launchPlan{settings: settings, display: display, sandbox: res, base: claudecfg.Launch{
-		ClaudePath:     claudePath,
-		SettingsPath:   settings,
-		Home:           h.Home,
-		SessionName:    name,
-		Model:          pick(o.Model, cfg.Claude.Model),
-		Effort:         pick(o.Effort, cfg.Claude.Effort),
-		PermissionMode: permissionMode,
-		AddDirs:        cfg.Claude.AddDirs,
-		MCPConfigs:     cfg.Claude.MCPConfig,
-		PluginDirs:     cfg.Claude.PluginDirs,
-		Fullscreen:     cfg.Claude.Fullscreen,
-		Teams:          teams,
-		Sandbox:        res,
-		SocketPath:     s.wsSocketPath(h),
-		ExtraArgs:      extra,
+		ClaudePath:       claudePath,
+		SettingsPath:     settings,
+		Home:             h.Home,
+		SessionName:      name,
+		Model:            pick(o.Model, cfg.Claude.Model),
+		Effort:           pick(o.Effort, cfg.Claude.Effort),
+		PermissionMode:   permissionMode,
+		AddDirs:          cfg.Claude.AddDirs,
+		MCPConfigs:       cfg.Claude.MCPConfig,
+		PluginDirs:       cfg.Claude.PluginDirs,
+		Fullscreen:       cfg.Claude.Fullscreen,
+		Teams:            teams,
+		TeammateLauncher: launcher,
+		Sandbox:          res,
+		SocketPath:       s.wsSocketPath(h),
+		ExtraArgs:        extra,
 	}}, nil
+}
+
+// teammateLauncher writes the script Claude Code runs in place of the agent
+// when it opens a teammate, and returns its path.
+//
+// A workspace that cannot have one still opens, and its team still runs: the
+// agent falls back to the launcher it would have used without us, which on a
+// workspace is the tmux backend, so the teammates land in the window as they
+// always did, without our label and our layout. The reason is in the
+// diagnostic log, which is what doctor reports.
+func (s *Server) teammateLauncher(h Host, claudePath string) string {
+	script, err := claudecfg.TeammateLauncher(h.Exe, claudePath)
+	if err == nil {
+		var path string
+		if path, err = claude.WriteLauncher(s.Paths.LaunchersDir(), script); err == nil {
+			return path
+		}
+	}
+	hook.Log(s.Paths.LogFile(), time.Now(), "teammate", "no launcher, teammates open the way the agent opens them: %v", err)
+	return ""
 }
 
 // paneProcs returns what each pane of plan runs.

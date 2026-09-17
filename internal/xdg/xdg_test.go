@@ -73,6 +73,7 @@ func TestDerivedPaths(t *testing.T) {
 		{"local tmux conf", p.LocalTmuxConf(), "/h/.config/lyna-tmux/tmux.local.conf"},
 		{"tmux conf", p.TmuxConf(), "/h/.local/state/lyna-tmux/tmux.conf"},
 		{"settings dir", p.SettingsDir(), "/h/.local/state/lyna-tmux/settings"},
+		{"launchers dir", p.LaunchersDir(), "/h/.local/state/lyna-tmux/launchers"},
 		{"log", p.LogFile(), "/h/.local/state/lyna-tmux/lyna-tmux.log"},
 		{"agents cache", p.AgentsCache(), "/h/.cache/lyna-tmux/agents.json"},
 		{"review dir", p.ReviewDir(), "/h/.local/share/lyna-tmux/review"},

@@ -51,6 +51,10 @@ type Launch struct {
 	Worktree   string
 	Fullscreen bool
 	Teams      bool
+	// TeammateLauncher is the script Claude Code runs in place of the agent
+	// when it opens a teammate. Empty leaves the choice of launcher to Claude
+	// Code, which is what every teammate mode but ours wants.
+	TeammateLauncher string
 	// Sandbox is the resolution the settings file was built from.
 	Sandbox sandbox.Resolution
 	// SocketPath is the absolute path of the lyna-tmux server socket.
@@ -113,6 +117,9 @@ func BuildLaunch(l Launch) (Command, error) {
 	}
 	if l.Teams {
 		env[session.EnvClaudeTeams] = "1"
+		if l.TeammateLauncher != "" {
+			env[session.EnvClaudeTeammateCommand] = l.TeammateLauncher
+		}
 	}
 	for k, v := range l.Sandbox.Env {
 		if prev, ok := env[k]; ok && prev != v {
@@ -145,6 +152,9 @@ func (l Launch) validate() error {
 		if !absolute(p.path) {
 			add("%s must be an absolute path without control characters (got %q)", p.what, p.path)
 		}
+	}
+	if l.TeammateLauncher != "" && !absolute(l.TeammateLauncher) {
+		add("teammate launcher must be an absolute path without control characters (got %q)", l.TeammateLauncher)
 	}
 	if err := session.Validate(l.SessionName); err != nil {
 		add("session name: %v", err)
