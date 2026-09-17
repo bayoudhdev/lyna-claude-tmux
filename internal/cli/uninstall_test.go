@@ -160,6 +160,12 @@ func TestUninstallCLI(t *testing.T) {
 	}
 }
 
+// unwrapped drops every space and line break so an assertion does not depend
+// on where the output was wrapped. The width follows the terminal, and a
+// temporary path inside a message moves the break with it: the same run wraps
+// "kill-server" across two lines on one machine and not on another.
+func unwrapped(s string) string { return strings.Join(strings.Fields(s), "") }
+
 // TestUninstallServerStopsCLI holds the run to what it reports: tmux
 // acknowledges kill-server from its event loop and closes its socket on a
 // later turn, so "Stopped" is printed only once the socket the plan probed
@@ -231,16 +237,16 @@ func TestUninstallServerStopsCLI(t *testing.T) {
 				t.Fatalf("kill-server was not run: %v", err)
 			}
 			for _, want := range tc.outHas {
-				if !strings.Contains(stdout, want) {
+				if !strings.Contains(unwrapped(stdout), unwrapped(want)) {
 					t.Fatalf("stdout lacks %q:\n%s", want, stdout)
 				}
 			}
 			for _, unwanted := range tc.outLacks {
-				if strings.Contains(stdout, unwanted) {
+				if strings.Contains(unwrapped(stdout), unwrapped(unwanted)) {
 					t.Fatalf("stdout has %q:\n%s", unwanted, stdout)
 				}
 			}
-			if !strings.Contains(stderr, tc.errHas) {
+			if !strings.Contains(unwrapped(stderr), unwrapped(tc.errHas)) {
 				t.Fatalf("stderr lacks %q:\n%s", tc.errHas, stderr)
 			}
 			if _, err := os.Stat(filepath.Join(e.host.Home, "state")); (err != nil) != tc.wantRemove {
