@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
@@ -22,9 +23,9 @@ import (
 
 // Completion script headers as the CLI generates them, one per shell.
 const (
-	uninstallBashHeader = "# bash completion V2 for lyna-tmux                            -*- shell-script -*-\n\n__lyna-tmux_debug()\n"
-	uninstallZshHeader  = "#compdef lyna-tmux\ncompdef _lyna-tmux lyna-tmux\n"
-	uninstallFishHeader = "# fish completion for lyna-tmux                            -*- shell-script -*-\n\nfunction __lyna_tmux_debug\n"
+	uninstallBashHeader = "# bash completion V2 for lmux                            -*- shell-script -*-\n\n__lmux_debug()\n"
+	uninstallZshHeader  = "#compdef lmux\ncompdef _lmux lmux\n"
+	uninstallFishHeader = "# fish completion for lmux                            -*- shell-script -*-\n\nfunction __lmux_debug\n"
 )
 
 // uninstallTmuxConf is a user tmux configuration with the plugin manager
@@ -53,6 +54,7 @@ func uninstallRegistry(ids ...string) string {
 type uninstallFixture struct {
 	root        string
 	exe         string
+	alias       string
 	themes      []string
 	completions []string
 	manual      []UninstallManual
@@ -94,26 +96,32 @@ func uninstallHome(t *testing.T) uninstallFixture {
 		".claude/themes/mine.json":                            `{"name": "mine"}`,
 		".claude/themes/copy-of-lyna.json":                    string(data),
 		"elsewhere/lyna-linked.json":                          string(data),
-		".local/share/bash-completion/completions/lyna-tmux":  uninstallBashHeader,
+		".local/share/bash-completion/completions/lmux":       uninstallBashHeader,
 		".local/share/bash-completion/completions/other-tool": "# bash completion V2 for other-tool\n",
-		".zfunc/_lyna-tmux":                                   uninstallZshHeader,
-		".config/fish/completions/lyna-tmux.fish":             "function __mine\nend\n",
-		".local/bin/lyna-tmux":                                "#!/bin/sh\nexit 0\n",
+		// The script an installation from 1.0.0 left under the old name.
+		".zfunc/_lyna-tmux":                  uninstallZshHeader,
+		".config/fish/completions/lmux.fish": "function __mine\nend\n",
+		".local/bin/lmux":                    "#!/bin/sh\nexit 0\n",
 	} {
 		initWrite(t, filepath.Join(root, filepath.FromSlash(path)), content, 0o600)
 	}
 	if err := os.Symlink(filepath.Join(root, "elsewhere", "lyna-linked.json"), filepath.Join(themes, "lyna-linked.json")); err != nil {
 		t.Fatal(err)
 	}
-	fish := filepath.Join(root, ".config", "fish", "completions", "lyna-tmux.fish")
+	// The link the installers leave under the name the command had in 1.0.0.
+	if err := os.Symlink("lmux", filepath.Join(root, ".local", "bin", "lyna-tmux")); err != nil {
+		t.Fatal(err)
+	}
+	fish := filepath.Join(root, ".config", "fish", "completions", "lmux.fish")
 	tmuxConf := filepath.Join(root, ".tmux.conf")
 	return uninstallFixture{
 		root:        root,
-		exe:         filepath.Join(root, ".local", "bin", "lyna-tmux"),
+		exe:         filepath.Join(root, ".local", "bin", "lmux"),
+		alias:       filepath.Join(root, ".local", "bin", "lyna-tmux"),
 		themes:      []string{filepath.Join(themes, "copy-of-lyna.json"), filepath.Join(themes, "lyna-"+palette.Name+".json")},
-		completions: []string{filepath.Join(root, ".local", "share", "bash-completion", "completions", "lyna-tmux"), filepath.Join(root, ".zfunc", "_lyna-tmux")},
+		completions: []string{filepath.Join(root, ".local", "share", "bash-completion", "completions", "lmux"), filepath.Join(root, ".zfunc", "_lyna-tmux")},
 		manual: []UninstallManual{
-			{Step: "remove " + fish + " if it is lyna-tmux's: it is not the script `lyna-tmux completion` writes", How: "rm " + fish},
+			{Step: "remove " + fish + " if it is lyna-tmux's: it is not the script `lmux completion` writes", How: "rm " + fish},
 			{Step: "in Claude Code, remove the companion plugin", How: "/plugin uninstall lyna-tmux@lyna-tmux"},
 			{Step: "remove line 2 of " + tmuxConf, How: "set -g @plugin 'bayoudhdev/lyna-claude-tmux'"},
 			{Step: "remove line 4 of " + tmuxConf, How: "source-file ~/.local/state/lyna-tmux/plugin/plugin.tmux.conf"},
@@ -181,8 +189,9 @@ func TestUninstall(t *testing.T) {
 			if p.SocketName != target.Name || p.ServerSocket != SocketPath(h.Getenv, target.Name) || p.Empty() {
 				t.Fatalf("plan %+v does not stop the running server %s", p, target.Name)
 			}
-			if !slices.Equal(p.Dirs, wantDirs) || !slices.Equal(p.Themes, fx.themes) || !slices.Equal(p.Completions, fx.completions) || p.KeptConfig != wantKept || p.Binary != fx.exe {
-				t.Fatalf("plan %+v\nwant dirs %q themes %q completions %q kept %q binary %q", p, wantDirs, fx.themes, fx.completions, wantKept, fx.exe)
+			if !slices.Equal(p.Dirs, wantDirs) || !slices.Equal(p.Themes, fx.themes) || !slices.Equal(p.Completions, fx.completions) ||
+				p.KeptConfig != wantKept || p.Binary != fx.exe || p.Alias != fx.alias {
+				t.Fatalf("plan %+v\nwant dirs %q themes %q completions %q kept %q binary %q alias %q", p, wantDirs, fx.themes, fx.completions, wantKept, fx.exe, fx.alias)
 			}
 			if !slices.Equal(p.Manual, fx.manual) {
 				t.Fatalf("manual %+v\nwant %+v", p.Manual, fx.manual)
@@ -194,8 +203,9 @@ func TestUninstall(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			// The binary is last: everything else is gone before it is touched.
-			wantRemoved := slices.Concat(wantDirs, fx.themes, fx.completions, []string{fx.exe})
+			// The binary is last: everything else is gone before it is touched,
+			// and the link under the old name goes just before it.
+			wantRemoved := slices.Concat(wantDirs, fx.themes, fx.completions, []string{fx.alias, fx.exe})
 			if !res.ServerStopped || !slices.Equal(res.Removed, wantRemoved) {
 				t.Fatalf("result %+v\nwant removed %q", res, wantRemoved)
 			}
@@ -214,7 +224,7 @@ func TestUninstall(t *testing.T) {
 				}
 			}
 			var gone []string
-			for _, path := range slices.Concat(fx.themes, fx.completions, []string{fx.exe}) {
+			for _, path := range slices.Concat(fx.themes, fx.completions, []string{fx.alias, fx.exe}) {
 				gone = append(gone, strings.TrimPrefix(path, root+"/"))
 			}
 			want := map[string]bool{}
@@ -294,7 +304,7 @@ func TestUninstallBinary(t *testing.T) {
 				initWrite(t, target, "#!/bin/sh\n", 0o700)
 				link := filepath.Join(root, "opt", "homebrew", "bin", "lyna-tmux")
 				mkdir(t, filepath.Dir(link))
-				if err := os.Symlink("../Cellar/lyna-tmux/1.0.0/bin/lyna-tmux", link); err != nil {
+				if err := os.Symlink("../Cellar/lyna-tmux/1.0.0/bin/lmux", link); err != nil {
 					t.Fatal(err)
 				}
 				return link
@@ -388,16 +398,16 @@ func TestUninstallManaged(t *testing.T) {
 		path string
 		how  string
 	}{
-		{name: "apple silicon homebrew", path: "/opt/homebrew/Cellar/lyna-tmux/1.0.0/bin/lyna-tmux", how: "brew uninstall lyna-tmux"},
-		{name: "intel homebrew", path: "/usr/local/Cellar/lyna-tmux/1.0.0/bin/lyna-tmux", how: "brew uninstall lyna-tmux"},
-		{name: "linuxbrew", path: "/home/linuxbrew/.linuxbrew/Cellar/lyna-tmux/1.0.0/bin/lyna-tmux", how: "brew uninstall lyna-tmux"},
-		{name: "nix store", path: "/nix/store/abc-lyna-tmux-1.0.0/bin/lyna-tmux", how: "nix profile remove lyna-tmux"},
-		{name: "system prefix", path: "/usr/bin/lyna-tmux", how: "sudo rm /usr/bin/lyna-tmux"},
-		{name: "usr local", path: "/usr/local/bin/lyna-tmux", how: "sudo rm /usr/local/bin/lyna-tmux"},
+		{name: "apple silicon homebrew", path: "/opt/homebrew/Cellar/lyna-tmux/1.0.0/bin/lmux", how: "brew uninstall lyna-tmux"},
+		{name: "intel homebrew", path: "/usr/local/Cellar/lyna-tmux/1.0.0/bin/lmux", how: "brew uninstall lyna-tmux"},
+		{name: "linuxbrew", path: "/home/linuxbrew/.linuxbrew/Cellar/lyna-tmux/1.0.0/bin/lmux", how: "brew uninstall lyna-tmux"},
+		{name: "nix store", path: "/nix/store/abc-lyna-tmux-1.0.0/bin/lmux", how: "nix profile remove lyna-tmux"},
+		{name: "system prefix", path: "/usr/bin/lmux", how: "sudo rm /usr/bin/lmux"},
+		{name: "usr local", path: "/usr/local/bin/lmux", how: "sudo rm /usr/local/bin/lmux"},
 		{name: "a home directory named like the nix store", path: "/home/nix/store/lyna-tmux"},
-		{name: "a user bin directory", path: "/home/u/.local/bin/lyna-tmux"},
-		{name: "a go bin directory", path: "/home/u/go/bin/lyna-tmux"},
-		{name: "the homebrew bin directory itself", path: "/opt/homebrew/bin/lyna-tmux"},
+		{name: "a user bin directory", path: "/home/u/.local/bin/lmux"},
+		{name: "a go bin directory", path: "/home/u/go/bin/lmux"},
+		{name: "the homebrew bin directory itself", path: "/opt/homebrew/bin/lmux"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -452,13 +462,19 @@ func TestUninstallCompletionPaths(t *testing.T) {
 		want []string
 	}{
 		{
-			name: "the paths setup names",
-			want: []string{"/home/u/.local/share/bash-completion/completions/lyna-tmux", "/home/u/.zfunc/_lyna-tmux", "/home/u/.config/fish/completions/lyna-tmux.fish"},
+			name: "the paths setup names, under both names of the command",
+			want: []string{
+				"/home/u/.local/share/bash-completion/completions/lmux", "/home/u/.zfunc/_lmux", "/home/u/.config/fish/completions/lmux.fish",
+				"/home/u/.local/share/bash-completion/completions/lyna-tmux", "/home/u/.zfunc/_lyna-tmux", "/home/u/.config/fish/completions/lyna-tmux.fish",
+			},
 		},
 		{
 			name: "moved by the xdg variables",
 			env:  map[string]string{"XDG_DATA_HOME": "/srv/data", "XDG_CONFIG_HOME": "/srv/cfg"},
 			want: []string{
+				"/home/u/.local/share/bash-completion/completions/lmux", "/srv/data/bash-completion/completions/lmux",
+				"/home/u/.zfunc/_lmux",
+				"/home/u/.config/fish/completions/lmux.fish", "/srv/cfg/fish/completions/lmux.fish",
 				"/home/u/.local/share/bash-completion/completions/lyna-tmux", "/srv/data/bash-completion/completions/lyna-tmux",
 				"/home/u/.zfunc/_lyna-tmux",
 				"/home/u/.config/fish/completions/lyna-tmux.fish", "/srv/cfg/fish/completions/lyna-tmux.fish",
@@ -467,7 +483,10 @@ func TestUninstallCompletionPaths(t *testing.T) {
 		{
 			name: "relative xdg variables are ignored",
 			env:  map[string]string{"XDG_DATA_HOME": "data", "XDG_CONFIG_HOME": "cfg"},
-			want: []string{"/home/u/.local/share/bash-completion/completions/lyna-tmux", "/home/u/.zfunc/_lyna-tmux", "/home/u/.config/fish/completions/lyna-tmux.fish"},
+			want: []string{
+				"/home/u/.local/share/bash-completion/completions/lmux", "/home/u/.zfunc/_lmux", "/home/u/.config/fish/completions/lmux.fish",
+				"/home/u/.local/share/bash-completion/completions/lyna-tmux", "/home/u/.zfunc/_lyna-tmux", "/home/u/.config/fish/completions/lyna-tmux.fish",
+			},
 		},
 	}
 	for _, tc := range cases {
@@ -536,10 +555,10 @@ func TestUninstallTmuxConfLines(t *testing.T) {
 		},
 		{
 			name:  "both files",
-			files: map[string]string{".tmux.conf": "set -g @plugin 'bayoudhdev/lyna-claude-tmux'\n", ".config/tmux/tmux.conf": "# lyna-tmux keys\n"},
+			files: map[string]string{".tmux.conf": "set -g @plugin 'bayoudhdev/lyna-claude-tmux'\n", ".config/tmux/tmux.conf": "# lmux keys\n"},
 			want: []UninstallManual{
 				{Step: "remove line 1 of $HOME/.tmux.conf", How: "set -g @plugin 'bayoudhdev/lyna-claude-tmux'"},
-				{Step: "remove line 1 of $HOME/.config/tmux/tmux.conf", How: "# lyna-tmux keys"},
+				{Step: "remove line 1 of $HOME/.config/tmux/tmux.conf", How: "# lmux keys"},
 			},
 		},
 		{
@@ -660,12 +679,42 @@ func TestUninstallRefusals(t *testing.T) {
 		if _, err := os.Lstat(target); err != nil {
 			t.Fatalf("the link target was removed: %v", err)
 		}
+		// The link under the old name is the way to a binary we no longer
+		// remove, so it stays with it.
+		if _, err := os.Lstat(fx.alias); err != nil {
+			t.Fatalf("the link under the old name was removed with the binary kept: %v", err)
+		}
 		wantRemoved := slices.Concat([]string{
 			filepath.Join(fx.root, ".local", "state", "lyna-tmux"), filepath.Join(fx.root, ".cache", "lyna-tmux"),
 			filepath.Join(fx.root, ".local", "share", "lyna-tmux"), filepath.Join(fx.root, ".config", "lyna-tmux"),
 		}, fx.themes, fx.completions)
 		if !slices.Equal(res.Removed, wantRemoved) {
 			t.Fatalf("removed %q\nwant everything but the binary %q", res.Removed, wantRemoved)
+		}
+	})
+	// A binary removed by something else between the plan and the removal
+	// leaves the link under the old name pointing at nothing, so the link is
+	// taken even though there is no binary left to take.
+	t.Run("the binary is gone between the plan and the removal", func(t *testing.T) {
+		fx := uninstallHome(t)
+		env := map[string]string{"HOME": fx.root, session.EnvSocketName: "lt-" + filepath.Base(fx.root), "TMUX": "/tmp/outer,1,0"}
+		h := Host{Getenv: func(k string) string { return env[k] }, Home: fx.root, Exe: fx.exe, TmuxBin: bin}
+		p, err := UninstallPlanFor(h, true)
+		if err != nil || p.Binary != fx.exe || p.Alias != fx.alias {
+			t.Fatalf("plan %+v, %v", p, err)
+		}
+		if err := os.Remove(fx.exe); err != nil {
+			t.Fatal(err)
+		}
+		res, err := p.Apply(tmuxtest.Context(t), h)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Lstat(fx.alias); !errors.Is(err, fs.ErrNotExist) {
+			t.Fatalf("the dangling link was kept: %v", err)
+		}
+		if !slices.Contains(res.Removed, fx.alias) || slices.Contains(res.Removed, fx.exe) {
+			t.Fatalf("removed %q, want the link and not the binary", res.Removed)
 		}
 	})
 	// Under LYNA_TMUX_HOME the four roots are plain names the user may have
@@ -761,7 +810,7 @@ func TestUninstallCheckDir(t *testing.T) {
 		{name: "xdg state", host: xdgHost, dir: "/home/u/.local/state/lyna-tmux", ok: true},
 		{name: "xdg config", host: xdgHost, dir: "/home/u/.config/lyna-tmux", ok: true},
 		{name: "xdg state with a trailing slash", host: xdgHost, dir: "/home/u/.local/state/lyna-tmux/", ok: true},
-		{name: "another application's directory of the same name", host: xdgHost, dir: "/opt/lyna-tmux", ok: false},
+		{name: "another application's directory of the same name", host: xdgHost, dir: "/opt/lmux", ok: false},
 		{name: "the xdg parent", host: xdgHost, dir: "/home/u/.local/state", ok: false},
 		{name: "lyna home state", host: lynaHost, dir: "/srv/lt/state", ok: true},
 		{name: "lyna home root", host: lynaHost, dir: "/srv/lt", ok: false},

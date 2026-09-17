@@ -28,8 +28,8 @@ func uninstallCommand(d Deps) *cobra.Command {
 			"a package manager's, not in a directory you cannot write. Your own tmux, Claude Code\n" +
 			"and Neovim settings, and every other tmux server, are left alone. What is left to do\n" +
 			"by hand is printed at the end.",
-		Example: "  lyna-tmux uninstall\n" +
-			"  lyna-tmux uninstall --purge --yes",
+		Example: "  lmux uninstall\n" +
+			"  lmux uninstall --purge --yes",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			h, err := d.Host()
@@ -64,7 +64,10 @@ func uninstallCommand(d Deps) *cobra.Command {
 				fmt.Fprintf(out, "  %s (a shell completion lyna-tmux generated)\n", sanitize.Line(path))
 			}
 			if p.Binary != "" {
-				fmt.Fprintf(out, "  %s (the lyna-tmux binary)\n", sanitize.Line(p.Binary))
+				fmt.Fprintf(out, "  %s (the lmux binary)\n", sanitize.Line(p.Binary))
+			}
+			if p.Alias != "" {
+				fmt.Fprintf(out, "  %s (the link under the name the command had in 1.0.0)\n", sanitize.Line(p.Alias))
 			}
 			uninstallWriteKept(out, p)
 			if !yes {
