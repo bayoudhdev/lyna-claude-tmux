@@ -79,7 +79,8 @@ func dash(s string) string {
 }
 
 func newAttachCmd(d Deps) *cobra.Command {
-	return &cobra.Command{
+	var nested bool
+	cmd := &cobra.Command{
 		Use:     "attach [name]",
 		Aliases: []string{"a"},
 		Short:   "Attach this terminal to a workspace",
@@ -105,9 +106,11 @@ func newAttachCmd(d Deps) *cobra.Command {
 			if _, err := s.Sync(ctx); err != nil {
 				return err
 			}
-			return d.attach(cmd, h, s, name)
+			return d.attach(cmd, h, s, name, attachOptions(nested)...)
 		},
 	}
+	cmd.Flags().BoolVar(&nested, "nested", false, "attach even from inside another tmux session")
+	return cmd
 }
 
 // onlyWorkspace names the single running workspace.

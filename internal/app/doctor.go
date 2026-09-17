@@ -11,12 +11,14 @@ import (
 	domain "github.com/bayoudhdev/lyna-claude-tmux/internal/domain/review"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/session"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/review"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/xdg"
 )
 
 // Doctor rows the app layer adds around the machine checks.
 const (
 	doctorConfigID = "config"
+	doctorNestedID = "nesting"
 	doctorReviewID = "review"
 	// doctorShortCommit is how much of a commit id a report line shows.
 	doctorShortCommit = 12
@@ -67,7 +69,7 @@ func DoctorRun(ctx context.Context, h Host, sys doctor.Deps, dir string) doctor.
 		}
 	}
 
-	results := append([]doctor.Result{row}, doctor.Run(ctx, sys)...)
+	results := append([]doctor.Result{row, doctorNesting(h)}, doctor.Run(ctx, sys)...)
 	if pathsErr != nil {
 		results = append(results, doctor.Result{ID: doctorReviewID, Title: "Review editor", Status: doctor.StatusSkip, Detail: "the lyna-tmux directories are unknown"})
 		return doctor.NewReport(results)
@@ -81,6 +83,28 @@ func DoctorRun(ctx context.Context, h Host, sys doctor.Deps, dir string) doctor.
 		opts.Run = doctorReviewRun(sys)
 	}
 	return doctor.NewReport(append(results, doctorReviewResult(editor, review.Status(ctx, opts))))
+}
+
+// doctorNesting reports a terminal that already runs a tmux of its own. A
+// workspace attached there is a tmux inside a tmux: the outer session reads
+// the prefix key first, and the replies the terminal sends the inner server
+// arrive too late to be recognized and are typed into the focused pane, the
+// agent prompt included.
+func doctorNesting(h Host) doctor.Result {
+	res := doctor.Result{ID: doctorNestedID, Title: "Terminal"}
+	name := h.Getenv(session.EnvSocketName)
+	if name == "" {
+		name = tmux.DefaultSocketName
+	}
+	socket, ok := (&Server{SocketName: name}).ForeignTmux(h)
+	if !ok {
+		res.Status, res.Detail = doctor.StatusOK, "not inside another tmux session"
+		return res
+	}
+	res.Status = doctor.StatusWarn
+	res.Detail = "inside the tmux server " + socket + ", so a workspace attached from here runs one tmux inside another"
+	res.Fix = "detach that session and run lyna-tmux from the terminal, or attach with --nested"
+	return res
 }
 
 // doctorReviewRun adapts the doctor command runner, with its per-command

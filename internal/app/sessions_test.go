@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"maps"
+	"net"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -204,5 +206,119 @@ func TestInside(t *testing.T) {
 				t.Fatalf("Inside(%q) = %v, want %v", tc.tmux, got, tc.want)
 			}
 		})
+	}
+}
+
+// TestForeignTmux pins which servers count as another tmux. Only those nest a
+// second server in one terminal; the lyna-tmux server switches its own client
+// and no tmux at all attaches normally.
+func TestForeignTmux(t *testing.T) {
+	s := &Server{SocketName: "lyna-tmux"}
+	path := SocketPath(func(string) string { return "" }, "lyna-tmux")
+	other := filepath.Join(filepath.Dir(path), "default")
+	cases := []struct {
+		name       string
+		tmux       string
+		wantSocket string
+		want       bool
+	}{
+		{name: "another server", tmux: other + ",42,0", wantSocket: other, want: true},
+		{name: "another server unclean path", tmux: filepath.Dir(path) + "/./default,42,0", wantSocket: other, want: true},
+		{name: "own server", tmux: path + ",42,0"},
+		{name: "not in tmux"},
+		{name: "empty socket", tmux: ",42,0"},
+		// Without the comma tmux never wrote the variable, so nothing is known
+		// about a server and nothing is refused.
+		{name: "no fields", tmux: path},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := Host{Getenv: func(k string) string {
+				if k == "TMUX" {
+					return tc.tmux
+				}
+				return ""
+			}}
+			socket, got := foreignSocket(h, s.SocketName)
+			if got != tc.want || socket != tc.wantSocket {
+				t.Fatalf("foreignSocket(%q) = %q, %v, want %q, %v", tc.tmux, socket, got, tc.wantSocket, tc.want)
+			}
+		})
+	}
+}
+
+// TestForeignTmuxNeedsALiveSocket covers the variable a shell keeps after the
+// server it came from exited: there is nothing left to nest inside, so that
+// terminal attaches normally.
+func TestForeignTmuxNeedsALiveSocket(t *testing.T) {
+	s := &Server{SocketName: "lyna-tmux"}
+	path := filepath.Join(t.TempDir(), "default")
+	host := func() Host {
+		return Host{Getenv: func(k string) string {
+			if k == "TMUX" {
+				return path + ",42,0"
+			}
+			return ""
+		}}
+	}
+	if socket, ok := s.ForeignTmux(host()); ok {
+		t.Fatalf("missing socket reported as %q", socket)
+	}
+	ln, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	if socket, ok := s.ForeignTmux(host()); !ok || socket != path {
+		t.Fatalf("live socket = %q, %v", socket, ok)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if socket, ok := s.ForeignTmux(host()); ok {
+		t.Fatalf("a plain file at the socket path reported as %q", socket)
+	}
+}
+
+// TestAttachCommandRefusesNesting covers the terminal that already runs a tmux
+// of its own: attaching there puts one server inside another, which is what
+// makes the outer session eat the prefix key and the terminal's own answers
+// land in the agent pane as typed text.
+func TestAttachCommandRefusesNesting(t *testing.T) {
+	h := newTestHost(t)
+	s := openServer(t, h)
+	ctx := tmuxtest.Context(t)
+	startWorkspace(t, s, "api")
+
+	// A second tmux server, as a terminal already running one would have.
+	other := tmuxtest.Socket(t, h.TmuxBin)
+	if _, err := tmux.New(tmux.Options{Bin: h.TmuxBin, Socket: tmux.Socket{Name: other}, Config: "/dev/null"}).
+		Run(ctx, "new-session", "-d", "-s", "outer", "sleep 3600"); err != nil {
+		t.Fatal(err)
+	}
+	socket := tmuxtest.SocketPath(other)
+	outer := *h
+	outer.env = maps.Clone(h.env)
+	outer.env["TMUX"] = socket + ",42,0"
+	outer.Getenv = func(k string) string { return outer.env[k] }
+
+	_, err := s.AttachCommand(ctx, outer.Host, "api")
+	if !errors.Is(err, ErrNestedTmux) {
+		t.Fatalf("nested attach: err = %v", err)
+	}
+	for _, want := range []string{socket, "--nested"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error %q does not name %q", err, want)
+		}
+	}
+	att, err := s.AttachCommand(ctx, outer.Host, "api", AllowNested())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(att.Argv, "attach-session") {
+		t.Fatalf("forced attach %q", att.Argv)
 	}
 }

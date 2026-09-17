@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -13,6 +15,9 @@ import (
 
 // ErrNoWorkspace reports a workspace session that does not exist.
 var ErrNoWorkspace = errors.New("no such workspace")
+
+// ErrNestedTmux reports an attach from a pane of another tmux server.
+var ErrNestedTmux = errors.New("already inside another tmux session")
 
 // Sessions lists the workspace sessions; a stopped server has none.
 func (s *Server) Sessions(ctx context.Context) ([]tmux.Session, error) {
@@ -66,12 +71,27 @@ type Attach struct {
 	Env  []string
 }
 
+// AttachOption changes how a workspace is attached.
+type AttachOption func(*attachOptions)
+
+type attachOptions struct{ nested bool }
+
+// AllowNested attaches even from inside another tmux server. It is what the
+// --nested flag passes: the caller has been told what nesting costs and wants
+// it anyway.
+func AllowNested() AttachOption { return func(o *attachOptions) { o.nested = true } }
+
 // AttachCommand checks that the workspace exists and returns how to show it
 // in this terminal, with the environment scrubbed as for the server. From a
 // pane of the lyna-tmux server itself it switches the current client instead:
-// tmux refuses a nested attach to its own server. From the user's own tmux an
-// attach works as usual.
-func (s *Server) AttachCommand(ctx context.Context, h Host, name string) (Attach, error) {
+// tmux refuses a nested attach to its own server. From another tmux server it
+// refuses, because that terminal would run one tmux inside another, unless
+// AllowNested says to go ahead.
+func (s *Server) AttachCommand(ctx context.Context, h Host, name string, opts ...AttachOption) (Attach, error) {
+	var o attachOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
 	if err := session.Validate(name); err != nil {
 		return Attach{}, err
 	}
@@ -92,7 +112,45 @@ func (s *Server) AttachCommand(ctx context.Context, h Host, name string) (Attach
 		}
 		return Attach{Argv: s.Client.Argv(tmux.Command{"switch-client", "-t", tmux.ExactSession(name)}), Env: env}, nil
 	}
+	if socket, ok := s.ForeignTmux(h); ok && !o.nested {
+		return Attach{}, fmt.Errorf("%w (%s): the workspace would run as a tmux inside a tmux, "+
+			"where the outer session takes the prefix key first and the answers your terminal sends to the "+
+			"inner one are typed into whatever pane has the focus, agent prompt included; "+
+			"detach the outer session and run this again from the terminal, "+
+			"or pass --nested to attach anyway", ErrNestedTmux, socket)
+	}
 	return Attach{Argv: s.Client.Argv(tmux.Command{"attach-session", "-t", tmux.ExactSession(name)}), Env: env}, nil
+}
+
+// ForeignTmux returns the socket of the tmux server this process runs in when
+// that server is not the lyna-tmux one. Its own server is not foreign: a
+// workspace opened from a pane of it switches the client rather than nesting.
+func (s *Server) ForeignTmux(h Host) (string, bool) {
+	socket, ok := foreignSocket(h, s.SocketName)
+	if !ok {
+		return "", false
+	}
+	// A variable inherited from a server that has since exited names nothing
+	// to nest inside, so the socket has to still be there.
+	info, err := os.Lstat(socket)
+	if err != nil || info.Mode()&fs.ModeSocket == 0 {
+		return "", false
+	}
+	return socket, true
+}
+
+// foreignSocket reads the socket path tmux exports and reports whether it
+// belongs to a server other than the one named.
+func foreignSocket(h Host, name string) (string, bool) {
+	socket, _, ok := strings.Cut(h.Getenv("TMUX"), ",")
+	if !ok || socket == "" {
+		return "", false
+	}
+	socket = filepath.Clean(socket)
+	if socket == SocketPath(h.Getenv, name) {
+		return "", false
+	}
+	return socket, true
 }
 
 // Inside reports whether the process runs in a pane of this lyna-tmux server,

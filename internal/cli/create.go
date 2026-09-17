@@ -54,6 +54,7 @@ func createFlags(cmd *cobra.Command, d Deps, c createCommand) *cobra.Command {
 	var (
 		req    app.CreateRequest
 		detach bool
+		nested bool
 	)
 	cmd.Args = func(cmd *cobra.Command, args []string) error {
 		if n := cmd.ArgsLenAtDash(); n > 1 || n < 0 && len(args) > 1 {
@@ -63,7 +64,7 @@ func createFlags(cmd *cobra.Command, d Deps, c createCommand) *cobra.Command {
 	}
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		req.Launch.Teams = c.Teams
-		return d.runCreate(cmd, args, req, detach, c)
+		return d.runCreate(cmd, args, req, detach, nested, c)
 	}
 	f := cmd.Flags()
 	f.StringVarP(&req.Layout, "layout", "l", "", "layout: solo, duo, trio, quad, review, auto or a custom layout")
@@ -75,6 +76,7 @@ func createFlags(cmd *cobra.Command, d Deps, c createCommand) *cobra.Command {
 	f.StringVar(&req.Launch.Isolation, "isolation", "", "isolation level")
 	f.BoolVarP(&req.Launch.Continue, "continue", "c", false, "continue the most recent conversation")
 	f.BoolVarP(&detach, "detach", "d", false, "start the workspace without attaching")
+	f.BoolVar(&nested, "nested", false, "attach even from inside another tmux session")
 	// The size of a terminal this process cannot measure: container isolation
 	// starts create inside the dev container, where the layout is chosen for
 	// the terminal the user sits at, on the host.
@@ -102,7 +104,7 @@ func createFlags(cmd *cobra.Command, d Deps, c createCommand) *cobra.Command {
 
 // runCreate opens the workspace of req and attaches this terminal to it, or
 // reports where it runs when detached.
-func (d Deps) runCreate(cmd *cobra.Command, args []string, req app.CreateRequest, detach bool, c createCommand) error {
+func (d Deps) runCreate(cmd *cobra.Command, args []string, req app.CreateRequest, detach, nested bool, c createCommand) error {
 	ctx, h, s, err := d.openServer(cmd)
 	if err != nil {
 		return err
@@ -140,7 +142,15 @@ func (d Deps) runCreate(cmd *cobra.Command, args []string, req app.CreateRequest
 		_, err := fmt.Fprint(out, c.Running(res))
 		return err
 	}
-	return d.attach(cmd, h, s, res.Name)
+	return d.attach(cmd, h, s, res.Name, attachOptions(nested)...)
+}
+
+// attachOptions turns the --nested flag into the option AttachCommand takes.
+func attachOptions(nested bool) []app.AttachOption {
+	if nested {
+		return []app.AttachOption{app.AllowNested()}
+	}
+	return nil
 }
 
 // splitDash separates the optional directory from the arguments after --.
@@ -156,8 +166,8 @@ func splitDash(cmd *cobra.Command, args []string) (dir string, extra []string) {
 }
 
 // attach hands this terminal to a workspace: tmux replaces the process.
-func (d Deps) attach(cmd *cobra.Command, h app.Host, s *app.Server, name string) error {
-	att, err := s.AttachCommand(cmd.Context(), h, name)
+func (d Deps) attach(cmd *cobra.Command, h app.Host, s *app.Server, name string, opts ...app.AttachOption) error {
+	att, err := s.AttachCommand(cmd.Context(), h, name, opts...)
 	if err != nil {
 		return err
 	}
