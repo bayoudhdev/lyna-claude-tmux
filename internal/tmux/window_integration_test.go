@@ -113,11 +113,15 @@ func TestIntegrationDescribeAndSplitPane(t *testing.T) {
 			if st.down && (nt <= pt || nl != pl) || !st.down && (nl <= pl || nt != pt) {
 				t.Fatalf("split down=%v: parent at %d,%d, new pane at %d,%d", st.down, pl, pt, nl, nt)
 			}
-			if st.role != layout.RoleClaude {
-				return
+			// A pane running a program of ours keeps its failure on screen; a
+			// shell pane is the user's own and is left at tmux's behavior, so
+			// a prompt exited with a failing status closes as it always does.
+			want := "failed"
+			if st.role == layout.RoleShell {
+				want = ""
 			}
-			if remain, err := srv.Client.ShowOption(ctx, "-p", id, "remain-on-exit"); err != nil || remain != "failed" {
-				t.Fatalf("claude pane remain-on-exit = %q (%v)", remain, err)
+			if remain, err := srv.Client.ShowOption(ctx, "-p", id, "remain-on-exit"); err != nil || remain != want {
+				t.Fatalf("%s pane remain-on-exit = %q (%v), want %q", st.role, remain, err, want)
 			}
 		})
 	}

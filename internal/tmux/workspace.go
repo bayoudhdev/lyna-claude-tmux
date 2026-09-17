@@ -242,17 +242,31 @@ func (p PaneProcess) args() []string {
 }
 
 // paneOptions tag the pane target resolves to with its role and the process's
-// user options, in name order. Claude panes stay open after a failed exit so
-// the error remains readable.
+// user options, in name order. A pane running a program this workspace chose
+// stays open after a failed exit so the reason remains readable: one that
+// closes on the way up takes its own error message with it, and the layout
+// then looks as if the pane had never been asked for. A shell pane is the
+// user's own and keeps tmux's behavior, so a prompt left with a failing status
+// does not leave a pane to close by hand.
 func paneOptions(target string, role layout.Role, p PaneProcess) []Command {
 	cmds := []Command{{"set-option", "-p", "-t", target, OptRole, string(role)}}
-	if role == layout.RoleClaude {
+	if keepsFailure(role) {
 		cmds = append(cmds, Command{"set-option", "-p", "-t", target, "remain-on-exit", "failed"})
 	}
 	for _, name := range slices.Sorted(maps.Keys(p.Options)) {
 		cmds = append(cmds, Command{"set-option", "-p", "-t", target, name, p.Options[name]})
 	}
 	return cmds
+}
+
+// keepsFailure reports whether a dead pane of this role is kept on screen.
+func keepsFailure(role layout.Role) bool {
+	switch role {
+	case layout.RoleClaude, layout.RoleChanges, layout.RoleReview, layout.RoleCommand:
+		return true
+	default:
+		return false
+	}
 }
 
 func parseCreated(out string) (Built, bool) {
