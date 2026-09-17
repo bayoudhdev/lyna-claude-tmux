@@ -559,6 +559,12 @@ const (
 	// otherwise, which is the only one still running once the review has
 	// become the editor.
 	reviewHelperStatusEnv = "LYNA_TMUX_TEST_REVIEW_STATUS"
+	// reviewHelperDiagEnv names the file the helper writes what the review
+	// decided the pane was from. Keeping the reason on screen needs an
+	// interactive terminal and a pane this process is the program of, and a
+	// failure that reports neither leaves nothing to tell a slow tmux answer
+	// from a pane we do not own.
+	reviewHelperDiagEnv = "LYNA_TMUX_TEST_REVIEW_DIAG"
 )
 
 // reviewHelperWrapper runs the helper as the child of a shell, the way a
@@ -577,6 +583,22 @@ exit "$s"
 
 // writeExitStatus records code for the pane test: the file appears with its
 // final content, so a reader never sees a partial write.
+// writeReviewDiag records what the review saw of its terminal and its pane,
+// measured again once the command has returned. It is read only when a test
+// fails, and it runs after the command so it changes nothing about its timing.
+func writeReviewDiag(path string, d Deps) {
+	h, err := d.Host()
+	if err != nil {
+		_ = os.WriteFile(path, []byte("host: "+err.Error()), 0o600)
+		return
+	}
+	term := d.Terminal()
+	line := fmt.Sprintf("pid=%d interactive=%v owns=%v TMUX=%q TMUX_PANE=%q tmux=%q",
+		os.Getpid(), term.Interactive, app.ReviewOwnsPane(context.Background(), h, os.Getpid()),
+		h.Getenv("TMUX"), h.Getenv("TMUX_PANE"), h.TmuxBin)
+	_ = os.WriteFile(path, []byte(line), 0o600)
+}
+
 func writeExitStatus(path string, code int) {
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, []byte(strconv.Itoa(code)), 0o600); err == nil {
@@ -612,6 +634,9 @@ func TestReviewHelperProcess(_ *testing.T) {
 	root := NewRootWith(Streams{In: os.Stdin, Out: os.Stdout, Err: os.Stderr}, d)
 	reviewUseSource(root, d, app.ReviewPlugin{Pin: src.Pin, GOOS: src.GOOS, GOARCH: src.GOARCH})
 	code := run(context.Background(), root, args)
+	if path := os.Getenv(reviewHelperDiagEnv); path != "" {
+		writeReviewDiag(path, d)
+	}
 	if path := os.Getenv(reviewHelperStatusEnv); path != "" {
 		writeExitStatus(path, code)
 	}
@@ -716,6 +741,7 @@ func TestReviewInTmuxPane(t *testing.T) {
 			sandbox := t.TempDir()
 			record := filepath.Join(t.TempDir(), "record.json")
 			status := filepath.Join(t.TempDir(), "status")
+			diag := filepath.Join(t.TempDir(), "diag")
 			argsJSON, err := json.Marshal(tc.args)
 			if err != nil {
 				t.Fatal(err)
@@ -723,8 +749,8 @@ func TestReviewInTmuxPane(t *testing.T) {
 			env := map[string]string{
 				reviewHelperEnv: "1", reviewHelperArgsEnv: string(argsJSON), reviewHelperSourceEnv: string(sourceJSON),
 				"LYNA_TMUX_HOME": home, "HOME": sandbox, "LANG": "en_US.UTF-8", "LYNA_TMUX_TEST_RECORD": record,
-				reviewHelperStatusEnv: status,
-				"XDG_CONFIG_HOME":     filepath.Join(sandbox, "config"), "XDG_DATA_HOME": filepath.Join(sandbox, "data"),
+				reviewHelperStatusEnv: status, reviewHelperDiagEnv: diag,
+				"XDG_CONFIG_HOME": filepath.Join(sandbox, "config"), "XDG_DATA_HOME": filepath.Join(sandbox, "data"),
 				"XDG_STATE_HOME": filepath.Join(sandbox, "state"), "XDG_CACHE_HOME": filepath.Join(sandbox, "cache"),
 				"XDG_CONFIG_DIRS": filepath.Join(sandbox, "etc"), "XDG_DATA_DIRS": filepath.Join(sandbox, "share"),
 				"GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1",
@@ -776,7 +802,10 @@ func TestReviewInTmuxPane(t *testing.T) {
 			t.Cleanup(func() {
 				if t.Failed() {
 					s := screen()
-					t.Logf("screen (capture error %v):\n%s", captureErr, s)
+					d, _ := os.ReadFile(diag)
+					pid, _ := srv.Client.Display(ctx, pane, "#{pane_pid}")
+					t.Logf("pane_pid %s, review saw %q, capture error %v; screen:\n%s",
+						strings.TrimSpace(pid), d, captureErr, s)
 				}
 			})
 
