@@ -234,10 +234,17 @@ func RemoveSocket(name string) error {
 	return os.Remove(path)
 }
 
+// contextTimeout bounds a tmux call so a server that never answers fails the
+// test instead of hanging it. It is several poll timeouts long on purpose: a
+// test that holds one context while it polls would otherwise go blind when
+// the context expires, and every call after that answers with an error the
+// poll cannot tell from a screen that has not changed yet.
+const contextTimeout = 6 * pollTimeout
+
 // Context returns a context bounded for one test step.
 func Context(t testing.TB) context.Context {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), contextTimeout)
 	t.Cleanup(cancel)
 	return ctx
 }

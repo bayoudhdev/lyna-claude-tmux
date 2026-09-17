@@ -747,8 +747,13 @@ func TestReviewInTmuxPane(t *testing.T) {
 				t.Fatal(err)
 			}
 			pane := strings.TrimSpace(out)
+			// A capture that fails answers with no screen, which reads like a
+			// pane that has drawn nothing: the last error is kept so a failure
+			// says which of the two happened.
+			var captureErr error
 			screen := func() string {
-				s, _ := srv.Client.Run(ctx, "capture-pane", "-p", "-J", "-t", pane)
+				s, err := srv.Client.Run(ctx, "capture-pane", "-p", "-J", "-t", pane)
+				captureErr = err
 				return s
 			}
 			shows := func(want []string) func() bool {
@@ -770,7 +775,8 @@ func TestReviewInTmuxPane(t *testing.T) {
 			}
 			t.Cleanup(func() {
 				if t.Failed() {
-					t.Logf("screen:\n%s", screen())
+					s := screen()
+					t.Logf("screen (capture error %v):\n%s", captureErr, s)
 				}
 			})
 

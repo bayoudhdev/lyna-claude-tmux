@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
 )
@@ -111,5 +112,31 @@ func TestSocketCleanup(t *testing.T) {
 	c := tmux.New(tmux.Options{Bin: bin, Socket: tmux.Socket{Name: name}})
 	if _, err := c.Run(context.Background(), "list-sessions"); err == nil {
 		t.Fatal("server still running")
+	}
+}
+
+// TestContextOutlastsPolling pins the rule the two timeouts have to keep: a
+// test holding one context across several polls must still be able to reach
+// tmux on the last of them. A context that expires first turns every answer
+// into an error, and a poll reads that as a screen that never changed.
+func TestContextOutlastsPolling(t *testing.T) {
+	cases := []struct {
+		name  string
+		polls int
+	}{
+		{"one poll", 1},
+		{"three polls in a row", 3},
+		{"five polls in a row", 5},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			deadline, ok := Context(t).Deadline()
+			if !ok {
+				t.Fatal("Context has no deadline")
+			}
+			if left := time.Until(deadline); left <= time.Duration(tc.polls)*pollTimeout {
+				t.Fatalf("context lasts %s, want more than %d polls of %s", left, tc.polls, pollTimeout)
+			}
+		})
 	}
 }
