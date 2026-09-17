@@ -3,14 +3,14 @@
 # The report prints where Claude Code is installed, so this scene runs against
 # the machine's own installation rather than the fixture that answers for the
 # agent list.
-title lyna-tmux doctor
+title lmux doctor
 size 104 30
 run demo-shell
 wait 1
 type clear
 enter
 wait 0.5
-type lyna-tmux doctor
+type lmux doctor
 enter
 wait 3
 frame 3.5

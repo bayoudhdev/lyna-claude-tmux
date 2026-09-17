@@ -2,29 +2,29 @@
 # workspace itself. Each one opens a window of its own and selects it, so the
 # scene goes back to the first window between them. The last frame is quad:
 # one agent per worktree.
-title lyna-tmux layout solo, duo, trio, quad
+title lmux layout solo, duo, trio, quad
 size 112 34
-pre lyna-tmux kill --all
+pre lmux kill --all
 pre rm -rf .devcontainer
-pre lyna-tmux create . --layout duo --detach
-run lyna-tmux create .
+pre lmux create . --layout duo --detach
+run lmux create .
 wait 4
 frame 1.6
 keys M-]
 wait 0.6
-type lyna-tmux layout solo
+type lmux layout solo
 enter
 wait 3
 frame 1.8
 keys M-1
 wait 0.8
-type lyna-tmux layout trio
+type lmux layout trio
 enter
 wait 3
 frame 1.8
 keys M-1
 wait 0.8
-type lyna-tmux layout quad
+type lmux layout quad
 enter
 wait 8
 frame 3

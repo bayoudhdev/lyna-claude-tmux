@@ -1,12 +1,12 @@
 # Container isolation: the files lyna-tmux renders for the project.
-title lyna-tmux sandbox devcontainer init
+title lmux sandbox devcontainer init
 size 104 30
 run demo-shell
 wait 1
 type clear
 enter
 wait 0.5
-type lyna-tmux sandbox devcontainer init
+type lmux sandbox devcontainer init
 enter
 wait 2.5
 frame 3

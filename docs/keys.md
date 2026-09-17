@@ -7,7 +7,7 @@ A `lyna-tmux` workspace installs two kinds of key binding:
 - **Prefix keys**, which fire after the tmux prefix. They cover the same actions, so a
   terminal that cannot send Meta still reaches everything.
 
-`lyna-tmux keys` prints what your configuration installs right now, and `lyna-tmux keys
+`lmux keys` prints what your configuration installs right now, and `lmux keys
 --json` prints the same as machine-readable JSON. Run it after changing `ui.alt_keys` or
 `workspace.prefix`; both live in [configuration.md](configuration.md).
 
@@ -99,10 +99,10 @@ What changes:
 - The menu has nothing left to list, so it falls back to three entries: Agents, Review
   changes and Scratch shell.
 - Mouse behavior is unchanged. It is controlled by `ui.mouse`, not by `ui.alt_keys`.
-- `lyna-tmux doctor` skips its Option as Meta check and reports `Alt key bindings are
+- `lmux doctor` skips its Option as Meta check and reports `Alt key bindings are
   disabled (ui.alt_keys = false)`.
 
-Running `lyna-tmux keys` with the setting off prints only the prefix section and the keys
+Running `lmux keys` with the setting off prints only the prefix section and the keys
 left to Claude Code.
 
 Changing `workspace.prefix` is the other half of this: set it to `C-a`, `C-Space` or any
@@ -148,7 +148,7 @@ opens a submenu that types a slash command into that pane: Workflows, Deep resea
 Compact context, Security review, Sandbox, Fullscreen renderer, Resume conversation, Usage.
 Commands that need an argument are typed without being submitted, so you can finish them.
 
-A `Layout:` entry opens a new window laid out that way, with the panes `lyna-tmux create`
+A `Layout:` entry opens a new window laid out that way, with the panes `lmux create`
 would start; the windows already open are left as they are. `Even tiles` retiles the window
 under the pointer. `auto` is not offered, because it only makes sense at creation, when the
 terminal size is known.
@@ -253,9 +253,9 @@ The note on `Ctrl+b` is printed only while `Ctrl+b` is your prefix. Choose anoth
 
 Two checks keep this honest:
 
-- `lyna-tmux keys` ends with a `Conflicts` section whenever a root binding lands on one of
+- `lmux keys` ends with a `Conflicts` section whenever a root binding lands on one of
   these keys, or a key is bound twice in one table. A clean run prints no such section.
-- `lyna-tmux doctor` reads your own `keybindings.json` from the Claude Code configuration
+- `lmux doctor` reads your own `keybindings.json` from the Claude Code configuration
   directory (`$CLAUDE_CONFIG_DIR`, or `~/.claude`) and warns about each binding whose first
   keystroke is a workspace root key or the prefix, naming the key and what takes it. Later
   keystrokes of a chord are safe: once the first key reaches Claude Code, tmux has no
@@ -264,7 +264,7 @@ Two checks keep this honest:
 ## Option as Meta, per terminal
 
 On Linux and other non-macOS platforms, Alt already sends Meta and there is nothing to do.
-On macOS, Option inserts composed characters until you change one setting. `lyna-tmux doctor`
+On macOS, Option inserts composed characters until you change one setting. `lmux doctor`
 identifies your terminal from `TERM_PROGRAM`, from `LC_TERMINAL`, or from the marker
 variables terminals export (`KITTY_WINDOW_ID`, `ALACRITTY_WINDOW_ID`, `ALACRITTY_SOCKET`,
 `WEZTERM_PANE`, `WEZTERM_EXECUTABLE`, `GHOSTTY_RESOURCES_DIR`), then prints the exact
@@ -295,10 +295,10 @@ The key bindings, the status line and the mouse behavior all come from one gener
 `<state>/tmux.conf`. You never edit it: it is rewritten from `config.toml`. The `<state>` and
 `<config>` directories are the ones listed in [configuration.md](configuration.md).
 
-1. Edit `config.toml`, for example with `lyna-tmux config edit`, and check it with
-   `lyna-tmux config validate`.
+1. Edit `config.toml`, for example with `lmux config edit`, and check it with
+   `lmux config validate`.
 2. Regenerate the tmux configuration by running any command that opens the server, for
-   example `lyna-tmux ls`. The file is rewritten only when its content actually changed.
+   example `lmux ls`. The file is rewritten only when its content actually changed.
 3. Load it into the running server. Creating or attaching a workspace, and the dashboard,
    do this by themselves whenever the file changed. To do it by hand, press the prefix and
    then `r`, or choose `Reload configuration` from the workspace menu.
@@ -308,8 +308,8 @@ step 2 before it if you have only edited `config.toml`.
 
 Two shortcuts:
 
-- `lyna-tmux theme <name>` writes `ui.theme` and restyles the running workspaces at once.
-- `lyna-tmux setup` applies its result the same way when it finishes.
+- `lmux theme <name>` writes `ui.theme` and restyles the running workspaces at once.
+- `lmux setup` applies its result the same way when it finishes.
 
 Claude Code panes are not affected by a reload: their settings are written per launch. Open
 a new pane, window or workspace for a change under `[claude]` or `[sandbox]`.

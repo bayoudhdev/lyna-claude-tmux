@@ -38,7 +38,7 @@ CI runs the test suite (`go test -race -shuffle=on`) on five runners: Ubuntu 24.
 ## Useful commands
 
 ```sh
-make build             # bin/lyna-tmux
+make build             # bin/lmux
 make test              # race detector, shuffled, with tmux integration tests
 make test-short        # unit tests only
 make golden            # regenerate golden files, then review the diff

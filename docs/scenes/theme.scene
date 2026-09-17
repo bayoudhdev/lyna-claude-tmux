@@ -1,12 +1,12 @@
 # The themes, and the one the workspace uses.
-title lyna-tmux theme
+title lmux theme
 size 104 30
 run demo-shell
 wait 1
 type clear
 enter
 wait 0.5
-type lyna-tmux theme
+type lmux theme
 enter
 wait 1.5
 frame 3

@@ -16,7 +16,7 @@ software bill of materials attached to every release, and in go.mod.
 lyna-tmux can install and run codediff.nvim
 (https://github.com/esmuellert/codediff.nvim), which is published by its
 authors under the MIT License, at a pinned and checksum-verified release. It
-is downloaded on request by `lyna-tmux review install`, into lyna-tmux's own
+is downloaded on request by `lmux review install`, into lyna-tmux's own
 data directory, and it is not bundled in lyna-tmux releases. Your own Neovim
 configuration and plugin directories are never touched.
 

@@ -1,13 +1,13 @@
 # Splitting and zooming a pane, all without the prefix key.
 title Alt+\ split right, Alt+- split down, Alt+z zoom
 size 112 34
-pre lyna-tmux kill --all
+pre lmux kill --all
 # The worktree branches another scene opened would fill the log line with
 # decorations; the branch the pane is on is the one worth showing.
 pre git config log.excludeDecoration refs/heads/worktree-*
 pre rm -rf .devcontainer
-pre lyna-tmux create . --layout solo --detach
-run lyna-tmux create .
+pre lmux create . --layout solo --detach
+run lmux create .
 wait 4
 frame 1.6
 keys M-\

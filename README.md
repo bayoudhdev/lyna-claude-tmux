@@ -11,7 +11,7 @@
 
 Styled split layouts, live agent state in the status bar, an agent picker, a side-by-side diff
 review and a sandbox configured per launch. No tmux commands to learn, and your own tmux and
-Claude Code settings are never touched. The command is `lyna-tmux`.
+Claude Code settings are never touched. The command is `lmux`.
 
 [![Build](https://img.shields.io/github/actions/workflow/status/bayoudhdev/lyna-claude-tmux/ci.yml?branch=main&style=for-the-badge&label=BUILD&labelColor=11111B&color=5B5BE8)](https://github.com/bayoudhdev/lyna-claude-tmux/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/bayoudhdev/lyna-claude-tmux?sort=semver&style=for-the-badge&label=RELEASE&labelColor=11111B&color=5B5BE8)](https://github.com/bayoudhdev/lyna-claude-tmux/releases)
@@ -24,7 +24,7 @@ Claude Code settings are never touched. The command is `lyna-tmux`.
 ![One command opens the project: Claude Code, a shell and a live changes pane](docs/assets/workspace.gif)
 
 ```bash
-lyna-tmux create ~/src/acme-api
+lmux create ~/src/acme-api
 ```
 
 That one command opens the project in its own tmux server: Claude Code on the left, a shell and a
@@ -55,7 +55,7 @@ lyna-tmux does both halves for you:
 
 ```bash
 # With Go
-go install github.com/bayoudhdev/lyna-claude-tmux/cmd/lyna-tmux@latest
+go install github.com/bayoudhdev/lyna-claude-tmux/cmd/lmux@latest
 
 # Or the release binary (checksum verified, installs into ~/.local/bin, no sudo)
 curl -fsSL https://raw.githubusercontent.com/bayoudhdev/lyna-claude-tmux/main/scripts/install.sh | sh
@@ -65,15 +65,15 @@ Packages (`.deb`, `.rpm`, `.apk`) and archives for macOS and Linux, amd64 and ar
 every [release](https://github.com/bayoudhdev/lyna-claude-tmux/releases), with checksums, an SBOM
 and a build provenance attestation.
 
-Requirements: tmux 3.3 or newer, Claude Code 2.1.257 or newer, git. `lyna-tmux doctor` checks all of
+Requirements: tmux 3.3 or newer, Claude Code 2.1.257 or newer, git. `lmux doctor` checks all of
 it and prints the exact command that fixes anything missing. Windows is supported through WSL2.
 
 ## Quickstart
 
 ```bash
-lyna-tmux setup                 # optional: theme, layout, sandbox and model defaults
-lyna-tmux create ~/src/acme-api # open the workspace (attaches if it is already open)
-lyna-tmux                       # the dashboard: workspaces, agents, quick actions
+lmux setup                 # optional: theme, layout, sandbox and model defaults
+lmux create ~/src/acme-api # open the workspace (attaches if it is already open)
+lmux                       # the dashboard: workspaces, agents, quick actions
 ```
 
 ## Panes
@@ -156,7 +156,7 @@ exits, and the workspace underneath is untouched.
 | `quad` | four Claude agents, each in its own git worktree |
 | `auto` | picks one from the size of the terminal |
 
-`lyna-tmux layout <name>` opens one in a new window, `lyna-tmux split right` adds a pane to the
+`lmux layout <name>` opens one in a new window, `lmux split right` adds a pane to the
 current one, and custom layouts go in the configuration file, pane by pane.
 
 ![The built-in layouts, one window each](docs/assets/layouts.gif)
@@ -164,9 +164,9 @@ current one, and custom layouts go in the configuration file, pane by pane.
 ## Tasks, worktrees and teams
 
 ```bash
-lyna-tmux task rate-limit "add a token bucket to the API gateway"  # a window in its own worktree
-lyna-tmux team ~/src/acme-api                                      # agent teams, one pane each
-lyna-tmux resume                                                   # pick a past conversation
+lmux task rate-limit "add a token bucket to the API gateway"  # a window in its own worktree
+lmux team ~/src/acme-api                                      # agent teams, one pane each
+lmux resume                                                   # pick a past conversation
 ```
 
 Each `task` gets its own git worktree, so agents never fight over the same files, and running one
@@ -174,15 +174,15 @@ again by the same name selects the window it already has.
 
 ![A task in its own git worktree](docs/assets/task.gif)
 
-`lyna-tmux team` launches Claude Code with agent teams enabled and the teammate mode set to tmux,
+`lmux team` launches Claude Code with agent teams enabled and the teammate mode set to tmux,
 so every teammate Claude starts opens as a pane on the workspace server instead of a hidden
 subprocess.
 
-`lyna-tmux resume` picks a past conversation and continues it in the workspace.
+`lmux resume` picks a past conversation and continues it in the workspace.
 
 ## The dashboard
 
-`lyna-tmux` with no command opens the dashboard: every workspace with its layout, sandbox and
+`lmux` with no command opens the dashboard: every workspace with its layout, sandbox and
 project, every agent underneath, and one key per action.
 
 ![The dashboard](docs/assets/dashboard.gif)
@@ -216,9 +216,9 @@ Full reference, including what each profile does not protect: [docs/sandbox.md](
 ## Configuration
 
 ```bash
-lyna-tmux config init   # write the documented file
-lyna-tmux config edit   # open it in $EDITOR
-lyna-tmux config validate
+lmux config init   # write the documented file
+lmux config edit   # open it in $EDITOR
+lmux config validate
 ```
 
 Everything is optional and every key is documented in the file itself: theme and icons, default
@@ -228,13 +228,13 @@ isolation, extra allowed hosts, review editor, popup size, custom layouts. The f
 
 ![The configuration file](docs/assets/config.gif)
 
-`lyna-tmux setup` writes the same file through a wizard.
+`lmux setup` writes the same file through a wizard.
 
 ![The setup wizard](docs/assets/setup.gif)
 
 Thirteen themes ship with it, nine dark, three light and one that borrows the terminal's own
-palette. `lyna-tmux theme` lists them with a swatch each, `lyna-tmux theme preview [name]` draws a
-whole workspace in one so you can pick before you switch, and `lyna-tmux theme <name>` restyles
+palette. `lmux theme` lists them with a swatch each, `lmux theme preview [name]` draws a
+whole workspace in one so you can pick before you switch, and `lmux theme <name>` restyles
 every running workspace at once. Themes quantize to 256 or 16 colors when the terminal has no
 truecolor, and the icon set falls back to ASCII outside a UTF-8 locale.
 
@@ -262,12 +262,12 @@ The Claude Code plugin ships the same hooks for sessions you start yourself:
 
 ## Checking the machine
 
-`lyna-tmux doctor` checks tmux, Claude Code, git, the sandbox, the terminal and the review editor,
+`lmux doctor` checks tmux, Claude Code, git, the sandbox, the terminal and the review editor,
 and prints the command that fixes anything it finds.
 
 ![The doctor report](docs/assets/doctor.png)
 
-`lyna-tmux doctor --fix` goes one step further: it offers, one at a time, the fixes lyna-tmux can
+`lmux doctor --fix` goes one step further: it offers, one at a time, the fixes lyna-tmux can
 carry out itself, such as installing the review plugin or updating Claude Code, and answers `y`,
 `n`, `a` for all or `q` to stop. `--yes` applies them all without asking and `--dry-run` only shows
 them. Everything else stays yours to do and is listed at the end: a terminal setting, an account,
@@ -282,9 +282,9 @@ floor:
 
 | Command | Mean | Floor (hello world) |
 |---|---|---|
-| `lyna-tmux version` | 6.4 ms | 2.6 ms |
-| `lyna-tmux hook Stop` | 6.4 ms | 2.6 ms |
-| `lyna-tmux statusline` | 6.7 ms | 2.6 ms |
+| `lmux version` | 6.4 ms | 2.6 ms |
+| `lmux hook Stop` | 6.4 ms | 2.6 ms |
+| `lmux statusline` | 6.7 ms | 2.6 ms |
 
 Under 4 ms of work each on top of what starting any process on that machine costs, and hooks run
 with `async: true`, so a Claude turn never waits for one. The full table, with the machine and the
@@ -305,8 +305,8 @@ Found a vulnerability? Report it privately through GitHub security advisories, n
 ## Troubleshooting
 
 **The status bar shows no agent state.** Claude Code runs no hooks in a project you have not
-trusted, and it asks about a new folder the first time it opens there. `lyna-tmux create` says so
-when it opens such a project, and `lyna-tmux doctor` reports it as `Project trust`. Accept the
+trusted, and it asks about a new folder the first time it opens there. `lmux create` says so
+when it opens such a project, and `lmux doctor` reports it as `Project trust`. Accept the
 question Claude Code shows in the workspace, or start `claude` once in the project and accept it
 there.
 
@@ -314,22 +314,22 @@ there.
 workspace from a terminal that was already running tmux, so one tmux is attached inside another.
 The outer session reads the prefix key first, and the answers your terminal sends the inner server
 arrive too late to be recognized and are typed into whatever pane has the focus, which is how
-`^[[?1;2;4c` or `^[P>|tmux 3.7c^[\` end up in the prompt. `lyna-tmux create` and `lyna-tmux attach`
+`^[[?1;2;4c` or `^[P>|tmux 3.7c^[\` end up in the prompt. `lmux create` and `lmux attach`
 refuse there and say so; detach the outer session first, or pass `--nested` to attach anyway.
 
-**Alt keys do nothing.** Your terminal sends Option as a composed character. `lyna-tmux doctor`
+**Alt keys do nothing.** Your terminal sends Option as a composed character. `lmux doctor`
 names the setting for your terminal, and [docs/keys.md](docs/keys.md) lists them all.
 
-**Colors look flat.** The terminal is not advertising truecolor. `lyna-tmux doctor` says what to
+**Colors look flat.** The terminal is not advertising truecolor. `lmux doctor` says what to
 set; the themes quantize to 256 or 16 colors when they have to.
 
-**Everything else.** `lyna-tmux doctor` prints a fix with every warning and failure.
+**Everything else.** `lmux doctor` prints a fix with every warning and failure.
 
 ## Uninstall
 
 ```bash
-lyna-tmux uninstall          # stop the server, remove what lyna-tmux wrote
-lyna-tmux uninstall --purge  # also remove the state, cache and configuration directories
+lmux uninstall          # stop the server, remove what lyna-tmux wrote
+lmux uninstall --purge  # also remove the state, cache and configuration directories
 ```
 
 It lists what it will remove before it removes anything.

@@ -19,7 +19,7 @@
 #   dir PATH            working directory of the session
 #   env NAME=VALUE      variable for the session, repeatable
 #   pre COMMAND...      run before recording, repeatable, to reach a known
-#                       starting point, for example lyna-tmux kill --all
+#                       starting point, for example lmux kill --all
 #   run COMMAND...      the command the session runs, required, once
 #   keys ARGS...        tmux send-keys arguments, for example M-a or C-c
 #   type TEXT           the rest of the line typed literally

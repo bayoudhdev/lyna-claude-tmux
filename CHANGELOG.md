@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- Every workspace action has a binding after the prefix as well as under Alt, so a terminal that does not send Option as Meta still reaches all of them. `lyna-tmux keys` prints both columns.
+- Every workspace action has a binding after the prefix as well as under Alt, so a terminal that does not send Option as Meta still reaches all of them. `lmux keys` prints both columns.
 - `create` builds and starts the dev container a workspace needs when its isolation is `container`, asking first on a terminal and taking `--start-container` without one.
 - `doctor --fix` carries out the fixes lyna-tmux can apply itself, one at a time on a terminal, with `--yes` and `--dry-run` for scripts. What it cannot touch is listed instead, with the exact command or setting.
 - `setup` carries out what the settings it just saved need: the dev container, shell completions and the review plugin, with `--yes` for non-interactive use.
@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- The command is `lmux`. It is shorter to type and it is what every message, every help text and every example now uses. `lyna-tmux` keeps working: the release archives, the install script, the Homebrew cask, the Linux packages and the dev container image all put it beside the binary as a link to it, and the tmux plugin and the Claude Code plugin hooks look the old name up when the new one is not on PATH. Nothing moves on disk: the configuration, data, state and cache directories, the socket name and the `LYNA_TMUX_*` variables are unchanged. A `.devcontainer` directory generated before this release stages a binary under the old name and its image no longer builds; regenerate it with `lmux sandbox devcontainer init --force`.
 - The changes view reads the working tree when something changed instead of every three seconds. A reading still runs when nothing else has for fifteen seconds, which catches an edit that produces neither a file event nor a hook signal.
 
 ### Fixed
