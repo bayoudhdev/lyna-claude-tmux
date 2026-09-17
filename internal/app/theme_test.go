@@ -162,12 +162,23 @@ func TestThemePalettesLoadInTmux(t *testing.T) {
 					t.Fatalf("source-file: %v %s", err, out)
 				}
 				p := o.Look.Palette
-				for _, want := range []struct{ option, value string }{
+				type styled struct{ option, value string }
+				want := []styled{
 					{"status-style", "bg=" + p.Bg.Tmux(depth) + ",fg=" + p.Text.Tmux(depth)},
 					{"pane-active-border-style", "fg=" + p.Accent.Tmux(depth)},
 					{"pane-border-style", "fg=" + p.Border.Tmux(depth)},
-					{"menu-selected-style", "bg=" + p.Accent.Tmux(depth) + ",fg=" + p.Bg.Tmux(depth)},
-				} {
+				}
+				// The menu options arrived in tmux 3.4, so the configuration
+				// only sets them on a server that has them; an older server
+				// would reject the option name itself, not the palette.
+				if v.Has(tmux.FeatureMenuStyles) {
+					want = append(want,
+						styled{"menu-style", "bg=" + p.Surface.Tmux(depth) + ",fg=" + p.Text.Tmux(depth)},
+						styled{"menu-selected-style", "bg=" + p.Accent.Tmux(depth) + ",fg=" + p.Bg.Tmux(depth)},
+						styled{"menu-border-style", "fg=" + p.Accent.Tmux(depth)},
+					)
+				}
+				for _, want := range want {
 					flags := "-g"
 					if strings.HasPrefix(want.option, "pane-") {
 						flags = "-wg"
