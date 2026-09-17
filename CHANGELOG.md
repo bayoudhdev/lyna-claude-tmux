@@ -12,11 +12,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `create` builds and starts the dev container a workspace needs when its isolation is `container`, asking first on a terminal and taking `--start-container` without one.
 - `doctor --fix` carries out the fixes lyna-tmux can apply itself, one at a time on a terminal, with `--yes` and `--dry-run` for scripts. What it cannot touch is listed instead, with the exact command or setting.
 - `setup` carries out what the settings it just saved need: the dev container, shell completions and the review plugin, with `--yes` for non-interactive use.
+- `doctor` reports whether `Shift+Enter` adds a line to the agent's prompt in this terminal, with the step that terminal needs: nothing for the ones that report the key themselves, `/terminal-setup` in Claude Code for iTerm2 and the VS Code terminal, and `Option+Enter` for a terminal that cannot send the key at all.
 - The live changes view is a list you move through: arrows, `j`, `k` and the wheel move the cursor, a click selects, `Enter` or a double click reviews that file, `o` reviews the whole working tree, and the keys work in a pane of a layout as well as in the popup.
 
 ### Changed
 
 - The command is `lmux`. It is shorter to type and it is what every message, every help text and every example now uses. `lyna-tmux` keeps working: the release archives, the install script, the Homebrew cask, the Linux packages and the dev container image all put it beside the binary as a link to it, and the tmux plugin and the Claude Code plugin hooks look the old name up when the new one is not on PATH. Nothing moves on disk: the configuration, data, state and cache directories, the socket name and the `LYNA_TMUX_*` variables are unchanged. A `.devcontainer` directory generated before this release stages a binary under the old name and its image no longer builds; regenerate it with `lmux sandbox devcontainer init --force`.
+- Desktop notifications and the progress bar of the agent reach the terminal again: the pane running the agent allows tmux passthrough, and the server keeps it off everywhere else, so a pane running your own programs still cannot drive your terminal or your clipboard. `ui.allow_passthrough` still decides the rest of the server.
+- A workspace tells the agent how to alert you, from the terminal it was started in: from inside a pane the only terminal the agent can see is tmux, which is why it fell back to nothing. iTerm2 gets a notification and the bell, kitty gets its own notification, every other terminal gets the bell that the status line, the window tab and the pane border already show.
 - The changes view reads the working tree when something changed instead of every three seconds. A reading still runs when nothing else has for fifteen seconds, which catches an edit that produces neither a file event nor a hook signal.
 
 ### Fixed
