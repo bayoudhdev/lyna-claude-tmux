@@ -307,7 +307,7 @@ func (d Docker) Up(ctx context.Context, t Target) error {
 		return err
 	}
 	if err := d.attach(ctx, BuildArgv(d.bin(), t)); err != nil {
-		return err
+		return fmt.Errorf("%w: %s: %w; the step it stopped at is the last one above", ErrBuildFailed, t.Image(), err)
 	}
 	state, err := d.State(ctx, t)
 	if err != nil {
@@ -344,6 +344,11 @@ func (d Docker) Create(ctx context.Context, t Target, args []string) error {
 
 // ErrNotRunning is returned when a command needs a running container.
 var ErrNotRunning = errors.New("devcontainer: container is not running (run lyna-tmux sandbox devcontainer up)")
+
+// ErrBuildFailed is returned when docker build does not produce the image. The
+// build streams to the terminal, so the reason is on screen above this error
+// and is not repeated inside it.
+var ErrBuildFailed = errors.New("devcontainer: the image build failed")
 
 // requireRunning checks that the container is running and that the tree it was
 // built from is still the one lyna-tmux renders. A shell or a workspace opened

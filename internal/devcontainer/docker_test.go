@@ -263,6 +263,9 @@ func TestLifecycle(t *testing.T) {
 		fail    map[string]error
 		want    []string
 		wantErr error
+		// wantWrapped is a second error the failure must carry, for a step
+		// whose failure is reported as one of its own.
+		wantWrapped error
 	}{
 		{
 			name:    "up creates a missing container",
@@ -286,12 +289,13 @@ func TestLifecycle(t *testing.T) {
 			want:    []string{"attach build --tag", "capture container ls", "attach exec --interactive"},
 		},
 		{
-			name:    "up stops at a failed build",
-			op:      func(d Docker, tg Target) error { return d.Up(t.Context(), tg) },
-			project: rendered,
-			fail:    map[string]error{"build --tag": boom},
-			want:    []string{"attach build --tag"},
-			wantErr: boom,
+			name:        "up stops at a failed build",
+			op:          func(d Docker, tg Target) error { return d.Up(t.Context(), tg) },
+			project:     rendered,
+			fail:        map[string]error{"build --tag": boom},
+			want:        []string{"attach build --tag"},
+			wantErr:     boom,
+			wantWrapped: ErrBuildFailed,
 		},
 		{
 			name:    "up stops at a failed state query",
@@ -540,6 +544,9 @@ func TestLifecycle(t *testing.T) {
 			err := tc.op(Docker{Exec: rec}, tgt)
 			if tc.wantErr != nil && !errors.Is(err, tc.wantErr) {
 				t.Fatalf("err = %v, want %v", err, tc.wantErr)
+			}
+			if tc.wantWrapped != nil && !errors.Is(err, tc.wantWrapped) {
+				t.Fatalf("err = %v, want it to carry %v", err, tc.wantWrapped)
 			}
 			if tc.wantErr == nil && err != nil {
 				t.Fatalf("unexpected error %v", err)
