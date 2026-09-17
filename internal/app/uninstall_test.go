@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"maps"
@@ -9,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/claudetheme"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/config"
@@ -774,6 +776,63 @@ func TestUninstallCheckDir(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if err := uninstallCheckDir(tc.host, tc.dir); (err == nil) != tc.ok {
 				t.Fatalf("err = %v, want ok %v", err, tc.ok)
+			}
+		})
+	}
+}
+
+// TestUninstallAwaitStopped pins the wait between kill-server and the report
+// that the server stopped: the socket may answer for a few event loop turns
+// after the acknowledgement, and a server still answering at the deadline is
+// an error, not a stop.
+func TestUninstallAwaitStopped(t *testing.T) {
+	cases := []struct {
+		name string
+		// answers is what the probe reports on each call; the last value
+		// repeats once the sequence is used up.
+		answers    []bool
+		ctxTimeout time.Duration
+		wantProbe  int
+		wantErr    error
+	}{
+		{name: "already gone", answers: []bool{false}, wantProbe: 1},
+		{name: "gone after a few turns", answers: []bool{true, true, true, false}, wantProbe: 4},
+		{name: "still answering at the deadline", answers: []bool{true}, ctxTimeout: 5 * uninstallStopPoll, wantErr: context.DeadlineExceeded},
+		{name: "context canceled first", answers: []bool{true}, ctxTimeout: -1, wantErr: context.Canceled},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+			switch {
+			case tc.ctxTimeout < 0:
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithCancel(ctx)
+				cancel()
+			case tc.ctxTimeout > 0:
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(ctx, tc.ctxTimeout)
+				defer cancel()
+			}
+			probes := 0
+			answers := func(socket string) bool {
+				if socket != "/tmp/tmux-0/lt" {
+					t.Fatalf("probed %q", socket)
+				}
+				probes++
+				return tc.answers[min(probes, len(tc.answers))-1]
+			}
+			err := uninstallAwaitStopped(ctx, "/tmp/tmux-0/lt", answers)
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tc.wantErr)
+			}
+			if tc.wantErr != nil {
+				if !strings.Contains(err.Error(), "still answering after kill-server") || probes == 0 {
+					t.Fatalf("err = %v after %d probes", err, probes)
+				}
+				return
+			}
+			if probes != tc.wantProbe {
+				t.Fatalf("%d probes, want %d", probes, tc.wantProbe)
 			}
 		})
 	}

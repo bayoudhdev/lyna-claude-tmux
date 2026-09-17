@@ -37,6 +37,12 @@ const (
 	// uninstallProbeTimeout bounds the connection that tells a running server
 	// from a socket file left behind.
 	uninstallProbeTimeout = 500 * time.Millisecond
+	// uninstallStopTimeout bounds how long Apply waits for a server that
+	// acknowledged kill-server to close its socket, and uninstallStopPoll is
+	// how often it looks: the server has nothing to hand over, so a wait
+	// beyond a few event loop turns means it is not going away.
+	uninstallStopTimeout = 5 * time.Second
+	uninstallStopPoll    = 10 * time.Millisecond
 )
 
 // ErrUninstallInside reports an uninstall started from a pane of the server it
@@ -158,6 +164,28 @@ func uninstallServerAnswers(socket string) bool {
 	}
 	_ = conn.Close()
 	return true
+}
+
+// uninstallAwaitStopped returns once nothing answers on socket any more, as
+// reported by answers. tmux acknowledges kill-server from its event loop and
+// exits on a later turn, so the socket can still accept a connection after
+// the command returned; a run that ended there would report the server
+// stopped while a run right after it, or the user, still finds it. The wait
+// is bounded by ctx and uninstallStopTimeout, and a server still answering
+// at the end is an error rather than a stop that never happened.
+func uninstallAwaitStopped(ctx context.Context, socket string, answers func(string) bool) error {
+	ctx, cancel := context.WithTimeout(ctx, uninstallStopTimeout)
+	defer cancel()
+	tick := time.NewTicker(uninstallStopPoll)
+	defer tick.Stop()
+	for answers(socket) {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("the server on %s is still answering after kill-server: %w", socket, ctx.Err())
+		case <-tick.C:
+		}
+	}
+	return nil
 }
 
 // uninstallCompletionPaths are the completion scripts `lyna-tmux setup` tells
@@ -401,6 +429,9 @@ func (p UninstallPlan) Apply(ctx context.Context, h Host) (UninstallResult, erro
 	_, err := client.Run(ctx, "kill-server")
 	switch {
 	case err == nil:
+		if err := uninstallAwaitStopped(ctx, socket, uninstallServerAnswers); err != nil {
+			return res, fmt.Errorf("stop the lyna-tmux server: %w", err)
+		}
 		res.ServerStopped = true
 	case errors.Is(err, tmux.ErrNoServer), errors.Is(err, tmux.ErrNotInstalled):
 	default:

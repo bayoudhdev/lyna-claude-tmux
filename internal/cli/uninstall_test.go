@@ -1,11 +1,13 @@
 package cli
 
 import (
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/app"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/testutil/tmuxtest"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
 )
@@ -153,6 +155,96 @@ func TestUninstallCLI(t *testing.T) {
 				if !strings.Contains(stdout, want) {
 					t.Fatalf("second run lacks %q:\n%s", want, stdout)
 				}
+			}
+		})
+	}
+}
+
+// TestUninstallServerStopsCLI holds the run to what it reports: tmux
+// acknowledges kill-server from its event loop and closes its socket on a
+// later turn, so "Stopped" is printed only once the socket the plan probed
+// stopped answering, and a socket that never closes fails the run before
+// anything is removed. A listener the test owns stands in for the server,
+// and a tmux stand-in acknowledges kill-server by writing a marker.
+func TestUninstallServerStopsCLI(t *testing.T) {
+	cases := []struct {
+		name string
+		// closes makes the listener go away once kill-server was acknowledged.
+		closes     bool
+		wantCode   int
+		wantRemove bool
+		outHas     []string
+		outLacks   []string
+		errHas     string
+	}{
+		{
+			name: "the socket closes after the acknowledgement", closes: true, wantRemove: true,
+			outHas: []string{"Stopped the lyna-tmux server", "Removed "},
+		},
+		{
+			name: "the socket never closes", wantCode: 1,
+			outLacks: []string{"Stopped the lyna-tmux server", "Removed "}, errHas: "still answering after kill-server",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newInfraEnv(t)
+			uninstallFiles(t, e)
+			// A directory of its own keeps the socket path under the unix
+			// socket length limit, which the test temporary directory would
+			// not on every platform.
+			tmp, err := os.MkdirTemp("", "lt")
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = os.RemoveAll(tmp) })
+			e.env["TMUX_TMPDIR"] = tmp
+			socket := app.SocketPath(e.host.Getenv, e.env["LYNA_TMUX_SOCKET_NAME"])
+			if err := os.MkdirAll(filepath.Dir(socket), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			killed := filepath.Join(e.host.Home, "killed")
+			e.host.TmuxBin = e.bin(t, "tmux", "case \"$*\" in *kill-server*) : > '"+killed+"' ;; esac\nexit 0\n")
+			ln, err := net.Listen("unix", socket)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = ln.Close() })
+			go func() {
+				for {
+					conn, err := ln.Accept()
+					if err != nil {
+						return
+					}
+					_ = conn.Close()
+					if _, err := os.Stat(killed); err == nil && tc.closes {
+						_ = ln.Close()
+						return
+					}
+				}
+			}()
+			code, stdout, stderr := e.run(t, "uninstall", "--yes")
+			if code != tc.wantCode {
+				t.Fatalf("exit %d, want %d\n%s\n%s", code, tc.wantCode, stdout, stderr)
+			}
+			if _, err := os.Stat(killed); err != nil {
+				t.Fatalf("kill-server was not run: %v", err)
+			}
+			for _, want := range tc.outHas {
+				if !strings.Contains(stdout, want) {
+					t.Fatalf("stdout lacks %q:\n%s", want, stdout)
+				}
+			}
+			for _, unwanted := range tc.outLacks {
+				if strings.Contains(stdout, unwanted) {
+					t.Fatalf("stdout has %q:\n%s", unwanted, stdout)
+				}
+			}
+			if !strings.Contains(stderr, tc.errHas) {
+				t.Fatalf("stderr lacks %q:\n%s", tc.errHas, stderr)
+			}
+			if _, err := os.Stat(filepath.Join(e.host.Home, "state")); (err != nil) != tc.wantRemove {
+				t.Fatalf("state removed %v, want %v", err != nil, tc.wantRemove)
 			}
 		})
 	}
