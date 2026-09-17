@@ -14,6 +14,7 @@ type Icons struct {
 	Waiting   string // agent needs the user
 	Idle      string // agent finished
 	Unknown   string // no signal yet
+	Failed    string // agent whose process stopped on its own
 	Branch    string // git branch
 	Shield    string // sandbox on
 	ShieldOff string // sandbox off
@@ -30,18 +31,19 @@ type Icons struct {
 
 var iconSets = map[string]Icons{
 	"unicode": {
-		Name: "unicode", Brand: "λ", Busy: "●", Waiting: "◆", Idle: "○", Unknown: "·",
+		Name: "unicode", Brand: "λ", Busy: "●", Waiting: "◆", Idle: "○", Unknown: "·", Failed: "✕",
 		Branch: "⎇", Shield: "▣", ShieldOff: "▢", Split: "⊞", Agents: "◎", Review: "±",
 		Menu: "≡", Clock: "◷", Sep: "│", Claude: "✻", Shell: "›", Changes: "±",
 	},
 	// nerd requires a patched font; it is never chosen automatically.
 	"nerd": {
 		Name: "nerd", Brand: "\U000f0626", Busy: "\U000f0765", Waiting: "\uf071", Idle: "\uf00c", Unknown: "\uf128",
+		Failed: "\uf00d",
 		Branch: "\ue725", Shield: "\U000f0565", ShieldOff: "\U000f099e", Split: "\ueb56", Agents: "\U000f06a9", Review: "\uf440",
 		Menu: "\uf0c9", Clock: "\uf017", Sep: "\ue621", Claude: "\U000f06a9", Shell: "\uf120", Changes: "\uf440",
 	},
 	"ascii": {
-		Name: "ascii", Brand: "L", Busy: "*", Waiting: "!", Idle: "o", Unknown: "?",
+		Name: "ascii", Brand: "L", Busy: "*", Waiting: "!", Idle: "o", Unknown: "?", Failed: "x",
 		Branch: "@", Shield: "#", ShieldOff: "-", Split: "+", Agents: "A", Review: "~",
 		Menu: "=", Clock: "", Sep: "|", Claude: ">", Shell: "$", Changes: "~",
 	},
