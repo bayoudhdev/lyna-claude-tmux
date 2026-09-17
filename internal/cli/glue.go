@@ -152,9 +152,9 @@ func pluginClaudeCommand(d Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "claude",
 		Short: "Show how to install the Claude Code plugin for tmux sessions you start yourself",
-		Long: "Print the steps that install the lyna-tmux plugin in Claude Code, and check that the\n" +
+		Long: "Print the steps that install the lmux plugin in Claude Code, and check that the\n" +
 			"lyna-tmux its hooks run from PATH is this binary.",
-		Example: "  lyna-tmux plugin claude",
+		Example: "  lmux plugin claude",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			h, err := d.Host()
@@ -178,7 +178,7 @@ func pluginClaudeCommand(d Deps) *cobra.Command {
 func pluginClaudeSteps(found string) string {
 	id := hook.PluginName + "@" + hook.PluginName
 	var b strings.Builder
-	b.WriteString("The lyna-tmux plugin for Claude Code shows the state of each Claude session (busy,\n")
+	b.WriteString("The lmux plugin for Claude Code shows the state of each Claude session (busy,\n")
 	b.WriteString("waiting, idle) on the tmux pane it runs in and rings the tmux bell when Claude needs\n")
 	b.WriteString("you, in tmux sessions you start yourself. It also adds the Lyna themes to /theme.\n\n")
 	b.WriteString("Install it inside Claude Code:\n")
@@ -191,22 +191,30 @@ func pluginClaudeSteps(found string) string {
 	if found != "" {
 		b.WriteString("The plugin hooks run " + hook.PluginBinary + " from PATH, which is this binary (" + sanitize.Line(found) + ").\n")
 	}
-	b.WriteString("Workspaces started by lyna-tmux create already have these hooks and do not need the\n")
+	b.WriteString("Workspaces started by lmux create already have these hooks and do not need the\n")
 	b.WriteString("plugin; inside them the plugin stays idle.\n")
 	return b.String()
 }
 
-// pluginClaudeBinary resolves the lyna-tmux the plugin hooks run (hooks.json
-// looks it up with command -v) and compares it with the running binary.
+// pluginClaudeBinary resolves the command the plugin hooks run (hooks.json
+// looks it up with command -v, under the current name and then the name of
+// 1.0.0) and compares it with the running binary.
 func pluginClaudeBinary(d Deps, h app.Host) (found, warning string) {
-	path, err := d.LookPath(hook.PluginBinary)
-	if err != nil || path == "" {
+	var name, path string
+	for _, try := range []string{hook.PluginBinary, hook.PluginBinaryWas} {
+		p, err := d.LookPath(try)
+		if err == nil && p != "" {
+			name, path = try, p
+			break
+		}
+	}
+	if path == "" {
 		return "", fmt.Sprintf("%s is not on PATH, so the plugin hooks do nothing. Put this binary (%s) in a directory on the PATH Claude Code starts with.",
 			hook.PluginBinary, sanitize.Line(h.Exe))
 	}
 	if !pluginClaudeSameFile(path, h.Exe) {
 		return "", fmt.Sprintf("%s on PATH is %s, not this binary (%s). The plugin hooks run the one on PATH.",
-			hook.PluginBinary, sanitize.Line(path), sanitize.Line(h.Exe))
+			name, sanitize.Line(path), sanitize.Line(h.Exe))
 	}
 	return path, ""
 }

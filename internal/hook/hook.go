@@ -1,4 +1,4 @@
-// Package hook handles `lyna-tmux hook <Event>`: Claude Code runs it for every
+// Package hook handles `lmux hook <Event>`: Claude Code runs it for every
 // registered hook event, and it mirrors the agent's state onto the tmux pane
 // the agent runs in, so the status line, pane borders and pickers update
 // without polling.

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -173,7 +174,7 @@ func TestGlueStatus(t *testing.T) {
 	}
 }
 
-// TestGlueHookCLI drives `lyna-tmux hook` exactly as Claude Code does, with the
+// TestGlueHookCLI drives `lmux hook` exactly as Claude Code does, with the
 // payload on stdin and TMUX/TMUX_PANE pointing at a real pane, and reads the
 // resulting state back from tmux.
 func TestGlueHookCLI(t *testing.T) {
@@ -451,8 +452,8 @@ func TestGlueCommandsHidden(t *testing.T) {
 
 func TestPluginClaudeCLI(t *testing.T) {
 	e := newGlueEnv(t)
-	other := filepath.Join(e.root, "other", "lyna-tmux")
-	link := filepath.Join(e.root, "path", "lyna-tmux")
+	other := filepath.Join(e.root, "other", "lmux")
+	link := filepath.Join(e.root, "path", "lmux")
 	for _, p := range []string{e.exe, other} {
 		if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
 			t.Fatal(err)
@@ -473,16 +474,22 @@ func TestPluginClaudeCLI(t *testing.T) {
 		"/reload-plugins\n",
 		"claude plugin marketplace add bayoudhdev/lyna-claude-tmux\n",
 		"claude plugin install lyna-tmux@lyna-tmux\n",
-		"Workspaces started by lyna-tmux create already have these hooks and do not need the\nplugin",
+		"Workspaces started by lmux create already have these hooks and do not need the\nplugin",
 	}
+	// The hooks look the command up under its name and then under the name it
+	// had in 1.0.0, so a plugin updated before the binary still finds it.
+	bothNames := []string{hook.PluginBinary, hook.PluginBinaryWas}
 	cases := []struct {
-		name     string
-		args     []string
+		name string
+		args []string
+		// lookPath answers for the name the hooks look up.
 		lookPath func(string) (string, error)
-		wantCode int
-		outHas   []string
-		outLacks []string
-		errHas   []string
+		// wantLooked are the names looked up, in order; nil means the first one alone.
+		wantLooked []string
+		wantCode   int
+		outHas     []string
+		outLacks   []string
+		errHas     []string
 	}{
 		{
 			name: "this binary on PATH", args: []string{"plugin", "claude"},
@@ -495,15 +502,39 @@ func TestPluginClaudeCLI(t *testing.T) {
 			outHas:   append([]string{"which is this binary (" + link + ")"}, steps...),
 		},
 		{
+			name: "only the name of 1.0.0 on PATH", args: []string{"plugin", "claude"},
+			lookPath: func(name string) (string, error) {
+				if name != hook.PluginBinaryWas {
+					return "", exec.ErrNotFound
+				}
+				return e.exe, nil
+			},
+			wantLooked: bothNames,
+			outHas:     append([]string{"which is this binary (" + e.exe + ")"}, steps...),
+		},
+		{
 			name: "not on PATH", args: []string{"plugin", "claude"},
-			lookPath: func(string) (string, error) { return "", exec.ErrNotFound },
-			outHas:   steps, outLacks: []string{"which is this binary"},
-			errHas: []string{"Warning: lyna-tmux is not on PATH, so the plugin hooks do nothing", e.exe},
+			lookPath:   func(string) (string, error) { return "", exec.ErrNotFound },
+			wantLooked: bothNames,
+			outHas:     steps, outLacks: []string{"which is this binary"},
+			errHas: []string{"Warning: lmux is not on PATH, so the plugin hooks do nothing", e.exe},
 		},
 		{
 			name: "another binary on PATH", args: []string{"plugin", "claude"},
 			lookPath: func(string) (string, error) { return other, nil },
 			outHas:   steps, outLacks: []string{"which is this binary"},
+			errHas: []string{"Warning: lmux on PATH is " + other + ", not this binary (" + e.exe + ")"},
+		},
+		{
+			name: "the binary of 1.0.0 on PATH is another one", args: []string{"plugin", "claude"},
+			lookPath: func(name string) (string, error) {
+				if name != hook.PluginBinaryWas {
+					return "", exec.ErrNotFound
+				}
+				return other, nil
+			},
+			wantLooked: bothNames,
+			outHas:     steps, outLacks: []string{"which is this binary"},
 			errHas: []string{"Warning: lyna-tmux on PATH is " + other + ", not this binary (" + e.exe + ")"},
 		},
 		{
@@ -541,8 +572,12 @@ func TestPluginClaudeCLI(t *testing.T) {
 			if len(tc.errHas) == 0 && stderr != "" {
 				t.Fatalf("unexpected stderr %q", stderr)
 			}
-			if tc.wantCode == 0 && (len(e.looked) != 1 || e.looked[0] != hook.PluginBinary) {
-				t.Fatalf("looked up %q, want the binary the hooks run", e.looked)
+			wantLooked := tc.wantLooked
+			if wantLooked == nil {
+				wantLooked = []string{hook.PluginBinary}
+			}
+			if tc.wantCode == 0 && !slices.Equal(e.looked, wantLooked) {
+				t.Fatalf("looked up %q, want %q", e.looked, wantLooked)
 			}
 		})
 	}

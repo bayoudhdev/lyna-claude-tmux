@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/hookevent"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/xdg"
 )
 
 const (
@@ -13,23 +14,29 @@ const (
 	PluginName = "lyna-tmux"
 	// PluginBinary is the command the plugin's hooks look up on PATH. Users of
 	// the plugin install lyna-tmux themselves; the plugin never ships a binary.
-	PluginBinary = "lyna-tmux"
+	PluginBinary = xdg.Command
+	// PluginBinaryWas is the name the command had in 1.0.0, looked up when the
+	// first name is not on PATH: the plugin is updated from its marketplace on
+	// its own, so it can reach a machine whose binary is still the older one.
+	PluginBinaryWas = xdg.CommandWas
 	// PluginHooksPath is where hooks.json lives, relative to the repository root.
 	PluginHooksPath = "plugins/lyna-tmux/hooks/hooks.json"
 
-	pluginHooksDescription = "Mirror Claude Code agent state (busy, waiting, idle, subagents, branch) onto the tmux pane it runs in and ring the tmux bell when the agent needs you. Requires lyna-tmux in an absolute PATH directory; does nothing outside tmux or inside panes lyna-tmux launched itself."
+	pluginHooksDescription = "Mirror Claude Code agent state (busy, waiting, idle, subagents, branch) onto the tmux pane it runs in and ring the tmux bell when the agent needs you. Requires lmux in an absolute PATH directory; does nothing outside tmux or inside panes lyna-tmux launched itself."
 )
 
 // PluginCommand is the shell-form command a plugin hook runs for ev. It runs
 // the handler only when every PATH element is absolute and the binary resolves
 // to an absolute path, and otherwise exits 0 without output, so installing the
-// plugin before the binary never produces hook errors. The event name is one
-// of the fixed hookevent constants.
+// plugin before the binary never produces hook errors. The name the command
+// had in 1.0.0 is looked up when the current one is not on PATH, so the hooks
+// keep working on a machine whose binary has not been updated yet. The event
+// name is one of the fixed hookevent constants.
 //
 // The PATH test is the point. A PATH holding ".", an empty element or any
 // relative element resolves the name against the working directory, which is
 // the repository Claude Code was started in, so a checkout that ships a
-// lyna-tmux file would have every hook event run it with the session
+// lmux file would have every hook event run it with the session
 // environment. The resolved path is checked as well, for the shells that
 // report a relative hit as it stands; bash reports it already joined to the
 // working directory, which is why the PATH itself has to be the test. The rest
@@ -40,7 +47,7 @@ const (
 // other character, empty elements ("::") included.
 func PluginCommand(ev hookevent.Event) string {
 	return `case ":$PATH:" in *:[!/]*) exit 0;; esac; ` +
-		"bin=$(command -v " + PluginBinary + " 2>/dev/null) || exit 0; " +
+		"bin=$(command -v " + PluginBinary + " 2>/dev/null) || bin=$(command -v " + PluginBinaryWas + " 2>/dev/null) || exit 0; " +
 		`case "$bin" in /*) ;; *) exit 0;; esac; ` +
 		`exec "$bin" hook --plugin ` + string(ev)
 }

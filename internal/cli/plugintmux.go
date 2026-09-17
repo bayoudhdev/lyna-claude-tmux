@@ -24,8 +24,8 @@ func pluginTmuxCommand(d Deps) *cobra.Command {
 			"line to add to your tmux configuration. --apply installs it on the tmux server this runs in\n" +
 			"(the tpm plugin entry calls it) and honors the @claude_launch_key, @claude_list_key and\n" +
 			"@claude_forward_bell options unless a flag overrides them. An empty key leaves it unbound.",
-		Example: "  lyna-tmux plugin tmux --write\n" +
-			"  lyna-tmux plugin tmux --launch-key C-y --no-bell > ~/.config/tmux/lyna-tmux.conf",
+		Example: "  lmux plugin tmux --write\n" +
+			"  lmux plugin tmux --launch-key C-y --no-bell > ~/.config/tmux/lyna-tmux.conf",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			h, err := d.Host()

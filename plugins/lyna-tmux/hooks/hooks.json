@@ -1,12 +1,12 @@
 {
-  "description": "Mirror Claude Code agent state (busy, waiting, idle, subagents, branch) onto the tmux pane it runs in and ring the tmux bell when the agent needs you. Requires lyna-tmux in an absolute PATH directory; does nothing outside tmux or inside panes lyna-tmux launched itself.",
+  "description": "Mirror Claude Code agent state (busy, waiting, idle, subagents, branch) onto the tmux pane it runs in and ring the tmux bell when the agent needs you. Requires lmux in an absolute PATH directory; does nothing outside tmux or inside panes lyna-tmux launched itself.",
   "hooks": {
     "SessionStart": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin SessionStart",
+            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lmux 2>/dev/null) || bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin SessionStart",
             "async": true
           }
         ]
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin UserPromptSubmit",
+            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lmux 2>/dev/null) || bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin UserPromptSubmit",
             "async": true
           }
         ]
@@ -29,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin PreToolUse",
+            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lmux 2>/dev/null) || bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin PreToolUse",
             "async": true
           }
         ]
@@ -40,7 +40,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin PermissionRequest",
+            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lmux 2>/dev/null) || bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin PermissionRequest",
             "async": true
           }
         ]
@@ -52,7 +52,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin Notification",
+            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lmux 2>/dev/null) || bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin Notification",
             "async": true
           }
         ]
@@ -63,7 +63,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin PostToolUse",
+            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lmux 2>/dev/null) || bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin PostToolUse",
             "async": true
           }
         ]
@@ -74,7 +74,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin SubagentStart",
+            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lmux 2>/dev/null) || bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin SubagentStart",
             "async": true
           }
         ]
@@ -85,7 +85,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin SubagentStop",
+            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lmux 2>/dev/null) || bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin SubagentStop",
             "async": true
           }
         ]
@@ -96,7 +96,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin Stop",
+            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lmux 2>/dev/null) || bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin Stop",
             "async": true
           }
         ]
@@ -107,7 +107,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin SessionEnd",
+            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lmux 2>/dev/null) || bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin SessionEnd",
             "async": true
           }
         ]
