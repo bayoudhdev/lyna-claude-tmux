@@ -153,10 +153,15 @@ func (l Look) StatusRight() string {
 func (l Look) BorderFormat() string {
 	p, i := l.Palette, l.Icons
 	role := "#{" + OptRole + "}"
+	// A teammate is labeled with its own name, which the launcher stored
+	// prepared for drawing (AgentOption), so it is inserted as it is. A pane
+	// that lost the name still says what it is.
+	teammate := text(i.Agents+" ") + cond("#{"+OptAgent+"}", "#{"+OptAgent+"}", text("teammate"))
 	label := cond("#{==:"+role+","+RoleClaude+"}", text(i.Claude+" claude"),
-		cond("#{==:"+role+",review}", text(i.Review+" review"),
-			cond("#{==:"+role+","+RoleChanges+"}", text(i.Changes+" changes"),
-				cond("#{==:"+role+","+RoleScratch+"}", text(i.Shell+" scratch"), text(i.Shell+" shell")))))
+		cond("#{==:"+role+","+RoleTeammate+"}", teammate,
+			cond("#{==:"+role+",review}", text(i.Review+" review"),
+				cond("#{==:"+role+","+RoleChanges+"}", text(i.Changes+" changes"),
+					cond("#{==:"+role+","+RoleScratch+"}", text(i.Shell+" scratch"), text(i.Shell+" shell"))))))
 	state := "#{" + OptState + "}"
 	stateText := cond("#{==:"+state+",waiting}", style("fg="+l.c(p.Waiting), "bold")+text(" "+i.Waiting+" needs you"),
 		cond("#{==:"+state+",busy}", style("fg="+l.c(p.Busy))+text(" "+i.Busy+" working"),

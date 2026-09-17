@@ -333,6 +333,33 @@ func TestIntegrationStatusFormats(t *testing.T) {
 			target: claude, format: look.StatusLeft(),
 			want: []string{" λ  ws "},
 		},
+		{
+			name: "teammate border carries its own name",
+			setup: []tmux.Command{
+				{"set-option", "-p", "-t", shell, tmux.OptRole, tmux.RoleTeammate},
+				{"set-option", "-p", "-t", shell, tmux.OptAgent, tmux.AgentOption("review-api")},
+				{"set-option", "-p", "-t", shell, tmux.OptState, "busy"},
+			},
+			target: shell, format: look.BorderFormat(),
+			want:    []string{"◎ review-api", "● working"},
+			notWant: []string{"claude", "shell"},
+		},
+		{
+			name: "a hash in a teammate name is drawn as a hash",
+			setup: []tmux.Command{
+				{"set-option", "-p", "-t", shell, tmux.OptAgent, tmux.AgentOption("fix#12")},
+			},
+			target: shell, format: look.BorderFormat(),
+			want: []string{"◎ fix#12"},
+		},
+		{
+			name: "a teammate pane that lost its name still says what it is",
+			setup: []tmux.Command{
+				{"set-option", "-p", "-u", "-t", shell, tmux.OptAgent},
+			},
+			target: shell, format: look.BorderFormat(),
+			want: []string{"◎ teammate"},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -5,19 +5,22 @@ import "strings"
 // User options lyna-tmux stores on its tmux objects. They carry live state from
 // hooks to the status line and pickers without any extra process or file.
 const (
-	OptState     = "@lt_state"     // pane: busy | waiting | idle
-	OptRole      = "@lt_role"      // pane: claude | shell | changes | scratch
-	OptSubagents = "@lt_subagents" // pane: number of running subagents
-	OptManaged   = "@lt_managed"   // session: "1" when created by lyna-tmux
-	OptProject   = "@lt_project"   // session: project root directory
-	OptSandbox   = "@lt_sandbox"   // session: sandbox profile name
-	OptIsolation = "@lt_isolation" // session: sandbox isolation level
-	OptLayout    = "@lt_layout"    // session: layout name
-	OptBranch    = "@lt_branch"    // session: git branch of the project, set by hooks
-	OptOrigin    = "@lt_origin"    // session: window id a popup session was launched from
-	OptParent    = "@lt_parent"    // global: client that last opened the agents picker
-	OptConfHash  = "@lt_conf"      // global: fingerprint of the loaded generated configuration
-	OptSettings  = "@lt_settings"  // pane: per-launch Claude settings file of a Claude pane
+	OptState     = "@lt_state"      // pane: busy | waiting | idle
+	OptRole      = "@lt_role"       // pane: claude | teammate | shell | changes | scratch
+	OptSubagents = "@lt_subagents"  // pane: number of running subagents
+	OptManaged   = "@lt_managed"    // session: "1" when created by lyna-tmux
+	OptProject   = "@lt_project"    // session: project root directory
+	OptSandbox   = "@lt_sandbox"    // session: sandbox profile name
+	OptIsolation = "@lt_isolation"  // session: sandbox isolation level
+	OptLayout    = "@lt_layout"     // session: layout name
+	OptBranch    = "@lt_branch"     // session: git branch of the project, set by hooks
+	OptOrigin    = "@lt_origin"     // session: window id a popup session was launched from
+	OptParent    = "@lt_parent"     // global: client that last opened the agents picker
+	OptConfHash  = "@lt_conf"       // global: fingerprint of the loaded generated configuration
+	OptSettings  = "@lt_settings"   // pane: per-launch Claude settings file of a Claude pane
+	OptAgent     = "@lt_agent"      // pane: name of the teammate running in it
+	OptAgentType = "@lt_agent_type" // pane: agent type of that teammate
+	OptTeam      = "@lt_team"       // pane: team that teammate belongs to
 
 	// Names shared with the tmux plugin this project derives from, used when
 	// lyna-tmux runs inside the user's own tmux server so existing sessions and
@@ -36,19 +39,37 @@ const OptPassthrough = "allow-passthrough" //nolint:gosec // G101: a tmux option
 // MaxBranchRunes bounds the branch name drawn in the status line.
 const MaxBranchRunes = 32
 
+// MaxAgentRunes bounds the agent name drawn on a pane border, which has far
+// less room than the status line.
+const MaxAgentRunes = 24
+
 // BranchOption prepares a git branch name for the @lt_branch option: control
 // and escape characters removed, shortened to MaxBranchRunes with an ellipsis,
 // and '#'-escaped because the status line draws expanded values with style
 // markup (DrawEscape). strftime runs on the template before values are inserted, so '%'
 // needs no escaping.
 func BranchOption(branch string) string {
+	return drawnOption(branch, MaxBranchRunes)
+}
+
+// AgentOption prepares an agent name for the @lt_agent option. The name comes
+// from whoever started the agent, and the border draws the value expanded, so
+// it is prepared exactly as a branch name is.
+func AgentOption(name string) string {
+	return drawnOption(name, MaxAgentRunes)
+}
+
+// drawnOption prepares a value for an option the status line or a pane border
+// draws: control and escape characters removed, shortened to limit runes with an
+// ellipsis, and '#'-escaped for the markup a drawn value goes through.
+func drawnOption(value string, limit int) string {
 	var b strings.Builder
 	n := 0
-	for _, r := range branch {
+	for _, r := range value {
 		if r < 0x20 || r == 0x7f || (r >= 0x80 && r < 0xa0) {
 			continue
 		}
-		if n == MaxBranchRunes {
+		if n == limit {
 			b.WriteString("...")
 			break
 		}
@@ -80,8 +101,13 @@ func AgentsChannel(sessionID string) string {
 
 // Pane roles.
 const (
-	RoleClaude  = "claude"
-	RoleShell   = "shell"
-	RoleChanges = "changes"
-	RoleScratch = "scratch"
+	RoleClaude = "claude"
+	RoleShell  = "shell"
+	// RoleTeammate is a pane running a teammate of a Claude Code team. It is a
+	// Claude pane in everything but its label: it carries the teammate's name,
+	// its agent type and the team it belongs to, which is what the border and
+	// the sidebar show.
+	RoleTeammate = "teammate"
+	RoleChanges  = "changes"
+	RoleScratch  = "scratch"
 )
