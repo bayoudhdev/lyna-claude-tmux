@@ -1,0 +1,61 @@
+{
+  "name": "session-1a2b3c4d",
+  "createdAt": 1788600945829,
+  "leadAgentId": "team-lead@session-1a2b3c4d",
+  "leadSessionId": "1a2b3c4d-4eb0-4b95-bca6-1cd785b8ea2e",
+  "members": [
+    {
+      "agentId": "team-lead@session-1a2b3c4d",
+      "name": "team-lead",
+      "agentType": "team-lead",
+      "joinedAt": 1788600945829,
+      "tmuxPaneId": "leader",
+      "cwd": "/home/dev/acme-api",
+      "subscriptions": [],
+      "backendType": "in-process"
+    },
+    {
+      "agentId": "explore-git@session-1a2b3c4d",
+      "name": "explore-git",
+      "color": "blue",
+      "joinedAt": 1788601139315,
+      "tmuxPaneId": "%0",
+      "subscriptions": [],
+      "agentType": "Explore",
+      "model": "claude-opus-5",
+      "prompt": "Map how the project uses git today.",
+      "planModeRequired": true,
+      "cwd": "/home/dev/acme-api",
+      "backendType": "tmux",
+      "isActive": false
+    },
+    {
+      "agentId": "review-api@session-1a2b3c4d",
+      "name": "review-api",
+      "color": "green",
+      "joinedAt": 1788601154238,
+      "tmuxPaneId": "%1",
+      "subscriptions": [],
+      "agentType": "security-reviewer",
+      "model": "claude-opus-5",
+      "prompt": "Review the request handlers for injection.",
+      "cwd": "/home/dev/acme-api",
+      "backendType": "tmux",
+      "isActive": true
+    },
+    {
+      "agentId": "tests@session-1a2b3c4d",
+      "name": "tests",
+      "color": "yellow",
+      "joinedAt": 1788601166675,
+      "tmuxPaneId": "%2",
+      "subscriptions": [],
+      "agentType": "general-purpose",
+      "model": "claude-sonnet-5",
+      "prompt": "Bring the failing suite back to green.",
+      "cwd": "/home/dev/acme-api/service",
+      "backendType": "tmux",
+      "isActive": true
+    }
+  ]
+}
