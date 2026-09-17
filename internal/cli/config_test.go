@@ -72,7 +72,7 @@ func TestConfigCommandsCLI(t *testing.T) {
 				t.Fatalf("stdout %q, want %q", stdout, file)
 			}
 		}},
-		{name: "validate without file", args: []string{"config", "validate"}, outHas: []string{"No file at " + file, "lyna-tmux config init"}},
+		{name: "validate without file", args: []string{"config", "validate"}, outHas: []string{"No file at " + file, "lmux config init"}},
 		{name: "show defaults", args: []string{"config", "show"}, outHas: []string{"# Defaults: there is no file at " + file}, check: showDecodes(config.Default().UI.Theme)},
 		{name: "init", args: []string{"config", "init"}, outHas: []string{"Wrote " + file}, check: fileIs(config.Template())},
 		{name: "init keeps existing", args: []string{"config", "init"}, wantCode: 1, errHas: []string{"already exists", "--force"}, check: fileIs(config.Template())},

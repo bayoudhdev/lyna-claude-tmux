@@ -34,8 +34,8 @@ func newCreateCmd(d Deps) *cobra.Command {
 		Long: "Open a Claude workspace for the project that contains dir (the current directory\n" +
 			"by default) and attach this terminal to it. A project that already has a running\n" +
 			"workspace is attached as it is. Arguments after -- are passed to claude.",
-		Example: "  lyna-tmux create\n" +
-			"  lyna-tmux create ~/src/api -l trio --model opus\n" +
+		Example: "  lmux create\n" +
+			"  lmux create ~/src/api -l trio --model opus\n" +
 			"  lyna-tmux new -c -- --verbose",
 	}
 	return createFlags(cmd, d, createCommand{
@@ -43,7 +43,7 @@ func newCreateCmd(d Deps) *cobra.Command {
 			return fmt.Sprintf("Workspace %s is already open for %s\n", res.Name, sanitize.Line(res.Project))
 		},
 		Running: func(res app.CreateResult) string {
-			return fmt.Sprintf("Workspace %s is running. Attach with: lyna-tmux attach %s\n", res.Name, res.Name)
+			return fmt.Sprintf("Workspace %s is running. Attach with: lmux attach %s\n", res.Name, res.Name)
 		},
 	})
 }

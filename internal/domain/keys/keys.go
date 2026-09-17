@@ -49,7 +49,7 @@ const (
 	ActionReload      Action = "reload"
 )
 
-// Group labels used by `lyna-tmux keys` and the which-key menu.
+// Group labels used by `lmux keys` and the which-key menu.
 const (
 	GroupPanes   = "Panes"
 	GroupWindows = "Windows"

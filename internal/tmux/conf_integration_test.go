@@ -439,7 +439,7 @@ func TestIntegrationStatusLeftFitsTheLongestName(t *testing.T) {
 		t.Run(look.icons, func(t *testing.T) {
 			srv := tmuxtest.Start(t)
 			ctx := tmuxtest.Context(t)
-			o := confOptions(t, installed, look, tmux.Env{Bin: "/opt/lyna-tmux", ConfPath: "/state/tmux.conf"})
+			o := confOptions(t, installed, look, tmux.Env{Bin: "/opt/lmux", ConfPath: "/state/tmux.conf"})
 			path := writeConf(t, tmux.GenerateConf(o))
 			if out, err := srv.Client.Run(ctx, "source-file", path); err != nil {
 				t.Fatalf("source-file: %v %s", err, out)

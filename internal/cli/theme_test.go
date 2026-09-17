@@ -40,7 +40,7 @@ func TestThemeListCLI(t *testing.T) {
 		outLacks []string
 		errHas   []string
 	}{
-		{name: "defaults at 256 colors", env: map[string]string{"TERM": "xterm-256color"}, args: []string{"theme"}, golden: "theme/list-256.txt", outHas: []string{"Preview one with: lyna-tmux theme preview <name>\n"}},
+		{name: "defaults at 256 colors", env: map[string]string{"TERM": "xterm-256color"}, args: []string{"theme"}, golden: "theme/list-256.txt", outHas: []string{"Preview one with: lmux theme preview <name>\n"}},
 		{name: "configured theme is marked", config: "[ui]\ntheme = \"light\"\n", args: []string{"theme"}, outHas: []string{"* light", "\n  lyna ", "\n  ansi "}},
 		{
 			name: "configured depth wins over detection", config: "[ui]\ncolor = \"16\"\n", env: map[string]string{"COLORTERM": "truecolor"}, args: []string{"theme"},
@@ -149,7 +149,7 @@ func TestThemePreviewCLI(t *testing.T) {
 		{name: "NO_COLOR names the colors", env: map[string]string{"COLORTERM": "truecolor", "LANG": "en_US.UTF-8", "NO_COLOR": "1"}, term: terminal, args: []string{"theme", "preview", "lyna"}, golden: "theme/preview-lyna-plain.txt", outLacks: []string{"\x1b"}},
 		{
 			name: "no terminal names the colors", env: map[string]string{"COLORTERM": "truecolor", "LANG": "en_US.UTF-8"}, args: []string{"theme", "preview", "nord"},
-			outHas:   []string{"nord: dark\n", "  status  ", " λ  api ", "◆ 1 waiting", "  colors  bg=#2e3440 surface=#3b4252 ", " text=#eceff4 accent=#88c0d0 ", " warning=#d08770\n", "  swatch  #88c0d0 #81a1c1 #ebcb8b #bf616a #eceff4 #98a3b8\n", "\nSwitch with: lyna-tmux theme nord\n"},
+			outHas:   []string{"nord: dark\n", "  status  ", " λ  api ", "◆ 1 waiting", "  colors  bg=#2e3440 surface=#3b4252 ", " text=#eceff4 accent=#88c0d0 ", " warning=#d08770\n", "  swatch  #88c0d0 #81a1c1 #ebcb8b #bf616a #eceff4 #98a3b8\n", "\nSwitch with: lmux theme nord\n"},
 			outLacks: []string{"\x1b", "(configured)"},
 		},
 		{
@@ -162,7 +162,7 @@ func TestThemePreviewCLI(t *testing.T) {
 		},
 		{
 			name: "every theme in documented order", env: map[string]string{"TERM": "xterm-256color"}, args: []string{"theme", "preview"},
-			outHas:   []string{"lyna: dark (configured)\n", "\nslate: dark\n", "\nlight: light\n", "\nansi: terminal colors\n", "  colors  bg=color0 ", "\nSwitch with: lyna-tmux theme <name>\n"},
+			outHas:   []string{"lyna: dark (configured)\n", "\nslate: dark\n", "\nlight: light\n", "\nansi: terminal colors\n", "  colors  bg=color0 ", "\nSwitch with: lmux theme <name>\n"},
 			outLacks: []string{"\x1b"},
 		},
 		{name: "configured theme is marked", config: "[ui]\ntheme = \"rose\"\n", args: []string{"theme", "preview"}, outHas: []string{"\nrose: dark (configured)\n", "lyna: dark\n"}},
@@ -362,7 +362,7 @@ func TestThemeSetCLI(t *testing.T) {
 				e.writeConfig(t, "[ui]\ntheme = \"lyna\"\nbogus = 1\n")
 				before, _ = os.ReadFile(file)
 			},
-			args: []string{"theme", "light"}, wantCode: 1, errHas: []string{"bogus", "lyna-tmux config edit"},
+			args: []string{"theme", "light"}, wantCode: 1, errHas: []string{"bogus", "lmux config edit"},
 			check: func(t *testing.T) { t.Helper(); fileIs(t, before) },
 		},
 		{
@@ -372,7 +372,7 @@ func TestThemeSetCLI(t *testing.T) {
 				e.writeConfig(t, "ui = { icons = \"auto\" }\n")
 				before, _ = os.ReadFile(file)
 			},
-			args: []string{"theme", "light"}, wantCode: 1, errHas: []string{"ui.theme", "cannot edit in place", "lyna-tmux config edit"},
+			args: []string{"theme", "light"}, wantCode: 1, errHas: []string{"ui.theme", "cannot edit in place", "lmux config edit"},
 			check: func(t *testing.T) { t.Helper(); fileIs(t, before) },
 		},
 		{

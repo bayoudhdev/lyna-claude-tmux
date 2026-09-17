@@ -23,7 +23,7 @@ func splitCommand(d Deps) *cobra.Command {
 		Long: "Split the pane to the right (default) or down and start the role's process in the new pane:\n" +
 			"a shell in the pane's directory, Claude with the workspace's per-launch settings, or the live\n" +
 			"changes view of the project. Without --pane, the pane this runs in is split.",
-		Example:   "  lyna-tmux split\n  lyna-tmux split down --role changes\n  lyna-tmux split right --role claude --pane %3",
+		Example:   "  lmux split\n  lmux split down --role changes\n  lmux split right --role claude --pane %3",
 		Args:      cobra.MatchAll(cobra.MaximumNArgs(1), cobra.OnlyValidArgs),
 		ValidArgs: splitDirections,
 		RunE: func(cmd *cobra.Command, args []string) error {

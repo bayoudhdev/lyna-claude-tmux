@@ -68,31 +68,31 @@ func TestWatchReviewOpen(t *testing.T) {
 	}{
 		{
 			name:   "the whole working tree",
-			review: watchReview{src: fakeSource{root: root}, exe: "/opt/bin/lyna-tmux", pane: "%7", dir: root + "/internal"},
+			review: watchReview{src: fakeSource{root: root}, exe: "/opt/bin/lmux", pane: "%7", dir: root + "/internal"},
 			want: tmux.Command{
 				"display-popup", "-t", "%7", "-E", "-w", "95%", "-h", "95%", "-d", root, "-T", " review ",
-				"--", "/opt/bin/lyna-tmux", "review", "--popup", "--dir", root,
+				"--", "/opt/bin/lmux", "review", "--popup", "--dir", root,
 			},
 		},
 		{
 			// The path is relative to the top of the working tree, not to the
 			// watched directory, and the review is opened at the top.
 			name:   "one file of a watched subdirectory",
-			review: watchReview{src: fakeSource{root: root}, exe: "/opt/bin/lyna-tmux", pane: "%7", dir: root + "/internal"},
+			review: watchReview{src: fakeSource{root: root}, exe: "/opt/bin/lmux", pane: "%7", dir: root + "/internal"},
 			path:   "internal/tui/changes.go",
 			want: tmux.Command{
 				"display-popup", "-t", "%7", "-E", "-w", "95%", "-h", "95%", "-d", root, "-T", " review ",
-				"--", "/opt/bin/lyna-tmux", "review", "--popup", "--dir", root, "--", "internal/tui/changes.go",
+				"--", "/opt/bin/lmux", "review", "--popup", "--dir", root, "--", "internal/tui/changes.go",
 			},
 		},
 		{
 			name:    "a directory that is no repository",
-			review:  watchReview{src: fakeSource{err: watch.ErrNotRepository}, exe: "/opt/bin/lyna-tmux", pane: "%7", dir: root},
+			review:  watchReview{src: fakeSource{err: watch.ErrNotRepository}, exe: "/opt/bin/lmux", pane: "%7", dir: root},
 			wantMsg: "review: " + watch.ErrNotRepository.Error(),
 		},
 		{
 			name:    "a pane that is no pane",
-			review:  watchReview{src: fakeSource{root: root}, exe: "/opt/bin/lyna-tmux", pane: "review", dir: root},
+			review:  watchReview{src: fakeSource{root: root}, exe: "/opt/bin/lmux", pane: "review", dir: root},
 			wantMsg: "review: popup: pane \"review\" is not a pane id such as %3",
 		},
 	}
@@ -133,7 +133,7 @@ func TestWatchReviewOpen(t *testing.T) {
 func TestWatchReviewReportsTheServer(t *testing.T) {
 	t.Parallel()
 	r := watchReview{
-		src: fakeSource{root: "/src/api"}, exe: "/opt/bin/lyna-tmux", pane: "%1", dir: "/src/api",
+		src: fakeSource{root: "/src/api"}, exe: "/opt/bin/lmux", pane: "%1", dir: "/src/api",
 		run: func(context.Context, tmux.Command) error { return errors.New("no server running") },
 	}
 	if text := noteText(t, r.open(context.Background(), "")()); text != "review: no server running" {

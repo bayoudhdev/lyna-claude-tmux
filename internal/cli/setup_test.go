@@ -36,7 +36,7 @@ func TestSetupCLI(t *testing.T) {
 		{
 			name: "not a terminal", args: []string{"setup"}, wantCode: 1,
 			setup:      func(t *testing.T, e *cliEnv) { t.Helper(); e.term.Interactive = false },
-			errHas:     []string{"setup needs a terminal", "lyna-tmux config edit", "lyna-tmux config init"},
+			errHas:     []string{"setup needs a terminal", "lmux config edit", "lmux config init"},
 			wantConfig: "-",
 		},
 		{name: "extra argument", args: []string{"setup", "now"}, wantCode: 1, errHas: []string{`unknown command "now"`}, wantConfig: "-"},
@@ -218,8 +218,8 @@ func TestSetupWizardSaves(t *testing.T) {
 			model: setupFinished{res: tui.SetupResult{Config: setupWith(edited, func(c *config.Config) { c.Review.Editor = "user" }), Saved: true}, done: true},
 			yes:   true,
 			// The line the shell startup file still needs stays the user's.
-			outHas:    []string{"Wrote ", "_lyna-tmux", "One line is still yours to add"},
-			wantFile:  []string{".zfunc", "_lyna-tmux"},
+			outHas:    []string{"Wrote ", "_lmux", "One line is still yours to add"},
+			wantFile:  []string{".zfunc", "_lmux"},
 			wantTheme: "light",
 		},
 		{
@@ -241,7 +241,7 @@ func TestSetupWizardSaves(t *testing.T) {
 			model: setupFinished{res: tui.SetupResult{Config: setupWith(edited, func(c *config.Config) {
 				c.Review.Editor, c.Sandbox.Isolation = "user", "container"
 			}), Saved: true}, done: true},
-			outHas:    []string{"lyna-tmux sandbox devcontainer init"},
+			outHas:    []string{"lmux sandbox devcontainer init"},
 			wantTheme: "light",
 		},
 	}
@@ -319,17 +319,17 @@ func TestSetupGuidance(t *testing.T) {
 	}{
 		{
 			name: "zsh on macOS in Ghostty", env: map[string]string{"SHELL": "/bin/zsh", "TERM_PROGRAM": "ghostty"}, goos: "darwin", altKeys: true,
-			has:   []string{"Shell completion for zsh", "lyna-tmux completion zsh > ~/.zfunc/_lyna-tmux", "fpath=(~/.zfunc $fpath)", "Alt keys need Option sent as Meta in Ghostty", "macos-option-as-alt = true"},
+			has:   []string{"Shell completion for zsh", "lmux completion zsh > ~/.zfunc/_lmux", "fpath=(~/.zfunc $fpath)", "Alt keys need Option sent as Meta in Ghostty", "macos-option-as-alt = true"},
 			lacks: []string{"completion bash", "completion fish"},
 		},
 		{
 			name: "bash on Linux", env: map[string]string{"SHELL": "/usr/bin/bash", "TERM_PROGRAM": "WezTerm"}, goos: "linux", altKeys: true,
-			has:   []string{"lyna-tmux completion bash > ~/.local/share/bash-completion/completions/lyna-tmux", "Alt keys in WezTerm", "Alt sends Meta by default"},
+			has:   []string{"lmux completion bash > ~/.local/share/bash-completion/completions/lmux", "Alt keys in WezTerm", "Alt sends Meta by default"},
 			lacks: []string{"completion zsh", "need Option"},
 		},
 		{
 			name: "fish in Apple Terminal", env: map[string]string{"SHELL": "/opt/homebrew/bin/fish", "TERM_PROGRAM": "Apple_Terminal"}, goos: "darwin", altKeys: true,
-			has: []string{"lyna-tmux completion fish > ~/.config/fish/completions/lyna-tmux.fish", `enable "Use Option as Meta Key"`},
+			has: []string{"lmux completion fish > ~/.config/fish/completions/lmux.fish", `enable "Use Option as Meta Key"`},
 		},
 		{
 			name: "WezTerm on macOS already sends Meta", env: map[string]string{"SHELL": "/bin/zsh", "TERM_PROGRAM": "WezTerm"}, goos: "darwin", altKeys: true,

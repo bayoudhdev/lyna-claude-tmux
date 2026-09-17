@@ -422,7 +422,7 @@ func watchSessionID(t *testing.T, s *app.Server, pane string) string {
 }
 
 // TestWatchFollowsRenamedWorkspace runs the signal loop of a pane's changes
-// view on an isolated server, renames the workspace with `lyna-tmux rename`
+// view on an isolated server, renames the workspace with `lmux rename`
 // and checks that signals on the workspace's channel, keyed on a session id
 // the rename keeps, still refresh the view afterwards.
 func TestWatchFollowsRenamedWorkspace(t *testing.T) {

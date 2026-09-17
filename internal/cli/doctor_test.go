@@ -69,7 +69,7 @@ func TestDoctorCLI(t *testing.T) {
 				t.Fatalf("output lacks %q:\n%s", want, stdout)
 			}
 		}
-		if !strings.Contains(stdout, "codediff.nvim is not installed") || !strings.Contains(stdout, "fix:  lyna-tmux review install") {
+		if !strings.Contains(stdout, "codediff.nvim is not installed") || !strings.Contains(stdout, "fix:  lmux review install") {
 			t.Fatalf("review row missing its fix:\n%s", stdout)
 		}
 	})

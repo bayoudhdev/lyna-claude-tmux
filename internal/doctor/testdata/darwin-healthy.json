@@ -47,7 +47,7 @@
       "title": "Option as Meta",
       "status": "warn",
       "detail": "Alt key bindings need Option to send Meta in Ghostty; doctor cannot read the terminal's setting",
-      "fix": "Ghostty config: macos-option-as-alt = true\nlyna-tmux keys lists the same actions after the prefix, which need no terminal setting"
+      "fix": "Ghostty config: macos-option-as-alt = true\nlmux keys lists the same actions after the prefix, which need no terminal setting"
     },
     {
       "id": "keybindings",

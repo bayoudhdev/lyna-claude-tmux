@@ -59,7 +59,7 @@ func TestTmuxReviewWindow(t *testing.T) {
 			shell:      "sh",
 			noPlugin:   true,
 			wantStatus: "3",
-			screen:     []string{"lyna-tmux review: the :CodeDiff command is not available.", "lyna-tmux review install"},
+			screen:     []string{"lmux review: the :CodeDiff command is not available.", "lmux review install"},
 		},
 	}
 	for _, tc := range cases {

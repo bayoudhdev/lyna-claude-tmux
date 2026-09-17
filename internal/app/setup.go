@@ -36,7 +36,7 @@ func SetupTarget(h Host) (string, error) {
 	case err != nil:
 		return path, fmt.Errorf("stat %s: %w", path, err)
 	case info.Mode()&fs.ModeSymlink != 0:
-		return path, fmt.Errorf("%s: %w; edit the file it points to with lyna-tmux config edit", path, ErrConfigSymlink)
+		return path, fmt.Errorf("%s: %w; edit the file it points to with lmux config edit", path, ErrConfigSymlink)
 	case !info.Mode().IsRegular():
 		return path, fmt.Errorf("%s is not a regular file", path)
 	}

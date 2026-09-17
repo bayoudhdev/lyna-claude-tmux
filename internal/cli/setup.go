@@ -43,7 +43,7 @@ func newSetupCmdWith(d Deps, src app.ReviewPlugin) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			term := d.Terminal()
 			if !term.Interactive {
-				return errors.New("setup needs a terminal; edit the configuration with lyna-tmux config edit, or write the documented defaults with lyna-tmux config init")
+				return errors.New("setup needs a terminal; edit the configuration with lmux config edit, or write the documented defaults with lmux config init")
 			}
 			h, err := d.Host()
 			if err != nil {
@@ -160,7 +160,7 @@ func (d Deps) setupContainer(cmd *cobra.Command, ask func(string) bool) error {
 	}
 	root, err := session.ProjectRoot(cwd)
 	if err != nil {
-		fmt.Fprintf(cmd.OutOrStdout(), "\nContainer isolation needs a dev container per project. In each project run:\n  lyna-tmux sandbox devcontainer init\n  lyna-tmux sandbox devcontainer up\n")
+		fmt.Fprintf(cmd.OutOrStdout(), "\nContainer isolation needs a dev container per project. In each project run:\n  lmux sandbox devcontainer init\n  lmux sandbox devcontainer up\n")
 		return nil
 	}
 	target, err := app.DevcontainerTarget(root, true)
@@ -173,7 +173,7 @@ func (d Deps) setupContainer(cmd *cobra.Command, ask func(string) bool) error {
 		return err
 	}
 	if !ask(fmt.Sprintf("Build and start the dev container %s for %s now?", target.Container(), sanitize.Line(target.Dir))) {
-		fmt.Fprintln(cmd.OutOrStdout(), "  Skipped; run lyna-tmux sandbox devcontainer up when you want it.")
+		fmt.Fprintln(cmd.OutOrStdout(), "  Skipped; run lmux sandbox devcontainer up when you want it.")
 		return nil
 	}
 	if err := docker.Up(cmd.Context(), target); err != nil {
@@ -197,7 +197,7 @@ func (d Deps) setupReview(cmd *cobra.Command, h app.Host, src app.ReviewPlugin, 
 		return nil
 	}
 	if !ask("Install the review plugin (codediff.nvim) now?") {
-		fmt.Fprintln(cmd.OutOrStdout(), "  Skipped; run lyna-tmux review install when you want it.")
+		fmt.Fprintln(cmd.OutOrStdout(), "  Skipped; run lmux review install when you want it.")
 		return nil
 	}
 	res, err := app.ReviewInstall(cmd.Context(), h, src, false)
@@ -232,16 +232,16 @@ type setupCompletionTarget struct {
 // per-user directories each shell loads on its own.
 var setupCompletions = []setupCompletionTarget{
 	{
-		shell: "bash", file: []string{".local", "share", "bash-completion", "completions", "lyna-tmux"},
+		shell: "bash", file: []string{".local", "share", "bash-completion", "completions", "lmux"},
 		gen: func(root *cobra.Command, w io.Writer) error { return root.GenBashCompletionV2(w, true) },
 	},
 	{
-		shell: "zsh", file: []string{".zfunc", "_lyna-tmux"},
+		shell: "zsh", file: []string{".zfunc", "_lmux"},
 		gen:  func(root *cobra.Command, w io.Writer) error { return root.GenZshCompletion(w) },
 		note: "add fpath=(~/.zfunc $fpath) before compinit in ~/.zshrc",
 	},
 	{
-		shell: "fish", file: []string{".config", "fish", "completions", "lyna-tmux.fish"},
+		shell: "fish", file: []string{".config", "fish", "completions", "lmux.fish"},
 		gen: func(root *cobra.Command, w io.Writer) error { return root.GenFishCompletion(w, true) },
 	},
 }
@@ -251,7 +251,7 @@ func (c setupCompletionTarget) lines() []string {
 	path := "~/" + strings.Join(c.file, "/")
 	lines := []string{
 		"mkdir -p " + strings.TrimSuffix(path, "/"+c.file[len(c.file)-1]),
-		"lyna-tmux completion " + c.shell + " > " + path,
+		"lmux completion " + c.shell + " > " + path,
 	}
 	if c.note != "" {
 		lines = append(lines, "# then "+c.note)

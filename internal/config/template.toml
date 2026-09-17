@@ -1,12 +1,12 @@
 # lyna-tmux configuration
 #
 # Every key is optional: a missing key keeps its default value, and an
-# unknown key is an error. Check this file with `lyna-tmux config validate`.
+# unknown key is an error. Check this file with `lmux config validate`.
 
 [ui]
 # Color theme. Dark: lyna, slate, dusk, contrast, nord, rose, mono, solar-dark,
 # earth-dark. Light: light, solar-light, earth-light. ansi uses the terminal's
-# own palette. Preview them with `lyna-tmux theme preview`.
+# own palette. Preview them with `lmux theme preview`.
 theme = "lyna"
 # Icon set: auto, unicode, nerd (needs a Nerd Font), ascii.
 icons = "auto"
@@ -16,7 +16,7 @@ color = "auto"
 status_position = "bottom"
 clock = true
 # Prefix-free Alt (Option) key bindings such as Alt+[ and Alt+] to move between
-# panes and Alt+\\ to split. Run `lyna-tmux keys` for the full list.
+# panes and Alt+\\ to split. Run `lmux keys` for the full list.
 alt_keys = true
 mouse = true
 # Let programs in panes send escape sequences straight to your terminal.
@@ -90,7 +90,7 @@ session_prefix = "claude-"
 
 [review]
 # Live code review with side-by-side diffs in Neovim. isolated runs a private
-# Neovim with a pinned, checksum-verified codediff.nvim (`lyna-tmux review
+# Neovim with a pinned, checksum-verified codediff.nvim (`lmux review
 # install`) and never touches your Neovim setup; user runs your own Neovim and
 # plugin install.
 editor = "isolated"

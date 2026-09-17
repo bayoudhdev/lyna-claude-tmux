@@ -1,7 +1,7 @@
 // Package claudecfg builds what lyna-tmux hands to Claude Code for one launch:
 // the per-launch settings document (hooks, status line, sandbox, permissions,
 // team and worktree options), the argument vector and environment of the
-// claude process, and the project files `lyna-tmux init --project` proposes.
+// claude process, and the project files `lmux init --project` proposes.
 //
 // Everything here is pure: callers read and write files. Setting keys and
 // flags were checked against the Claude Code documentation and the schema

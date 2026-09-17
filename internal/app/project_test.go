@@ -102,7 +102,7 @@ func TestInitProjectPlan(t *testing.T) {
 				}
 			},
 		},
-		{name: "off in the configuration", config: "[sandbox]\nprofile = \"off\"\n", wantErr: ErrSandboxOffInConfig, errHas: "lyna-tmux config edit"},
+		{name: "off in the configuration", config: "[sandbox]\nprofile = \"off\"\n", wantErr: ErrSandboxOffInConfig, errHas: "lmux config edit"},
 		{name: ".claude is a link", setup: func(t *testing.T, root string) {
 			mkdir(t, filepath.Join(root, "elsewhere"))
 			if err := os.Symlink(filepath.Join(root, "elsewhere"), filepath.Join(root, ".claude")); err != nil {

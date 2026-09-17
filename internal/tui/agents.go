@@ -692,7 +692,7 @@ func (m *AgentsModel) listLines() []string {
 	case len(m.visible) == 0:
 		lines = append(lines, "",
 			s.Text.Render(center("no Claude agents running", m.width, s.Ellipsis)),
-			s.Muted.Render(center("start one with: lyna-tmux create", m.width, s.Ellipsis)))
+			s.Muted.Render(center("start one with: lmux create", m.width, s.Ellipsis)))
 	default:
 		cols := m.columns()
 		end := min(m.list.offset+h, len(m.visible))

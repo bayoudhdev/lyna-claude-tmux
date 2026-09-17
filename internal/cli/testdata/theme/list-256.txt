@@ -14,6 +14,6 @@
   ansi         terminal colors  color2 color4 color3 color1 color15 color7
 
 * is the configured theme (ui.theme in <config>).
-Preview one with: lyna-tmux theme preview <name>
-Switch with: lyna-tmux theme <name>
-Give Claude Code matching themes with: lyna-tmux theme claude
+Preview one with: lmux theme preview <name>
+Switch with: lmux theme <name>
+Give Claude Code matching themes with: lmux theme claude

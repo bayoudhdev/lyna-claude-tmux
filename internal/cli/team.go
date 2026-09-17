@@ -19,7 +19,7 @@ func teamCommand(d Deps) *cobra.Command {
 			"agent teams turned on for its Claude panes: teammates open as tmux panes in the workspace.\n" +
 			"A project that already has a running workspace is attached as it is. Arguments after -- are\n" +
 			"passed to claude.",
-		Example: "  lyna-tmux team\n  lyna-tmux team ~/src/api -l solo --model opus",
+		Example: "  lmux team\n  lmux team ~/src/api -l solo --model opus",
 	}
 	return createFlags(cmd, d, createCommand{
 		Teams: true,
@@ -28,7 +28,7 @@ func teamCommand(d Deps) *cobra.Command {
 				res.Name, sanitize.Line(res.Project))
 		},
 		Running: func(res app.CreateResult) string {
-			return fmt.Sprintf("Workspace %s is running with agent teams. Attach with: lyna-tmux attach %s\n", res.Name, res.Name)
+			return fmt.Sprintf("Workspace %s is running with agent teams. Attach with: lmux attach %s\n", res.Name, res.Name)
 		},
 	})
 }

@@ -106,7 +106,7 @@ func TestStatus(t *testing.T) {
 		},
 		{
 			name:         "not installed",
-			wantProblems: []string{"codediff.nvim is not installed (run: lyna-tmux review install)"},
+			wantProblems: []string{"codediff.nvim is not installed (run: lmux review install)"},
 			check: func(t *testing.T, r Report) {
 				if r.Installed || r.InitFile {
 					t.Errorf("report = %+v", r)
@@ -274,7 +274,7 @@ func TestStatusDefaults(t *testing.T) {
 		got  []string
 		want string
 	}{
-		{name: "plugin problems name the install command", got: r.PluginProblems(), want: "codediff.nvim is not installed (run: lyna-tmux review install)"},
+		{name: "plugin problems name the install command", got: r.PluginProblems(), want: "codediff.nvim is not installed (run: lmux review install)"},
 		{name: "Neovim problems name the binary", got: r.NvimProblems(), want: "Neovim (lyna-tmux-test-no-such-nvim) was not found on PATH"},
 	}
 	for _, tc := range cases {

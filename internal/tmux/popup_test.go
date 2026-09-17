@@ -29,10 +29,10 @@ func TestPopupSpecCommand(t *testing.T) {
 		},
 		{
 			name: "over a pane",
-			spec: PopupSpec{Pane: "%12", Width: "95%", Height: "95%", Dir: "/src/api", Title: "review", Argv: []string{"/opt/lyna-tmux", "review", "--popup"}},
+			spec: PopupSpec{Pane: "%12", Width: "95%", Height: "95%", Dir: "/src/api", Title: "review", Argv: []string{"/opt/lmux", "review", "--popup"}},
 			want: Command{
 				"display-popup", "-t", "%12", "-E", "-w", "95%", "-h", "95%",
-				"-d", "/src/api", "-T", " review ", "--", "/opt/lyna-tmux", "review", "--popup",
+				"-d", "/src/api", "-T", " review ", "--", "/opt/lmux", "review", "--popup",
 			},
 		},
 		{

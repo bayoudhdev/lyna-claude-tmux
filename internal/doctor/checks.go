@@ -193,7 +193,7 @@ func checkOptionAsMeta(_ context.Context, d Deps) []Result {
 	// Every action bound to an Alt key is bound after the prefix as well, so
 	// the workspace stays usable while the terminal is set up, and a terminal
 	// nobody changes stays usable for good.
-	r.Fix = g.Setting + "\nlyna-tmux keys lists the same actions after the prefix, which need no terminal setting"
+	r.Fix = g.Setting + "\nlmux keys lists the same actions after the prefix, which need no terminal setting"
 	return []Result{r}
 }
 

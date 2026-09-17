@@ -27,9 +27,9 @@ func initCommand(d Deps) *cobra.Command {
 			"worktrees and personal settings. Existing files are merged, never replaced: unknown\n" +
 			"keys, list entries and comments stay as they are. Every change is shown first and\n" +
 			"confirmed unless --yes.",
-		Example: "  lyna-tmux init\n" +
-			"  lyna-tmux init --project --dry-run\n" +
-			"  lyna-tmux init --project ~/src/api --yes",
+		Example: "  lmux init\n" +
+			"  lmux init --project --dry-run\n" +
+			"  lmux init --project ~/src/api --yes",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			h, err := d.Host()
@@ -38,7 +38,7 @@ func initCommand(d Deps) *cobra.Command {
 			}
 			if !project {
 				if len(args) > 0 || yes || dryRun {
-					return errors.New("a directory, --yes and --dry-run belong to `lyna-tmux init --project`")
+					return errors.New("a directory, --yes and --dry-run belong to `lmux init --project`")
 				}
 				return initConfig(cmd, h)
 			}
@@ -109,9 +109,9 @@ func initConfig(cmd *cobra.Command, h app.Host) error {
 		fmt.Fprintf(out, "Wrote %s\n", sanitize.Line(res.Path))
 	}
 	_, err = fmt.Fprint(out, "\nNext steps:\n"+
-		"  lyna-tmux doctor            check tmux, Claude Code and the sandbox on this machine\n"+
-		"  lyna-tmux init --project    add the sandbox settings to a project you share\n"+
-		"  lyna-tmux create            open the workspace of the current project\n")
+		"  lmux doctor            check tmux, Claude Code and the sandbox on this machine\n"+
+		"  lmux init --project    add the sandbox settings to a project you share\n"+
+		"  lmux create            open the workspace of the current project\n")
 	return err
 }
 

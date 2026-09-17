@@ -18,8 +18,8 @@ func taskCommand(d Deps) *cobra.Command {
 			"A task window of that name already open is selected instead, so one worktree keeps one\n" +
 			"conversation. Worktree names use letters, digits, '.', '_' and '-'. Outside a workspace pane,\n" +
 			"name the workspace with --session.",
-		Example: "  lyna-tmux task fix-login \"fix the login redirect loop\"\n" +
-			"  lyna-tmux task spike --session api",
+		Example: "  lmux task fix-login \"fix the login redirect loop\"\n" +
+			"  lmux task spike --session api",
 		Args: cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			req.Name = args[0]

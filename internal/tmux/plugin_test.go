@@ -8,7 +8,7 @@ import (
 )
 
 func TestPluginSeq(t *testing.T) {
-	const bin = "/home/dev/.local/bin/lyna-tmux"
+	const bin = "/home/dev/.local/bin/lmux"
 	launch := Command{"bind-key", "-T", "prefix", "y", "run-shell", "-b", bin + " popup launch --pane #{pane_id} --client #{q:client_name}"}
 	agents := Command{"bind-key", "-T", "prefix", "u", "run-shell", "-b", bin + " popup agents --pane #{pane_id} --client #{q:client_name}"}
 	bell := Command{"set-hook", "-g", "alert-bell[91]", "run-shell -b '" + bin + " bell-forward #{q:hook_session}'"}
@@ -36,7 +36,7 @@ func TestPluginConfGolden(t *testing.T) {
 		name string
 		opts PluginOptions
 	}{
-		{name: "default", opts: PluginOptions{Bin: "/home/dev/.local/bin/lyna-tmux", LaunchKey: "y", ListKey: "u", ForwardBell: true}},
+		{name: "default", opts: PluginOptions{Bin: "/home/dev/.local/bin/lmux", LaunchKey: "y", ListKey: "u", ForwardBell: true}},
 		{name: "hostile-bin-no-bell", opts: PluginOptions{Bin: "/opt/it's #[x] #{pane_id} ;/lyna-tmux", LaunchKey: "M-y", ListKey: `\`}},
 	}
 	for _, tc := range cases {

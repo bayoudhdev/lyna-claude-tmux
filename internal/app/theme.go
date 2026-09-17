@@ -29,7 +29,7 @@ const (
 // ErrThemeUnknown reports a theme name that is not a built-in palette.
 var ErrThemeUnknown = errors.New("unknown theme")
 
-// ThemeListing is what `lyna-tmux theme` shows.
+// ThemeListing is what `lmux theme` shows.
 type ThemeListing struct {
 	// Palettes are the built-in palettes in the order the configuration
 	// documents them.
@@ -56,7 +56,7 @@ func ThemeList(h Host) (ThemeListing, error) {
 	return ThemeListing{Palettes: palettes, Current: cfg.UI.Theme, Depth: depth, ConfigPath: paths.ConfigFile()}, nil
 }
 
-// ThemeMockup is what `lyna-tmux theme preview` shows: the workspace drawn
+// ThemeMockup is what `lmux theme preview` shows: the workspace drawn
 // in one or every theme.
 type ThemeMockup struct {
 	// Themes are the previewed palettes in documented order, each with the
@@ -208,10 +208,10 @@ func ThemeSet(h Host, name string) (ThemeChange, error) {
 	}
 	out, err := config.SetString(data, themeSection, themeKey, name)
 	if err != nil {
-		return change, fmt.Errorf("%s: %w; set %s.%s with: lyna-tmux config edit", change.Path, err, themeSection, themeKey)
+		return change, fmt.Errorf("%s: %w; set %s.%s with: lmux config edit", change.Path, err, themeSection, themeKey)
 	}
 	if _, err := config.Decode(out); err != nil {
-		return change, fmt.Errorf("%s: %w; fix the file with: lyna-tmux config edit", change.Path, err)
+		return change, fmt.Errorf("%s: %w; fix the file with: lmux config edit", change.Path, err)
 	}
 	if bytes.Equal(out, data) {
 		return change, nil
@@ -250,7 +250,7 @@ func ThemeClaude(h Host) (claudetheme.Report, error) {
 	dir := xdg.ClaudeHome(h.Getenv, h.Home)
 	rep, err := claudetheme.Write(dir, palettes...)
 	if rep.Dir == "" && errors.Is(err, fs.ErrNotExist) {
-		return rep, fmt.Errorf("no Claude Code configuration directory at %s: start Claude Code once, then run lyna-tmux theme claude again", dir)
+		return rep, fmt.Errorf("no Claude Code configuration directory at %s: start Claude Code once, then run lmux theme claude again", dir)
 	}
 	return rep, err
 }

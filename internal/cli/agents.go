@@ -43,8 +43,8 @@ func newAgentsCmd(d Deps) *cobra.Command {
 			"pane an agent runs in. Background jobs open with claude attach. Agents are located\n" +
 			"in the tmux server this command runs inside, or in the lyna-tmux server.\n" +
 			"Without a terminal the list is printed as a table.",
-		Example: "  lyna-tmux agents\n" +
-			"  lyna-tmux agents --json",
+		Example: "  lmux agents\n" +
+			"  lmux agents --json",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx, h, s, err := d.openServer(cmd)
@@ -53,7 +53,7 @@ func newAgentsCmd(d Deps) *cobra.Command {
 			}
 			view := app.NewAgentsView(h, s, d.now)
 			if popup && !view.Inside() {
-				return errors.New("--popup runs inside a tmux popup, but $TMUX is not set; run lyna-tmux agents")
+				return errors.New("--popup runs inside a tmux popup, but $TMUX is not set; run lmux agents")
 			}
 			term := d.Terminal()
 			switch {
@@ -160,7 +160,7 @@ func agentsWriteJSON(w io.Writer, snap agent.Snapshot) error {
 // and window names come from other programs and are sanitized.
 func agentsWriteTable(w io.Writer, snap agent.Snapshot, now time.Time, home string) error {
 	if len(snap.Agents) == 0 {
-		_, err := fmt.Fprintln(w, "No Claude agents running. Start one with: lyna-tmux create")
+		_, err := fmt.Fprintln(w, "No Claude agents running. Start one with: lmux create")
 		return err
 	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)

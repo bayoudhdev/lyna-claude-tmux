@@ -76,7 +76,7 @@ const SetupErrorVar = "lyna_tmux_review_setup_error"
 // pressed, because a closing popup would take it away.
 const Launcher = `lua ` +
 	`local function fail(code, msg) ` +
-	`msg = "lyna-tmux review: " .. msg ` +
+	`msg = "lmux review: " .. msg ` +
 	`if #vim.api.nvim_list_uis() > 0 then ` +
 	`vim.cmd("redraw") ` +
 	`vim.api.nvim_echo({ { msg, "ErrorMsg" }, { "\nPress any key to close", "MoreMsg" } }, false, {}) ` +
@@ -94,7 +94,7 @@ const Launcher = `lua ` +
 	`local entered, cderr = pcall(vim.api.nvim_set_current_dir, dir) ` +
 	`if not entered then return fail(4, "cannot enter " .. dir .. ": " .. tostring(cderr)) end end ` +
 	`if vim.fn.exists(":CodeDiff") ~= 2 then ` +
-	`return fail(3, "the :CodeDiff command is not available. Install it with: lyna-tmux review install") end ` +
+	`return fail(3, "the :CodeDiff command is not available. Install it with: lmux review install") end ` +
 	`if vim.g.` + SetupErrorVar + ` then ` +
 	`return fail(4, "codediff.nvim setup failed: " .. tostring(vim.g.` + SetupErrorVar + `)) end ` +
 	`local ran, err = pcall(vim.api.nvim_cmd, { cmd = "CodeDiff", args = args }, {}) ` +

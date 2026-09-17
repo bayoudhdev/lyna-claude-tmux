@@ -6,4 +6,4 @@ lyna: dark (configured)
   menu    [38;2;57;211;83m│[0m[38;2;13;17;23;48;2;57;211;83m Review changes    M-g [0m[38;2;57;211;83m│[0m
   swatch  [38;2;57;211;83m██[0m [38;2;88;166;255m██[0m [38;2;240;183;47m██[0m [38;2;255;95;86m██[0m [38;2;230;237;243m██[0m [38;2;125;133;144m██[0m
 
-Switch with: lyna-tmux theme lyna
+Switch with: lmux theme lyna

@@ -157,7 +157,7 @@ func TestGlobEscape(t *testing.T) {
 func TestShellQuote(t *testing.T) {
 	cases := []struct{ name, in, want string }{
 		{"empty", "", "''"},
-		{"safe path", "/usr/local/bin/lyna-tmux", "/usr/local/bin/lyna-tmux"},
+		{"safe path", "/usr/local/bin/lmux", "/usr/local/bin/lmux"},
 		{"space", "/Users/me/My Apps/lyna-tmux", "'/Users/me/My Apps/lyna-tmux'"},
 		{"quote", "it's", `'it'\''s'`},
 		{"assignment is quoted", "A=b", "'A=b'"},

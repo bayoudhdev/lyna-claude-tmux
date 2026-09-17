@@ -311,7 +311,7 @@ func TestCheckOptionAsMeta(t *testing.T) {
 				ID: "option-meta", Title: "Option as Meta", Status: StatusWarn,
 				Detail: "Alt key bindings need Option to send Meta in iTerm2; doctor cannot read the terminal's setting",
 				Fix: "iTerm2 > Settings > Profiles > Keys > General: set \"Left Option key\" and \"Right Option key\" to \"Esc+\"" +
-					"\nlyna-tmux keys lists the same actions after the prefix, which need no terminal setting",
+					"\nlmux keys lists the same actions after the prefix, which need no terminal setting",
 			}},
 		},
 		{

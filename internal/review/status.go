@@ -123,13 +123,13 @@ func (r Report) PluginProblems() []string {
 	case r.DirProblem != "":
 		out = append(out, r.DirProblem)
 	case !r.Installed:
-		out = append(out, "codediff.nvim is not installed (run: lyna-tmux review install)")
+		out = append(out, "codediff.nvim is not installed (run: lmux review install)")
 	default:
 		if !r.CommitOK {
-			out = append(out, fmt.Sprintf("codediff.nvim is at commit %q, not the pinned one (run: lyna-tmux review install --force)", r.Commit))
+			out = append(out, fmt.Sprintf("codediff.nvim is at commit %q, not the pinned one (run: lmux review install --force)", r.Commit))
 		}
 		if !r.VersionOK {
-			out = append(out, fmt.Sprintf("codediff.nvim VERSION is %q, not the pinned one (run: lyna-tmux review install --force)", r.Version))
+			out = append(out, fmt.Sprintf("codediff.nvim VERSION is %q, not the pinned one (run: lmux review install --force)", r.Version))
 		}
 		for _, a := range r.Assets {
 			if !a.ChecksumOK {
@@ -204,7 +204,7 @@ func Status(ctx context.Context, opts StatusOptions) Report {
 	if err := checkRealDir(dir); err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
 			r.Installed = true
-			r.DirProblem = sanitize.Line(err.Error()) + " (remove it, then run: lyna-tmux review install)"
+			r.DirProblem = sanitize.Line(err.Error()) + " (remove it, then run: lmux review install)"
 		}
 		return r
 	}
@@ -234,13 +234,13 @@ func assetStatus(dir string, a domain.Asset) AssetStatus {
 	ok, err := fileMatches(filepath.Join(dir, a.File), a.SHA256)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		s.Problem = fmt.Sprintf("%s is missing (run: lyna-tmux review install --force)", a.File)
+		s.Problem = fmt.Sprintf("%s is missing (run: lmux review install --force)", a.File)
 	case err != nil:
 		s.Present = true
 		s.Problem = fmt.Sprintf("%s cannot be verified: %s", a.File, sanitize.Line(err.Error()))
 	case !ok:
 		s.Present = true
-		s.Problem = fmt.Sprintf("%s does not match its pinned checksum (run: lyna-tmux review install --force)", a.File)
+		s.Problem = fmt.Sprintf("%s does not match its pinned checksum (run: lmux review install --force)", a.File)
 	default:
 		s.Present, s.ChecksumOK = true, true
 	}

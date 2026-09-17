@@ -79,7 +79,7 @@ func InitProjectPlan(h Host, dir string) (ProjectPlan, error) {
 		return ProjectPlan{}, err
 	}
 	if cfg.Sandbox.Profile == string(sandbox.Off) {
-		return ProjectPlan{}, fmt.Errorf("%w: project settings keep the sandbox on; set sandbox.profile to standard or strict with `lyna-tmux config edit`", ErrSandboxOffInConfig)
+		return ProjectPlan{}, fmt.Errorf("%w: project settings keep the sandbox on; set sandbox.profile to standard or strict with `lmux config edit`", ErrSandboxOffInConfig)
 	}
 	profile, err := sandbox.ParseProfile(cfg.Sandbox.Profile)
 	if err != nil {
@@ -196,7 +196,7 @@ func (p ProjectPlan) Apply() (ProjectApplied, error) {
 			return out, err
 		}
 		if current.Exists != f.Exists || !bytes.Equal(current.Old, f.Old) {
-			return out, fmt.Errorf("%w: %s; run `lyna-tmux init --project` again", ErrProjectChanged, f.Path)
+			return out, fmt.Errorf("%w: %s; run `lmux init --project` again", ErrProjectChanged, f.Path)
 		}
 	}
 	for _, f := range p.Files {

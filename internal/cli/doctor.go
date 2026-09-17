@@ -46,9 +46,9 @@ func doctorCommandWith(d Deps, src app.ReviewPlugin) *cobra.Command {
 			"prints the rest for you to apply: a terminal setting, an account and a package\n" +
 			"manager that asks for a password are yours to run. It never edits ~/.tmux.conf or\n" +
 			"the Claude Code settings.",
-		Example: "  lyna-tmux doctor\n" +
-			"  lyna-tmux doctor --fix\n" +
-			"  lyna-tmux doctor --json | jq '.results[] | select(.status == \"fail\")'",
+		Example: "  lmux doctor\n" +
+			"  lmux doctor --fix\n" +
+			"  lmux doctor --json | jq '.results[] | select(.status == \"fail\")'",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if asJSON && fix {
@@ -153,7 +153,7 @@ func (d Deps) doctorFix(cmd *cobra.Command, src app.ReviewPlugin, r doctor.Repor
 		}
 	}
 	if len(applied) > 0 && !dryRun {
-		fmt.Fprintf(out, "\n%d fix applied; run lyna-tmux doctor again to confirm.\n", len(applied))
+		fmt.Fprintf(out, "\n%d fix applied; run lmux doctor again to confirm.\n", len(applied))
 	}
 	return doctorFixResult(r, applied, failed, skipped)
 }

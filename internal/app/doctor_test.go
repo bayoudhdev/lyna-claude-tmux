@@ -99,7 +99,7 @@ func TestDoctorRun(t *testing.T) {
 				if c := doctorRow(t, r, "tmux"); c.Status != doctor.StatusFail || !strings.Contains(c.Detail, "not on PATH") {
 					t.Fatalf("tmux row does not use the host lookup: %+v", c)
 				}
-				if c := doctorRow(t, r, doctorReviewID); c.Status != doctor.StatusWarn || c.Fix != "lyna-tmux review install" {
+				if c := doctorRow(t, r, doctorReviewID); c.Status != doctor.StatusWarn || c.Fix != "lmux review install" {
 					t.Fatalf("review row %+v", c)
 				}
 				if !strings.Contains(strings.Join(f.ran, "\n"), "/bin/nvim --version") {
@@ -124,7 +124,7 @@ func TestDoctorRun(t *testing.T) {
 			config: "[ui]\ntheme = \"nope\"\n",
 			check: func(t *testing.T, r doctor.Report, _ *doctorFake) {
 				c := doctorRow(t, r, doctorConfigID)
-				if c.Status != doctor.StatusFail || c.Fix != "lyna-tmux config edit" || !strings.Contains(c.Detail, "theme") || !r.Failed() {
+				if c.Status != doctor.StatusFail || c.Fix != "lmux config edit" || !strings.Contains(c.Detail, "theme") || !r.Failed() {
 					t.Fatalf("config row %+v", c)
 				}
 				doctorRow(t, r, "git")
@@ -205,14 +205,14 @@ func TestDoctorReviewResult(t *testing.T) {
 		{name: "verified with several native files", editor: domain.EditorIsolated, report: with(func(r *review.Report) {
 			r.Assets = append(r.Assets, review.AssetStatus{File: "libvscode_diff.so", Present: true, ChecksumOK: true})
 		}), wantStatus: doctor.StatusOK, detailHas: "2 native files match their checksums"},
-		{name: "not installed", editor: domain.EditorIsolated, report: with(func(r *review.Report) { r.Installed, r.Assets = false, nil }), wantStatus: doctor.StatusWarn, wantFix: "lyna-tmux review install", detailHas: "not installed"},
+		{name: "not installed", editor: domain.EditorIsolated, report: with(func(r *review.Report) { r.Installed, r.Assets = false, nil }), wantStatus: doctor.StatusWarn, wantFix: "lmux review install", detailHas: "not installed"},
 		{name: "unsupported platform", editor: domain.EditorIsolated, report: with(func(r *review.Report) { r.PlatformProblem = "no build for plan9/amd64" }), wantStatus: doctor.StatusWarn, detailHas: "plan9"},
-		{name: "not a directory", editor: domain.EditorIsolated, report: with(func(r *review.Report) { r.DirProblem = "is a symbolic link" }), wantStatus: doctor.StatusFail, wantFix: "lyna-tmux review install", detailHas: "symbolic link"},
-		{name: "wrong commit", editor: domain.EditorIsolated, report: with(func(r *review.Report) { r.CommitOK = false }), wantStatus: doctor.StatusFail, wantFix: "lyna-tmux review install --force", detailHas: "not the pinned one"},
+		{name: "not a directory", editor: domain.EditorIsolated, report: with(func(r *review.Report) { r.DirProblem = "is a symbolic link" }), wantStatus: doctor.StatusFail, wantFix: "lmux review install", detailHas: "symbolic link"},
+		{name: "wrong commit", editor: domain.EditorIsolated, report: with(func(r *review.Report) { r.CommitOK = false }), wantStatus: doctor.StatusFail, wantFix: "lmux review install --force", detailHas: "not the pinned one"},
 		{name: "library checksum", editor: domain.EditorIsolated, report: with(func(r *review.Report) {
 			r.Assets[0].ChecksumOK, r.Assets[0].Problem = false, "libvscode_diff.dylib does not match its pinned SHA256"
-		}), wantStatus: doctor.StatusFail, wantFix: "lyna-tmux review install --force", detailHas: "does not match"},
-		{name: "unverified file", editor: domain.EditorIsolated, report: with(func(r *review.Report) { r.Unverified = []string{"plugin/evil.lua"} }), wantStatus: doctor.StatusFail, detailHas: "evil.lua", wantFix: "lyna-tmux review install --force"},
+		}), wantStatus: doctor.StatusFail, wantFix: "lmux review install --force", detailHas: "does not match"},
+		{name: "unverified file", editor: domain.EditorIsolated, report: with(func(r *review.Report) { r.Unverified = []string{"plugin/evil.lua"} }), wantStatus: doctor.StatusFail, detailHas: "evil.lua", wantFix: "lmux review install --force"},
 		{name: "missing nvim warns", editor: domain.EditorIsolated, report: with(func(r *review.Report) { r.NvimFound, r.NvimProblem = false, "nvim is not on PATH" }), wantStatus: doctor.StatusWarn, detailHas: "nvim is not on PATH"},
 		{name: "old nvim warns", editor: domain.EditorIsolated, report: with(func(r *review.Report) { r.NvimVersion, r.NvimSupported = oldNvim, false }), wantStatus: doctor.StatusWarn, detailHas: "too old"},
 		{name: "not the recommended nvim", editor: domain.EditorIsolated, report: with(func(r *review.Report) { r.NvimRecommends = false }), wantStatus: doctor.StatusWarn, detailHas: "recommended"},

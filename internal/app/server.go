@@ -60,7 +60,7 @@ func OpenServer(ctx context.Context, h Host) (*Server, error) {
 	env := ServerEnviron(h.Environ)
 	v, err := tmux.New(tmux.Options{Bin: h.TmuxBin, Env: env}).Version(ctx)
 	if errors.Is(err, tmux.ErrNotInstalled) {
-		return nil, fmt.Errorf("%w: install tmux %d.%d or newer (run `lyna-tmux doctor` for the exact command)", err, tmux.MinMajor, tmux.MinMinor)
+		return nil, fmt.Errorf("%w: install tmux %d.%d or newer (run `lmux doctor` for the exact command)", err, tmux.MinMajor, tmux.MinMinor)
 	}
 	if err != nil {
 		return nil, err

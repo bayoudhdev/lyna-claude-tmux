@@ -118,11 +118,11 @@ func build(t *testing.T, in SettingsInput) decoded {
 }
 
 func TestBuildSettingsHooksFollowRegistrations(t *testing.T) {
-	data, err := BuildSettings(SettingsInput{Bin: "/usr/local/bin/lyna-tmux", Sandbox: resolve(t, sandbox.Input{})})
+	data, err := BuildSettings(SettingsInput{Bin: "/usr/local/bin/lmux", Sandbox: resolve(t, sandbox.Input{})})
 	if err != nil {
 		t.Fatal(err)
 	}
-	d := build(t, SettingsInput{Bin: "/usr/local/bin/lyna-tmux", Sandbox: resolve(t, sandbox.Input{})})
+	d := build(t, SettingsInput{Bin: "/usr/local/bin/lmux", Sandbox: resolve(t, sandbox.Input{})})
 	regs := hookevent.Registrations()
 	if len(d.Hooks) != len(regs) {
 		t.Fatalf("got %d hook events, want %d", len(d.Hooks), len(regs))
@@ -145,7 +145,7 @@ func TestBuildSettingsHooksFollowRegistrations(t *testing.T) {
 			if h.Type != "command" || h.Async == nil || !*h.Async {
 				t.Errorf("handler %+v, want type command and async true", h)
 			}
-			if want := "/usr/local/bin/lyna-tmux hook " + string(reg.Event); h.Command != want {
+			if want := "/usr/local/bin/lmux hook " + string(reg.Event); h.Command != want {
 				t.Errorf("command = %q, want %q", h.Command, want)
 			}
 			// Events appear in registration order in the document.
@@ -161,7 +161,7 @@ func TestBuildSettingsHooksFollowRegistrations(t *testing.T) {
 func TestBuildSettingsOptions(t *testing.T) {
 	std := resolve(t, sandbox.Input{})
 	strict := resolve(t, sandbox.Input{Profile: sandbox.Strict})
-	bin := "/opt/lyna/bin/lyna-tmux"
+	bin := "/opt/lyna/bin/lmux"
 	cases := []struct {
 		name  string
 		in    SettingsInput
@@ -439,7 +439,7 @@ func TestHookAndStatusLineCommands(t *testing.T) {
 		hook string
 		sl   string
 	}{
-		{name: "plain path", bin: "/usr/bin/lyna-tmux", hook: "/usr/bin/lyna-tmux hook Stop", sl: "/usr/bin/lyna-tmux statusline"},
+		{name: "plain path", bin: "/usr/bin/lmux", hook: "/usr/bin/lmux hook Stop", sl: "/usr/bin/lmux statusline"},
 		{name: "space", bin: "/a b/lyna-tmux", hook: "'/a b/lyna-tmux' hook Stop", sl: "'/a b/lyna-tmux' statusline"},
 		{name: "single quote", bin: "/it's/lyna-tmux", hook: `'/it'\''s/lyna-tmux' hook Stop`, sl: `'/it'\''s/lyna-tmux' statusline`},
 	}

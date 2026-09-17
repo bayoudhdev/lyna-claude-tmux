@@ -35,7 +35,7 @@ func pluginTmuxCommands(d Deps) []*cobra.Command {
 // outside a workspace pane.
 func wsTargetErr(err error, flag string) error {
 	if errors.Is(err, app.ErrNoTarget) {
-		return fmt.Errorf("%w: pass %s (lyna-tmux ls lists workspaces)", err, flag)
+		return fmt.Errorf("%w: pass %s (lmux ls lists workspaces)", err, flag)
 	}
 	return err
 }
