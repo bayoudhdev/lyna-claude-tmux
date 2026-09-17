@@ -42,7 +42,14 @@ type LaunchOptions struct {
 	Sandbox   string
 	Isolation string
 	// Continue resumes the most recent conversation in the project.
-	Continue  bool
+	Continue bool
+	// Command replaces claude.command. Only the popup path of plugin mode sets
+	// it, from the @claude_command option; no command line flag does.
+	Command string
+	// Args replaces claude.args when it is not nil, an empty list included;
+	// ExtraArgs still follow. Only the popup path of plugin mode sets it, from
+	// the @claude_args option.
+	Args      []string
 	ExtraArgs []string
 	// Teams turns agent teams on for this launch even when claude.teams is
 	// off in the configuration.
@@ -113,7 +120,7 @@ func (s *Server) prepareLaunch(h Host, root, name string, o LaunchOptions) (laun
 	if err := sandbox.CheckBypass(res.Profile, res.Isolation, permissionMode); err != nil {
 		return launchPlan{}, err
 	}
-	claudePath, err := claude.ResolveCommand(cfg.Claude.Command, h.lookPath(), h.Getenv, h.Home, claude.IsExecutable)
+	claudePath, err := claude.ResolveCommand(pick(o.Command, cfg.Claude.Command), h.lookPath(), h.Getenv, h.Home, claude.IsExecutable)
 	if err != nil {
 		return launchPlan{}, err
 	}
@@ -142,7 +149,11 @@ func (s *Server) prepareLaunch(h Host, root, name string, o LaunchOptions) (laun
 	if err != nil {
 		return launchPlan{}, err
 	}
-	extra := append([]string(nil), cfg.Claude.Args...)
+	args := cfg.Claude.Args
+	if o.Args != nil {
+		args = o.Args
+	}
+	extra := append([]string(nil), args...)
 	if o.Continue {
 		extra = append(extra, "--continue")
 	}

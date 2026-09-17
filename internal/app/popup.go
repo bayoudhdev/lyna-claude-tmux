@@ -9,6 +9,8 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/claude"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/config"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/layout"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/session"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
@@ -45,16 +47,48 @@ type popupLook struct {
 	prefix, width, height string
 }
 
-func (s *Server) popupLook(ctx context.Context) (popupLook, error) {
-	user, err := s.Client.ReadPluginOptions(ctx)
-	if err != nil {
-		return popupLook{}, err
-	}
+func (s *Server) popupLook(user tmux.PluginUserOptions) popupLook {
 	return popupLook{
 		prefix: pick(user.SessionPrefix, s.Config.Popup.SessionPrefix),
 		width:  pick(user.PopupWidth, s.Config.Popup.Width),
 		height: pick(user.PopupHeight, s.Config.Popup.Height),
-	}, nil
+	}
+}
+
+// popupLaunchOptions turns the @claude_command and @claude_args options of the
+// user's server into the launch of a popup session. A set option replaces its
+// configuration counterpart, the rule the look options follow: the plugin
+// this project derives from knew only these two options, so a user who
+// migrated set them as the whole launch, and appending would run those
+// arguments together with claude.args from a configuration file they never
+// edited, with no way to take one back from tmux. The command is checked and
+// resolved the way claude.command is, so an option naming a binary that does
+// not exist fails here, naming the option, instead of falling back to the
+// configured one. The arguments are split without a shell: a user wrote them
+// for one, but nothing here is expanded.
+func popupLaunchOptions(h Host, user tmux.PluginUserOptions) (LaunchOptions, error) {
+	var o LaunchOptions
+	if msg := config.ClaudeCommandProblem(user.Command); msg != "" {
+		return LaunchOptions{}, fmt.Errorf("%s %s (got %q)", tmux.OptClaudeCommand, msg, user.Command)
+	}
+	if user.Command != "" {
+		path, err := claude.ResolveCommand(user.Command, h.lookPath(), h.Getenv, h.Home, claude.IsExecutable)
+		if err != nil {
+			return LaunchOptions{}, fmt.Errorf("%s: %w", tmux.OptClaudeCommand, err)
+		}
+		o.Command = path
+	}
+	if !config.CleanText(user.Args) {
+		return LaunchOptions{}, fmt.Errorf("%s must be a single-line value without control characters (got %q)", tmux.OptClaudeArgs, user.Args)
+	}
+	args, err := tmux.ShellSplit(user.Args)
+	if err != nil {
+		return LaunchOptions{}, fmt.Errorf("%s: %w", tmux.OptClaudeArgs, err)
+	}
+	// No words, from an unset option or one holding only blanks, is nil: the
+	// configuration wins, as for an empty look option.
+	o.Args = args
+	return o, nil
 }
 
 func (r PopupRequest) popupValidate() error {
@@ -86,10 +120,11 @@ func (s *Server) PopupLaunch(ctx context.Context, h Host, req PopupRequest) (Pop
 	if err := req.popupValidate(); err != nil {
 		return PopupResult{}, err
 	}
-	look, err := s.popupLook(ctx)
+	user, err := s.Client.ReadPluginOptions(ctx)
 	if err != nil {
 		return PopupResult{}, err
 	}
+	look := s.popupLook(user)
 	pane, err := s.popupPane(ctx, req.Pane)
 	if err != nil {
 		return PopupResult{}, err
@@ -112,7 +147,7 @@ func (s *Server) PopupLaunch(ctx context.Context, h Host, req PopupRequest) (Pop
 		return PopupResult{}, err
 	}
 	if !running {
-		if res.Created, err = s.popupStart(ctx, h, name, dir); err != nil {
+		if res.Created, err = s.popupStart(ctx, h, name, dir, user); err != nil {
 			return PopupResult{}, err
 		}
 	}
@@ -138,9 +173,10 @@ func (s *Server) PopupLaunch(ctx context.Context, h Host, req PopupRequest) (Pop
 	return res, err
 }
 
-// popupStart creates the detached popup session running Claude in dir. It
-// reports false without an error when a concurrent launch created it first.
-func (s *Server) popupStart(ctx context.Context, h Host, name, dir string) (bool, error) {
+// popupStart creates the detached popup session running Claude in dir, as the
+// user's @claude_command and @claude_args options say. It reports false
+// without an error when a concurrent launch created it first.
+func (s *Server) popupStart(ctx context.Context, h Host, name, dir string, user tmux.PluginUserOptions) (bool, error) {
 	root, err := session.ProjectRoot(dir)
 	if err != nil {
 		return false, err
@@ -149,7 +185,11 @@ func (s *Server) popupStart(ctx context.Context, h Host, name, dir string) (bool
 	if err != nil {
 		return false, err
 	}
-	lp, err := s.prepareLaunch(h, root, name, LaunchOptions{})
+	o, err := popupLaunchOptions(h, user)
+	if err != nil {
+		return false, err
+	}
+	lp, err := s.prepareLaunch(h, root, name, o)
 	if err != nil {
 		return false, err
 	}
@@ -173,10 +213,11 @@ func (s *Server) PopupAgents(ctx context.Context, h Host, req PopupRequest) erro
 	if err := req.popupValidate(); err != nil {
 		return err
 	}
-	look, err := s.popupLook(ctx)
+	user, err := s.Client.ReadPluginOptions(ctx)
 	if err != nil {
 		return err
 	}
+	look := s.popupLook(user)
 	pane, err := s.popupPane(ctx, req.Pane)
 	if err != nil {
 		return err
