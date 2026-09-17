@@ -160,16 +160,15 @@ func (c Config) validateWorkspace(v *validator) {
 	if !keyPattern().MatchString(w.Prefix) {
 		v.add("workspace.prefix", "must be a tmux key such as C-b, C-a or C-Space (got %q)", w.Prefix)
 	}
-	if w.Shell != "" && (!strings.HasPrefix(w.Shell, "/") || !clean(w.Shell)) {
+	if w.Shell != "" && (!strings.HasPrefix(w.Shell, "/") || !CleanText(w.Shell)) {
 		v.add("workspace.shell", "must be an absolute path or empty for $SHELL (got %q)", w.Shell)
 	}
 }
 
 func (c Config) validateClaude(v *validator) {
 	cl := c.Claude
-	if cl.Command != "" && (!clean(cl.Command) || strings.ContainsAny(cl.Command, " \t") ||
-		(strings.Contains(cl.Command, "/") && !strings.HasPrefix(cl.Command, "/"))) {
-		v.add("claude.command", "must be a command name on PATH or an absolute path (got %q)", cl.Command)
+	if msg := ClaudeCommandProblem(cl.Command); msg != "" {
+		v.add("claude.command", "%s (got %q)", msg, cl.Command)
 	}
 	v.list("claude.args", cl.Args, func(string) string { return "" })
 	if cl.Model != "" && !modelPattern().MatchString(cl.Model) {
@@ -222,7 +221,7 @@ func validateLayout(v *validator, name string, l Layout) {
 			}
 		}
 		switch {
-		case p.Role == "command" && (strings.TrimSpace(p.Command) == "" || !clean(p.Command)):
+		case p.Role == "command" && (strings.TrimSpace(p.Command) == "" || !CleanText(p.Command)):
 			v.add(pk+".command", "a command pane needs a single-line command")
 		case p.Role != "command" && p.Command != "":
 			v.add(pk+".command", "only command panes take a command")
@@ -277,7 +276,7 @@ func (v *validator) list(key string, values []string, check func(string) string)
 	}
 	for i, s := range values {
 		ik := key + "[" + strconv.Itoa(i+1) + "]"
-		if s == "" || !clean(s) {
+		if s == "" || !CleanText(s) {
 			v.add(ik, "must be a non-empty single-line value without control characters")
 			continue
 		}
@@ -287,9 +286,23 @@ func (v *validator) list(key string, values []string, check func(string) string)
 	}
 }
 
-// clean reports whether s is bounded, valid UTF-8 text without control
+// ClaudeCommandProblem reports why command cannot name the Claude executable,
+// or "" when it can: one clean word that is a name looked up on PATH or an
+// absolute path. An empty command is the default and never a problem. It is
+// the rule behind claude.command, exported so a command that reaches a launch
+// from elsewhere, such as a tmux option in plugin mode, is held to the same
+// one.
+func ClaudeCommandProblem(command string) string {
+	if command != "" && (!CleanText(command) || strings.ContainsAny(command, " \t") ||
+		(strings.Contains(command, "/") && !strings.HasPrefix(command, "/"))) {
+		return "must be a command name on PATH or an absolute path"
+	}
+	return ""
+}
+
+// CleanText reports whether s is bounded, valid UTF-8 text without control
 // characters (tabs included), so it can reach tmux, argv and JSON unchanged.
-func clean(s string) bool {
+func CleanText(s string) bool {
 	if len(s) > maxValueBytes || !utf8.ValidString(s) {
 		return false
 	}

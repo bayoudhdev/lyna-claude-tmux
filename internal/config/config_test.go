@@ -306,6 +306,63 @@ func TestValidate(t *testing.T) {
 	}
 }
 
+// TestClaudeCommandProblem pins the rule a command given outside the
+// configuration file, such as a tmux option in plugin mode, is held to.
+func TestClaudeCommandProblem(t *testing.T) {
+	cases := []struct {
+		name, command string
+		wantProblem   bool
+	}{
+		{name: "empty is the default", command: ""},
+		{name: "name on PATH", command: "claude"},
+		{name: "absolute path", command: "/opt/agents/bin/claude"},
+		{name: "tilde path", command: "~/bin/claude", wantProblem: true},
+		{name: "relative path", command: "bin/claude", wantProblem: true},
+		{name: "arguments in the command", command: "claude --verbose", wantProblem: true},
+		{name: "tab", command: "claude\t", wantProblem: true},
+		{name: "control character", command: "/bin/claude\x1b", wantProblem: true},
+		{name: "invalid UTF-8", command: "claude\xff", wantProblem: true},
+		{name: "overlong", command: "/" + strings.Repeat("a", maxValueBytes), wantProblem: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			msg := ClaudeCommandProblem(tc.command)
+			if (msg != "") != tc.wantProblem {
+				t.Fatalf("ClaudeCommandProblem(%q) = %q, want problem %v", tc.command, msg, tc.wantProblem)
+			}
+			if tc.wantProblem && !strings.Contains(msg, "must be a command name on PATH or an absolute path") {
+				t.Fatalf("ClaudeCommandProblem(%q) = %q", tc.command, msg)
+			}
+		})
+	}
+}
+
+func TestCleanText(t *testing.T) {
+	cases := []struct {
+		name, in string
+		want     bool
+	}{
+		{name: "empty", in: "", want: true},
+		{name: "plain", in: "--append-system-prompt 'be brief'", want: true},
+		{name: "accented", in: "é●", want: true},
+		{name: "tab", in: "a\tb"},
+		{name: "newline", in: "a\nb"},
+		{name: "escape", in: "\x1b[2J"},
+		{name: "nul", in: "a\x00b"},
+		{name: "delete", in: "a\x7fb"},
+		{name: "invalid UTF-8", in: "a\xffb"},
+		{name: "at the bound", in: strings.Repeat("a", maxValueBytes), want: true},
+		{name: "over the bound", in: strings.Repeat("a", maxValueBytes+1)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := CleanText(tc.in); got != tc.want {
+				t.Fatalf("CleanText(%q) = %v, want %v", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestValidateLayouts(t *testing.T) {
 	claude := Pane{Role: "claude"}
 	cases := []struct {
