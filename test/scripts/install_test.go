@@ -53,7 +53,7 @@ type releaseServer struct {
 }
 
 func binaryFor(version string) []byte {
-	return []byte("#!/bin/sh\necho lyna-tmux " + version + "\n")
+	return []byte("#!/bin/sh\necho lmux " + version + "\n")
 }
 
 func assetName(version, goos, arch string) string {
@@ -97,7 +97,7 @@ func newRelease(t *testing.T, version string) *release {
 		for _, arch := range []string{"amd64", "arm64"} {
 			r.assets[assetName(version, goos, arch)] = tarGz(t,
 				tarEntry{name: "LICENSE", body: "MIT"},
-				tarEntry{name: "lyna-tmux", body: string(binaryFor(version))},
+				tarEntry{name: "lmux", body: string(binaryFor(version))},
 			)
 		}
 	}
@@ -202,7 +202,7 @@ func toolbox(t *testing.T, goos, arch, downloader string, checksum bool) string 
 	if err := os.Mkdir(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	tools := []string{"awk", "cat", "chmod", "cp", "grep", "gzip", "mkdir", "mktemp", "mv", "rm", "sed", "tail", "tar", "tr"}
+	tools := []string{"awk", "cat", "chmod", "cp", "grep", "gzip", "ln", "mkdir", "mktemp", "mv", "rm", "sed", "tail", "tar", "tr"}
 	if downloader != "" {
 		tools = append(tools, downloader)
 	}
@@ -275,6 +275,9 @@ type installCase struct {
 	wantVersion  string // installed binary version; empty means nothing installed
 	wantDir      func(home string) string
 	wantRequests func(s *releaseServer) []string
+	// noAlias skips the check that the link under the name of 1.0.0 is there,
+	// for a case where something else already holds that name.
+	noAlias bool
 	// check runs extra assertions once the installer has exited.
 	check func(t *testing.T, home string)
 }
@@ -469,9 +472,30 @@ func TestInstallScript(t *testing.T) {
 				if err := os.MkdirAll(localBin(home), 0o755); err != nil {
 					t.Fatal(err)
 				}
+				writeExecutable(t, filepath.Join(localBin(home), "lmux"), "old")
+			},
+			wantVersion: latestVersion,
+		},
+		{
+			// A 1.0.0 install left a binary under the old name. It is not a
+			// link to the new one, so it is left alone and named to the user
+			// rather than replaced by a link to a different binary.
+			name: "a binary under the name of 1.0.0 is kept",
+			setup: func(t *testing.T, _ *releaseServer, home string) {
+				if err := os.MkdirAll(localBin(home), 0o755); err != nil {
+					t.Fatal(err)
+				}
 				writeExecutable(t, filepath.Join(localBin(home), "lyna-tmux"), "old")
 			},
 			wantVersion: latestVersion,
+			noAlias:     true,
+			wantOut:     []string{"is not a link to lmux"},
+			check: func(t *testing.T, home string) {
+				path := filepath.Join(localBin(home), "lyna-tmux")
+				if got := mustRead(t, path); string(got) != "old" {
+					t.Fatalf("%s = %q, want the binary of 1.0.0 untouched", path, got)
+				}
+			},
 		},
 		{
 			name: "invalid version refused",
@@ -493,7 +517,7 @@ func TestInstallScript(t *testing.T) {
 			name: "archive whose binary is a symlink is refused",
 			setup: func(t *testing.T, s *releaseServer, _ string) {
 				rel := s.releases[latestVersion]
-				rel.assets[assetName(latestVersion, "linux", "amd64")] = tarGz(t, tarEntry{name: "lyna-tmux", link: "/bin/sh"})
+				rel.assets[assetName(latestVersion, "linux", "amd64")] = tarGz(t, tarEntry{name: "lmux", link: "/bin/sh"})
 			},
 			wantExit: 1,
 			wantErr:  "is not a regular file",
@@ -505,7 +529,7 @@ func TestInstallScript(t *testing.T) {
 				rel.assets[assetName(latestVersion, "linux", "amd64")] = tarGz(t, tarEntry{name: "README.md", body: "x"})
 			},
 			wantExit: 1,
-			wantErr:  "does not contain lyna-tmux",
+			wantErr:  "does not contain lmux",
 		},
 		{
 			name:         "no checksum tool",
@@ -678,7 +702,7 @@ func runInstallCase(t *testing.T, shell, script string, tc installCase) {
 	if tc.wantDir != nil {
 		dir = tc.wantDir(home)
 	}
-	installed := filepath.Join(dir, "lyna-tmux")
+	installed := filepath.Join(dir, "lmux")
 	if tc.wantVersion == "" {
 		if got, readErr := os.ReadFile(installed); readErr == nil && string(got) != "old" {
 			t.Fatalf("a failed install left %s = %q", installed, got)
@@ -696,6 +720,18 @@ func runInstallCase(t *testing.T, shell, script string, tc installCase) {
 	if got := mustRead(t, installed); !bytes.Equal(got, binaryFor(tc.wantVersion)) {
 		t.Fatalf("installed %q, want the %s binary", got, tc.wantVersion)
 	}
+	if !tc.noAlias {
+		// The name the command had in 1.0.0 stays as a link beside it, so a
+		// script or a shell alias written then still runs.
+		alias := filepath.Join(dir, "lyna-tmux")
+		target, linkErr := os.Readlink(alias)
+		if linkErr != nil {
+			t.Fatalf("no link under the name of 1.0.0: %v", linkErr)
+		}
+		if target != "lmux" {
+			t.Fatalf("link to %q, want a relative link to lmux", target)
+		}
+	}
 	assertNoStaging(t, dir)
 }
 
@@ -709,7 +745,7 @@ func assertNoStaging(t *testing.T, dir string) {
 		t.Fatal(err)
 	}
 	for _, e := range entries {
-		if strings.HasPrefix(e.Name(), ".lyna-tmux.install.") {
+		if strings.HasPrefix(e.Name(), ".lmux.install.") {
 			t.Fatalf("staging file left behind: %s", e.Name())
 		}
 	}
@@ -726,7 +762,7 @@ func mustRead(t *testing.T, path string) []byte {
 
 // plantedStaging is the staging file name the stubbed mktemp hands the
 // installer in the symlink case.
-const plantedStaging = ".lyna-tmux.install.planted"
+const plantedStaging = ".lmux.install.planted"
 
 // TestInstallScriptStagingPathIsUnpredictable installs twice into the same
 // prefix and compares the staging names the installer created. A name an
@@ -751,7 +787,7 @@ func TestInstallScriptStagingPathIsUnpredictable(t *testing.T) {
 	if len(staged) != 2 {
 		t.Fatalf("recorded staging paths %q, want one per install", staged)
 	}
-	want := regexp.MustCompile(`^` + regexp.QuoteMeta(filepath.Join(prefix, ".lyna-tmux.install.")) + `[A-Za-z0-9._-]{6,}$`)
+	want := regexp.MustCompile(`^` + regexp.QuoteMeta(filepath.Join(prefix, ".lmux.install.")) + `[A-Za-z0-9._-]{6,}$`)
 	for _, path := range staged {
 		if !want.MatchString(path) {
 			t.Fatalf("staging path %q is not a random name next to the target", path)
@@ -773,7 +809,7 @@ func TestInstallScriptStagingContract(t *testing.T) {
 		want    bool
 	}{
 		{name: "the name comes from mktemp", pattern: `staged=\$\(mktemp `, want: true},
-		{name: "the template is random", pattern: `\.lyna-tmux\.install\.X{6,}`, want: true},
+		{name: "the template is random", pattern: `\.lmux\.install\.X{6,}`, want: true},
 		{name: "the process id is not the name", pattern: `staged=[^\n]*\$\$`, want: false},
 		{name: "a symlink is refused", pattern: `\[ -L "\$staged" \]`, want: true},
 		{name: "a non-regular file is refused", pattern: `\[ ! -f "\$staged" \]`, want: true},

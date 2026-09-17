@@ -4,7 +4,7 @@ SHELL := bash
 MAKEFLAGS += --no-builtin-rules --no-print-directory
 
 GO ?= go
-BIN := bin/lyna-tmux
+BIN := bin/lmux
 MODULE := github.com/bayoudhdev/lyna-claude-tmux
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
@@ -23,13 +23,13 @@ FUZZTIME ?= 10s
 
 .PHONY: build install test test-short golden fuzz cover bench lint fmt check tidy-check clean help
 
-## build: compile bin/lyna-tmux
+## build: compile bin/lmux
 build:
-	CGO_ENABLED=0 $(GO) build -trimpath -ldflags '$(LDFLAGS)' -o $(BIN) ./cmd/lyna-tmux
+	CGO_ENABLED=0 $(GO) build -trimpath -ldflags '$(LDFLAGS)' -o $(BIN) ./cmd/lmux
 
-## install: install lyna-tmux into GOBIN
+## install: install lmux into GOBIN
 install:
-	CGO_ENABLED=0 $(GO) install -trimpath -ldflags '$(LDFLAGS)' ./cmd/lyna-tmux
+	CGO_ENABLED=0 $(GO) install -trimpath -ldflags '$(LDFLAGS)' ./cmd/lmux
 
 ## test: unit and integration tests with the race detector, shuffled
 test:

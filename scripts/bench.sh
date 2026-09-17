@@ -21,7 +21,7 @@ Benchmarks lyna-tmux start-up with hyperfine and prints a Markdown table.
 
 Options:
   --dry-run      print the commands without running them
-  --bin PATH     benchmark this lyna-tmux binary instead of building one
+  --bin PATH     benchmark this lmux binary instead of building one
   --runs N       exact number of runs per command (default: hyperfine decides, at least 50)
   --output FILE  write the Markdown to FILE instead of standard output
   -h, --help     show this help
@@ -153,11 +153,11 @@ fi
 ldflags="-s -w"
 run "$go_bin" build -trimpath -ldflags "$ldflags" -o "$work/hello-go" "$work/hello/main.go"
 if [[ -z $bin ]]; then
-  bin=$work/lyna-tmux
-  run "$go_bin" -C "$root" build -trimpath -ldflags "$ldflags" -o "$bin" ./cmd/lyna-tmux
+  bin=$work/lmux
+  run "$go_bin" -C "$root" build -trimpath -ldflags "$ldflags" -o "$bin" ./cmd/lmux
 fi
 
-names=("go hello world" "lyna-tmux version" "lyna-tmux hook Stop" "lyna-tmux statusline")
+names=("go hello world" "lmux version" "lmux hook Stop" "lmux statusline")
 commands=(
   "$(word "$work/hello-go")"
   "$(word "$bin") version"
@@ -208,7 +208,7 @@ report() {
   version=$("$bin" version 2>/dev/null | head -n 1) || version="unknown"
   # The machine comes from the Go toolchain, not uname: a shell translated by
   # Rosetta reports the translated architecture, not the one that runs here.
-  printf '%s\n\n' "Measured with $("$hyperfine_bin" --version) on $(uname -s) $("$go_bin" env GOARCH), $("$go_bin" version | cut -d' ' -f3), lyna-tmux ${version#lyna-tmux }."
+  printf '%s\n\n' "Measured with $("$hyperfine_bin" --version) on $(uname -s) $("$go_bin" env GOARCH), $("$go_bin" version | cut -d' ' -f3), lmux ${version#lmux }."
   table
 }
 

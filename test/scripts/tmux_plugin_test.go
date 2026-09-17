@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	missingNotice = "lyna-tmux is not installed: see https://github.com/bayoudhdev/lyna-claude-tmux for install steps, then reload tmux"
-	failedNotice  = "lyna-tmux plugin tmux --apply failed: run it in a shell inside tmux to see the error"
+	missingNotice = "lmux is not installed: see https://github.com/bayoudhdev/lyna-claude-tmux for install steps, then reload tmux"
+	failedNotice  = "lmux plugin tmux --apply failed: run it in a shell inside tmux to see the error"
 	hookIndex     = "[4217]"
 )
 
@@ -51,7 +51,7 @@ func (e pluginEnv) fakeLyna(t *testing.T, path, status string) {
 		t.Fatal(err)
 	}
 	writeExecutable(t, path, "#!/bin/sh\n"+
-		"echo \"lyna-tmux $*\" >> \"$LT_TEST_LOG\"\n"+
+		"echo \"${0##*/} $*\" >> \"$LT_TEST_LOG\"\n"+
 		"echo \"server ${TMUX%%,*}\" >> \"$LT_TEST_LOG\"\n"+
 		"exit "+status+"\n")
 }
@@ -94,13 +94,13 @@ func (e pluginEnv) calls(t *testing.T) string {
 
 // applyCall is the log a fake binary writes when the plugin applies itself on
 // the inner server.
-func (e pluginEnv) applyCall(t *testing.T, n *tmuxtest.Nested) string {
+func (e pluginEnv) applyCall(t *testing.T, n *tmuxtest.Nested, name string) string {
 	t.Helper()
 	socket, err := filepath.EvalSymlinks(tmuxtest.SocketPath(n.Inner.Name))
 	if err != nil {
 		t.Fatal(err)
 	}
-	return "lyna-tmux plugin tmux --apply\nserver " + socket + "\n"
+	return name + " plugin tmux --apply\nserver " + socket + "\n"
 }
 
 func pluginPath(t *testing.T) string {
@@ -135,9 +135,18 @@ func TestTmuxPluginAppliesInstalledBinary(t *testing.T) {
 		name string
 		// where places the fake binary: on PATH or in the installer's default.
 		where func(e pluginEnv) string
+		// want is the name the plugin runs it under.
+		want string
 	}{
-		{name: "on PATH", where: func(e pluginEnv) string { return filepath.Join(e.bin, "lyna-tmux") }},
-		{name: "in ~/.local/bin only", where: func(e pluginEnv) string { return filepath.Join(e.home, ".local", "bin", "lyna-tmux") }},
+		{name: "on PATH", want: "lmux", where: func(e pluginEnv) string { return filepath.Join(e.bin, "lmux") }},
+		{name: "in ~/.local/bin only", want: "lmux", where: func(e pluginEnv) string { return filepath.Join(e.home, ".local", "bin", "lmux") }},
+		// An installation from 1.0.0 that was never updated has the old name
+		// and nothing else, and is still what the plugin runs.
+		{name: "under the name of 1.0.0 only", want: "lyna-tmux", where: func(e pluginEnv) string { return filepath.Join(e.bin, "lyna-tmux") }},
+		{
+			name: "in ~/.local/bin under the name of 1.0.0 only", want: "lyna-tmux",
+			where: func(e pluginEnv) string { return filepath.Join(e.home, ".local", "bin", "lyna-tmux") },
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -149,7 +158,7 @@ func TestTmuxPluginAppliesInstalledBinary(t *testing.T) {
 				out, err := n.Inner.Client.Run(ctx, "show-options", "-gqv", "@lt_test_plugin_done")
 				return err == nil && strings.TrimSpace(out) == "1"
 			})
-			if got, want := e.calls(t), e.applyCall(t, n); got != want {
+			if got, want := e.calls(t), e.applyCall(t, n, tc.want); got != want {
 				t.Fatalf("calls:\n%s\nwant:\n%s", got, want)
 			}
 			hooks, err := n.Inner.Client.Run(ctx, "show-hooks", "-g")
@@ -159,7 +168,7 @@ func TestTmuxPluginAppliesInstalledBinary(t *testing.T) {
 			if strings.Contains(hooks, hookIndex) {
 				t.Fatalf("a successful apply left notice hooks:\n%s", hooks)
 			}
-			if screen := n.Screen(t); strings.Contains(screen, "lyna-tmux") {
+			if screen := n.Screen(t); strings.Contains(screen, "lmux") {
 				t.Fatalf("a successful apply showed a message:\n%s", screen)
 			}
 		})
@@ -185,7 +194,7 @@ func TestTmuxPluginNotices(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			e := newPluginEnv(t)
 			if tc.status != "" {
-				e.fakeLyna(t, filepath.Join(e.bin, "lyna-tmux"), tc.status)
+				e.fakeLyna(t, filepath.Join(e.bin, "lmux"), tc.status)
 			}
 			n := tmuxtest.StartNested(t, e.conf(t, tc.atStart), e.home, 160, 20)
 			ctx := tmuxtest.Context(t)
@@ -209,7 +218,7 @@ func TestTmuxPluginNotices(t *testing.T) {
 			}
 			wantCalls := ""
 			if tc.status != "" {
-				wantCalls = e.applyCall(t, n)
+				wantCalls = e.applyCall(t, n, "lmux")
 			}
 			if calls != wantCalls {
 				t.Fatalf("calls:\n%s\nwant:\n%s", calls, wantCalls)
