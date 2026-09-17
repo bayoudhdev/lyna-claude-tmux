@@ -423,7 +423,7 @@ Details that matter:
 - The directory is rewritten to its path under `/workspace`, so opening a subdirectory of the project opens the matching subdirectory inside the container. A directory outside the project is refused.
 - The sandbox profile is resolved from the **host's** configuration and passed explicitly, because the container does not share that configuration. A host configuration of `off` is refused here too.
 - With `--detach`, or when standard input is not a terminal, the same command runs without `--tty`, since `docker` refuses `--tty` in that case.
-- If the container is not running, the launch stops with `container isolation opens the workspace in <container> for <project>: devcontainer: container is not running (run lyna-tmux sandbox devcontainer up)`.
+- If the container is not running, `create` and `team` offer to build and start it: `The dev container <container> for <project> is not running. Build and start it now? [y/N]`. A yes runs the same steps as `sandbox devcontainer up`, with the build streaming to the terminal, and then opens the workspace. `--start-container` does it without asking, which is what a script or a `--detach` launch needs. Declined, or with no terminal to ask on, the launch stops with `container isolation opens the workspace in <container> for <project>: devcontainer: container is not running (run lyna-tmux sandbox devcontainer up)`, and the message names `--start-container`.
 
 Inside the container the process sees a container marker (`/.dockerenv` or `/run/.containerenv`), so it proceeds as a normal launch and `sandbox status` reports `container` whatever the workspace asked for.
 
