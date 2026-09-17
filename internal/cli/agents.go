@@ -37,7 +37,7 @@ func agentCommands(d Deps) []*cobra.Command {
 }
 
 func newAgentsCmd(d Deps) *cobra.Command {
-	var popup, asJSON, rail bool
+	var popup, asJSON, rail, auto bool
 	var session string
 	cmd := &cobra.Command{
 		Use:   "agents",
@@ -51,7 +51,7 @@ func newAgentsCmd(d Deps) *cobra.Command {
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if rail {
-				return d.agentsRailRun(cmd, app.AgentBarRequest{Session: session, Popup: popup})
+				return d.agentsRailRun(cmd, app.AgentBarRequest{Session: session, Popup: popup, CloseWhenEmpty: auto})
 			}
 			ctx, h, s, err := d.openServer(cmd)
 			if err != nil {
@@ -86,8 +86,10 @@ func newAgentsCmd(d Deps) *cobra.Command {
 	f.BoolVar(&asJSON, "json", false, "print a fresh agents snapshot as JSON")
 	f.BoolVar(&rail, "rail", false, "draw the live agents rail of one workspace instead of the picker")
 	f.StringVar(&session, "session", "", "workspace the rail follows outside tmux")
+	f.BoolVar(&auto, "auto", false, "close the rail again once the agents it opened for are gone")
 	_ = f.MarkHidden("popup")
 	_ = f.MarkHidden("rail")
+	_ = f.MarkHidden("auto")
 	_ = f.MarkHidden("session")
 	_ = cmd.RegisterFlagCompletionFunc("session", cobra.NoFileCompletions)
 	cmd.MarkFlagsMutuallyExclusive("popup", "json")

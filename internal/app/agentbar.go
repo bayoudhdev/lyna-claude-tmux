@@ -40,6 +40,9 @@ type AgentBarRequest struct {
 	Session string
 	// Popup makes q and esc close the rail.
 	Popup bool
+	// CloseWhenEmpty ends a rail that opened by itself once the agents it
+	// opened for are gone.
+	CloseWhenEmpty bool
 }
 
 // AgentBarView is everything the rail runs on: how to read the agents, how to
@@ -117,9 +120,10 @@ func OpenAgentBar(ctx context.Context, h Host, req AgentBarRequest) (AgentBarVie
 	bar := &agentBar{client: client, session: name, claudeHome: claudes, inside: inside}
 	return AgentBarView{
 		Options: tui.AgentBarOptions{
-			Styles:  tui.NewStyles(look),
-			Popup:   req.Popup,
-			Actions: bar.actions(),
+			Styles:         tui.NewStyles(look),
+			Popup:          req.Popup,
+			CloseWhenEmpty: req.CloseWhenEmpty,
+			Actions:        bar.actions(),
 		},
 		Read:   bar.read,
 		Signal: watch.TmuxAgentsSignal(client, target),

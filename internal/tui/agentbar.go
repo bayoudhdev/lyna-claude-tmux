@@ -47,6 +47,11 @@ type AgentBarOptions struct {
 	// Popup makes q and esc close the rail; in a pane they do nothing, so a
 	// stray key never removes the rail from a layout.
 	Popup bool
+	// CloseWhenEmpty ends a rail that opened by itself once the agents it
+	// opened for are gone: the rail is a pane of the workspace, so leaving is
+	// how it takes itself off the screen. A rail the user asked for stays
+	// whatever it has to show.
+	CloseWhenEmpty bool
 	// Width and Height size the first frame.
 	Width, Height int
 	// Now is the clock ages and double clicks are measured with; time.Now when
@@ -90,11 +95,14 @@ type AgentBarModel struct {
 	height int
 	have   bool
 	closed bool
-	update AgentBarUpdate
-	items  []barItem
-	list   listView
-	clicks clicks
-	note   string
+	// arrived remembers that an agent of the team has been on the rail, which
+	// is what a rail that closes by itself waits for before it leaves.
+	arrived bool
+	update  AgentBarUpdate
+	items   []barItem
+	list    listView
+	clicks  clicks
+	note    string
 	// folded holds the sections the user closed, and filter the text the rows
 	// are matched against while it is not empty.
 	folded  map[team.Group]bool
@@ -161,6 +169,9 @@ func (m *AgentBarModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.clampList()
 	case agentBarUpdateMsg:
 		m.setUpdate(msg.update)
+		if m.leaving() {
+			return m, tea.Quit
+		}
 		return m, m.wait()
 	case agentBarClosedMsg:
 		m.closed = true
@@ -188,6 +199,7 @@ func (m *AgentBarModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *AgentBarModel) setUpdate(u AgentBarUpdate) {
 	selected, hadSelection := m.selected()
 	m.update, m.have = u, true
+	m.arrived = m.arrived || u.View.Count(team.GroupTeammates)+u.View.Count(team.GroupSubagents) > 0
 	m.stampStates(u)
 	m.rebuild()
 	if hadSelection {
@@ -199,6 +211,19 @@ func (m *AgentBarModel) setUpdate(u AgentBarUpdate) {
 		}
 	}
 	m.clampList()
+}
+
+// leaving reports a rail that opened by itself and has nothing left to show.
+//
+// The lead alone is nothing to show: a workspace has one whatever happens, and
+// the rail opened for the agents that joined it. It leaves once it has seen
+// them, so a rail that opens while the first of them is still starting waits
+// for it rather than closing on the reading that came first.
+func (m *AgentBarModel) leaving() bool {
+	if !m.opts.CloseWhenEmpty || !m.arrived {
+		return false
+	}
+	return m.update.View.Count(team.GroupTeammates)+m.update.View.Count(team.GroupSubagents) == 0
 }
 
 // stampStates keeps, for every row, the time it was first seen in the state it

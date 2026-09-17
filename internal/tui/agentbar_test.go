@@ -459,3 +459,48 @@ func TestAgentBarWithoutActions(t *testing.T) {
 		t.Fatalf("the footer offers actions the rail does not have:\n%s", plain(m))
 	}
 }
+
+// TestAgentBarClosesByItself covers the rail a workspace opens on its own: it
+// is a pane, so leaving is how it takes itself off the screen once the agents
+// it opened for are gone. A rail the user asked for stays.
+func TestAgentBarClosesByItself(t *testing.T) {
+	alone := team.Build(team.Input{Session: "api", Panes: barPanes()[:1]})
+	cases := []struct {
+		name     string
+		auto     bool
+		readings []team.View
+		wantQuit bool
+	}{
+		{
+			name: "the team ends and the rail goes with it",
+			auto: true, readings: []team.View{barView(), alone}, wantQuit: true,
+		},
+		{
+			name: "a rail open before the first teammate waits for it",
+			auto: true, readings: []team.View{alone, alone},
+		},
+		{
+			name:     "a rail the user asked for stays",
+			readings: []team.View{barView(), alone},
+		},
+		{
+			name: "a rail closes on the reading that empties it and not before",
+			auto: true, readings: []team.View{barView(), barView()},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := NewAgentBar(AgentBarOptions{
+				Width: 28, Height: 16, CloseWhenEmpty: tc.auto,
+				Styles: goldenStyles(t), Now: clock,
+			})
+			msgs := make([]tea.Msg, 0, len(tc.readings))
+			for _, v := range tc.readings {
+				msgs = append(msgs, barUpdate(v, nil))
+			}
+			if r := drive(t, m, nil, msgs...); r.quit != tc.wantQuit {
+				t.Fatalf("quit = %v, want %v", r.quit, tc.wantQuit)
+			}
+		})
+	}
+}
