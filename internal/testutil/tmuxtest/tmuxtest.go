@@ -63,7 +63,8 @@ func Start(t testing.TB) *Server {
 // a pane of a second isolated server, so tests can type keys (including Alt
 // keys and mouse sequences) into the client and observe the inner server.
 type Nested struct {
-	// Inner is the server under test; its session "main" has one attached client.
+	// Inner is the server under test; one of its sessions has an attached
+	// client, "main" for a server StartNested created.
 	Inner *Server
 	// Outer hosts the client in its session "term".
 	Outer *Server
@@ -81,19 +82,50 @@ func StartNested(t testing.TB, conf, dir string, cols, rows int) *Nested {
 	if _, err := inner.Client.Run(ctx, "new-session", "-d", "-s", "main", "-x", fmt.Sprint(cols), "-y", fmt.Sprint(rows-1), "-c", tmux.FormatEscape(dir)); err != nil {
 		t.Fatalf("start inner tmux server: %v", err)
 	}
+	return Attach(t, inner, "main", cols, rows)
+}
+
+// Attach attaches a real client to a session of an already running server,
+// from a pane of a new outer server sized cols x rows. It is how a test drives
+// a server it started itself: a key binding is interpreted for a client, so a
+// server with no client answers no key, and send-keys types into the pane's
+// program instead of going through the bindings.
+func Attach(t testing.TB, inner *Server, target string, cols, rows int) *Nested {
+	t.Helper()
+	bin := inner.Bin
+	if bin == "" {
+		bin = Require(t)
+	}
+	ctx := Context(t)
 	outer := newServer(t, bin, "/dev/null")
+	session := tmux.ExactSession(target)
 	// The client draws the inner server for the test to read, so it declares
 	// UTF-8 the way every client of this CLI does: a machine with no locale
 	// would otherwise get an underscore for each icon of the status line.
-	attach := tmux.ShellJoin(bin, "-L", inner.Name, "-u", "attach-session", "-t", "=main")
+	// TMUX is unset the way it is for a user attaching from a plain terminal.
+	// The pane the client runs in belongs to the outer server, so it inherits
+	// that server's TMUX; tmux then refuses the attach as nested whenever the
+	// inner server holds a pane whose recorded tty is the one this pane was
+	// given, which happens once a dead pane keeps the name of a pty the system
+	// has handed out again.
+	attach := "unset TMUX; " + tmux.ShellJoin(bin, "-L", inner.Name, "-u", "attach-session", "-t", session)
+	// The pane outlives the client on purpose. A client that cannot attach
+	// writes the reason and exits, and a pane closing with it would take the
+	// reason with it, leaving the test with a timeout and nothing to read.
+	attach += "; " + tmux.ShellJoin("sleep", "3600")
 	if _, err := outer.Client.Run(ctx, "new-session", "-d", "-s", "term", "-x", fmt.Sprint(cols), "-y", fmt.Sprint(rows), attach); err != nil {
 		t.Fatalf("start outer tmux server: %v", err)
 	}
-	WaitFor(t, "client attached", func() bool {
-		out, err := inner.Client.Run(ctx, "list-clients", "-F", "#{client_name}")
+	n := &Nested{Inner: inner, Outer: outer}
+	if !poll(func() bool {
+		out, err := inner.Client.Run(ctx, "list-clients", "-t", session, "-F", "#{client_name}")
 		return err == nil && strings.TrimSpace(out) != ""
-	})
-	return &Nested{Inner: inner, Outer: outer}
+	}) {
+		// The pane that runs the client holds the reason it did not attach,
+		// which is the only place tmux writes it.
+		t.Fatalf("timed out waiting for a client attached to %s; the client pane shows:\n%s", target, n.Screen(t))
+	}
+	return n
 }
 
 // Keys types tmux key names into the attached client.
