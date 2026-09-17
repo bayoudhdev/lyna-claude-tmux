@@ -1,0 +1,10 @@
+lyna: dark (configured)
+  status   λ  api   ○ 1:main  ● 2:auth [z]  ◆ 3:docs    ⊞ split  ± review  ≡  ◆ 1 waiting  ▣ strict  ⎇ main  ◷ 12:00 
+  border  ━━ ✻ claude ● working +2 subagents ━━━━
+  border  ━━ › shell ━━━━━━━━━━━━━━━━━━━━
+  menu    │ Agents            M-a │
+  menu    │ Review changes    M-g │
+  swatch  #39d353 #58a6ff #f0b72f #ff5f56 #e6edf3 #7d8590
+  colors  bg=#0d1117 surface=#161b22 overlay=#262d38 border=#30363d muted=#7d8590 text=#e6edf3 accent=#39d353 accent2=#58a6ff busy=#f0b72f waiting=#ff5f56 idle=#39d353 danger=#ff5f56 success=#39d353 warning=#f0b72f
+
+Switch with: lyna-tmux theme lyna

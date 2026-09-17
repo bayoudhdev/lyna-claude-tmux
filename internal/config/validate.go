@@ -17,7 +17,13 @@ import (
 )
 
 var choices = map[string][]string{
-	"ui.theme":               {"lyna", "light", "ansi"},
+	// The palettes of internal/domain/theme in the order the template and
+	// the theme listing document them: the default first, then the dark
+	// sets, the light sets, and the one that borrows the terminal's colors.
+	"ui.theme": {
+		"lyna", "slate", "dusk", "contrast", "nord", "rose", "mono", "solar-dark", "earth-dark",
+		"light", "solar-light", "earth-light", "ansi",
+	},
 	"ui.icons":               {"auto", "unicode", "nerd", "ascii"},
 	"ui.color":               {"auto", "truecolor", "256", "16"},
 	"ui.status_position":     {"top", "bottom"},

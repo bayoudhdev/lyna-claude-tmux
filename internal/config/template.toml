@@ -4,7 +4,9 @@
 # unknown key is an error. Check this file with `lyna-tmux config validate`.
 
 [ui]
-# Color theme: lyna (dark), light, ansi (uses the terminal's own palette).
+# Color theme. Dark: lyna, slate, dusk, contrast, nord, rose, mono, solar-dark,
+# earth-dark. Light: light, solar-light, earth-light. ansi uses the terminal's
+# own palette. Preview them with `lyna-tmux theme preview`.
 theme = "lyna"
 # Icon set: auto, unicode, nerd (needs a Nerd Font), ascii.
 icons = "auto"
@@ -20,6 +22,11 @@ mouse = true
 # Let programs in panes send escape sequences straight to your terminal.
 # Off by default: pane output cannot drive your terminal or clipboard.
 allow_passthrough = false
+# Tell a pane when it gains or loses focus. Off by default: a program that asks
+# for focus events without reading them shows them as typed text, and the agent
+# client is one of them. Turn it on only when every program you run in a pane
+# handles them (an editor that reloads a file on focus, for example).
+focus_events = false
 
 [workspace]
 # Default layout: solo, duo, trio, quad, review, auto (picks by terminal size), or

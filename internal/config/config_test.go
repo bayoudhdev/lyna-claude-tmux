@@ -12,6 +12,7 @@ import (
 	"unicode"
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/review"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/theme"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/fsx"
 )
 
@@ -360,7 +361,7 @@ func TestValidateReportsEveryProblem(t *testing.T) {
 	if len(probs) != 3 {
 		t.Fatalf("got %d problems, want 3: %v", len(probs), probs)
 	}
-	if msg := probs.Error(); !strings.Contains(msg, `ui.theme: must be one of lyna, light, ansi (got "x")`) {
+	if msg := probs.Error(); !strings.Contains(msg, `ui.theme: must be one of `+strings.Join(Choices("ui.theme"), ", ")+` (got "x")`) {
 		t.Fatalf("message %q", msg)
 	}
 }
@@ -489,12 +490,25 @@ func TestMarshalRoundTrip(t *testing.T) {
 	}
 }
 
+// TestThemeChoicesCoverPalettes keeps ui.theme in step with the built-in
+// palettes: a palette the validator does not list cannot be configured, and
+// a listed name without a palette fails at start-up.
+func TestThemeChoicesCoverPalettes(t *testing.T) {
+	got := slices.Sorted(slices.Values(Choices("ui.theme")))
+	if want := theme.Names(); !slices.Equal(got, want) {
+		t.Fatalf("ui.theme choices %v, want the palettes %v", got, want)
+	}
+	if Choices("ui.theme")[0] != Default().UI.Theme {
+		t.Fatalf("the default theme %q must be listed first", Default().UI.Theme)
+	}
+}
+
 func TestChoices(t *testing.T) {
 	cases := []struct {
 		key  string
 		want []string
 	}{
-		{"ui.theme", []string{"lyna", "light", "ansi"}},
+		{"ui.theme", []string{"lyna", "slate", "dusk", "contrast", "nord", "rose", "mono", "solar-dark", "earth-dark", "light", "solar-light", "earth-light", "ansi"}},
 		{"sandbox.profile", []string{"standard", "strict", "off"}},
 		{"workspace.layout", []string{"solo", "duo", "trio", "quad", "review", "auto"}},
 		{"layouts.panes.role", []string{"claude", "shell", "changes", "review", "command"}},

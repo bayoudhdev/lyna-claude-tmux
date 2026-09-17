@@ -60,6 +60,16 @@ func TestGenerateEveryPalette(t *testing.T) {
 		{palette: "lyna", wantName: "Lyna", wantBase: "dark"},
 		{palette: "light", wantName: "Lyna Light", wantBase: "light"},
 		{palette: "ansi", wantName: "Lyna ANSI", wantBase: "dark-ansi"},
+		{palette: "slate", wantName: "Lyna Slate", wantBase: "dark"},
+		{palette: "dusk", wantName: "Lyna Dusk", wantBase: "dark"},
+		{palette: "contrast", wantName: "Lyna Contrast", wantBase: "dark"},
+		{palette: "nord", wantName: "Lyna Nord", wantBase: "dark"},
+		{palette: "rose", wantName: "Lyna Rose", wantBase: "dark"},
+		{palette: "mono", wantName: "Lyna Mono", wantBase: "dark"},
+		{palette: "solar-dark", wantName: "Lyna Solar Dark", wantBase: "dark"},
+		{palette: "solar-light", wantName: "Lyna Solar Light", wantBase: "light"},
+		{palette: "earth-dark", wantName: "Lyna Earth Dark", wantBase: "dark"},
+		{palette: "earth-light", wantName: "Lyna Earth Light", wantBase: "light"},
 	}
 	if len(cases) != len(theme.Names()) {
 		t.Fatalf("palettes %q are not all covered", theme.Names())
@@ -182,7 +192,9 @@ func TestNames(t *testing.T) {
 		{"lyna", "lyna-lyna.json", "Lyna"},
 		{"light", "lyna-light.json", "Lyna Light"},
 		{"ansi", "lyna-ansi.json", "Lyna ANSI"},
-		{"solarized-dark", "lyna-solarized-dark.json", "Lyna Solarized-dark"},
+		{"solar-dark", "lyna-solar-dark.json", "Lyna Solar Dark"},
+		{"earth-light", "lyna-earth-light.json", "Lyna Earth Light"},
+		{"a--b", "lyna-a--b.json", "Lyna A  B"},
 		{"", "lyna-.json", "Lyna"},
 	}
 	for _, tc := range cases {

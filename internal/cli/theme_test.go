@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/app"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/claudetheme"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/config"
@@ -38,7 +40,7 @@ func TestThemeListCLI(t *testing.T) {
 		outLacks []string
 		errHas   []string
 	}{
-		{name: "defaults at 256 colors", env: map[string]string{"TERM": "xterm-256color"}, args: []string{"theme"}, golden: "theme/list-256.txt"},
+		{name: "defaults at 256 colors", env: map[string]string{"TERM": "xterm-256color"}, args: []string{"theme"}, golden: "theme/list-256.txt", outHas: []string{"Preview one with: lyna-tmux theme preview <name>\n"}},
 		{name: "configured theme is marked", config: "[ui]\ntheme = \"light\"\n", args: []string{"theme"}, outHas: []string{"* light", "\n  lyna ", "\n  ansi "}},
 		{
 			name: "configured depth wins over detection", config: "[ui]\ncolor = \"16\"\n", env: map[string]string{"COLORTERM": "truecolor"}, args: []string{"theme"},
@@ -67,8 +69,8 @@ func TestThemeListCLI(t *testing.T) {
 		},
 		{name: "invalid config", config: "[ui]\ntheme = \"nope\"\n", args: []string{"theme"}, wantCode: 1, errHas: []string{"theme"}},
 		{name: "too many arguments", args: []string{"theme", "light", "ansi"}, wantCode: 1, errHas: []string{"accepts at most 1 arg"}},
-		{name: "completion lists themes and the claude subcommand", args: []string{"__complete", "theme", ""}, outHas: []string{"\nlyna\n", "\nlight\n", "\nansi\n", "claude\t"}},
-		{name: "completion filters by prefix", args: []string{"__complete", "theme", "l"}, outHas: []string{"lyna\n", "light\n"}, outLacks: []string{"ansi", "claude"}},
+		{name: "completion lists themes and the subcommands", args: []string{"__complete", "theme", ""}, outHas: []string{"\nlyna\n", "\nlight\n", "\nansi\n", "\nnord\n", "claude\t", "preview\t"}},
+		{name: "completion filters by prefix", args: []string{"__complete", "theme", "l"}, outHas: []string{"lyna\n", "light\n"}, outLacks: []string{"ansi", "claude", "preview"}},
 		{name: "completion stops after a name", args: []string{"__complete", "theme", "light", ""}, outLacks: []string{"lyna", "ansi"}},
 	}
 	for _, tc := range cases {
@@ -107,6 +109,166 @@ func TestThemeListCLI(t *testing.T) {
 	}
 }
 
+func TestThemePreviewCLI(t *testing.T) {
+	terminal := Terminal{Interactive: true, Width: 140, Height: 40}
+	// lynaGap is the status line gap of the lyna theme at 24-bit depth: the
+	// status style, text on the background. On the 140-column terminal it is
+	// what the status row leaves free after the indent and the row label.
+	lynaGap := "\x1b[38;2;230;237;243;48;2;13;17;23m"
+	statusCells := 0
+	lyna, err := theme.Get("lyna")
+	if err != nil {
+		t.Fatal(err)
+	}
+	unicode, err := theme.GetIcons("unicode")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range slices.Concat(theme.Preview(lyna, unicode)[0].Spans, theme.Preview(lyna, unicode)[0].Right) {
+		statusCells += ansi.StringWidth(s.Text)
+	}
+	edgeGap := 140 - len(previewIndent) - previewLabel - statusCells
+	if edgeGap <= 2 {
+		t.Fatalf("the status row is %d cells wide, too wide for the test terminal", statusCells)
+	}
+	cases := []struct {
+		name     string
+		config   string
+		env      map[string]string
+		term     Terminal
+		args     []string
+		wantCode int
+		golden   string
+		outHas   []string
+		outLacks []string
+		errHas   []string
+	}{
+		{name: "16 colors on a terminal", env: map[string]string{"TERM": "xterm"}, term: terminal, args: []string{"theme", "preview", "lyna"}, golden: "theme/preview-lyna-16.txt"},
+		{name: "256 colors on a terminal", env: map[string]string{"TERM": "xterm-256color"}, term: terminal, args: []string{"theme", "preview", "lyna"}, golden: "theme/preview-lyna-256.txt"},
+		{name: "truecolor on a terminal", env: map[string]string{"COLORTERM": "truecolor", "LANG": "en_US.UTF-8"}, term: terminal, args: []string{"theme", "preview", "lyna"}, golden: "theme/preview-lyna-true.txt"},
+		{name: "NO_COLOR names the colors", env: map[string]string{"COLORTERM": "truecolor", "LANG": "en_US.UTF-8", "NO_COLOR": "1"}, term: terminal, args: []string{"theme", "preview", "lyna"}, golden: "theme/preview-lyna-plain.txt", outLacks: []string{"\x1b"}},
+		{
+			name: "no terminal names the colors", env: map[string]string{"COLORTERM": "truecolor", "LANG": "en_US.UTF-8"}, args: []string{"theme", "preview", "nord"},
+			outHas:   []string{"nord: dark\n", "  status  ", " λ  api ", "◆ 1 waiting", "  colors  bg=#2e3440 surface=#3b4252 ", " text=#eceff4 accent=#88c0d0 ", " warning=#d08770\n", "  swatch  #88c0d0 #81a1c1 #ebcb8b #bf616a #eceff4 #98a3b8\n", "\nSwitch with: lyna-tmux theme nord\n"},
+			outLacks: []string{"\x1b", "(configured)"},
+		},
+		{
+			name: "status line reaches the right edge", env: map[string]string{"COLORTERM": "truecolor", "LANG": "en_US.UTF-8"}, term: terminal, args: []string{"theme", "preview", "lyna"},
+			outHas: []string{lynaGap + strings.Repeat(" ", edgeGap) + "\x1b[0m"},
+		},
+		{
+			name: "narrow terminal keeps a two-space gap", env: map[string]string{"COLORTERM": "truecolor", "LANG": "en_US.UTF-8"}, term: Terminal{Interactive: true, Width: 40}, args: []string{"theme", "preview", "lyna"},
+			outHas: []string{lynaGap + "  \x1b[0m"},
+		},
+		{
+			name: "every theme in documented order", env: map[string]string{"TERM": "xterm-256color"}, args: []string{"theme", "preview"},
+			outHas:   []string{"lyna: dark (configured)\n", "\nslate: dark\n", "\nlight: light\n", "\nansi: terminal colors\n", "  colors  bg=color0 ", "\nSwitch with: lyna-tmux theme <name>\n"},
+			outLacks: []string{"\x1b"},
+		},
+		{name: "configured theme is marked", config: "[ui]\ntheme = \"rose\"\n", args: []string{"theme", "preview"}, outHas: []string{"\nrose: dark (configured)\n", "lyna: dark\n"}},
+		{name: "configured depth wins over detection", config: "[ui]\ncolor = \"16\"\n", env: map[string]string{"COLORTERM": "truecolor"}, args: []string{"theme", "preview", "lyna"}, outHas: []string{"  colors  bg=color0 surface=color0 "}, outLacks: []string{"#0d1117"}},
+		{name: "configured icons are drawn", config: "[ui]\nicons = \"ascii\"\n", env: map[string]string{"LANG": "en_US.UTF-8"}, args: []string{"theme", "preview", "lyna"}, outHas: []string{" L  api ", "o 1:main", "-- > claude * working"}, outLacks: []string{"λ", "━"}},
+		{name: "unknown theme", args: []string{"theme", "preview", "neon"}, wantCode: 1, errHas: []string{`unknown theme "neon": choose ` + strings.Join(app.ThemeNames(), ", ")}},
+		{name: "invalid configuration", config: "[ui]\ntheme = \"nope\"\n", args: []string{"theme", "preview", "lyna"}, wantCode: 1, errHas: []string{"ui.theme"}},
+		{name: "too many arguments", args: []string{"theme", "preview", "lyna", "nord"}, wantCode: 1, errHas: []string{"accepts at most 1 arg"}},
+		{name: "completion lists the themes", args: []string{"__complete", "theme", "preview", "s"}, outHas: []string{"slate\n", "solar-dark\n", "solar-light\n"}, outLacks: []string{"lyna", "claude"}},
+		{name: "completion stops after a name", args: []string{"__complete", "theme", "preview", "nord", ""}, outLacks: []string{"lyna", "slate"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newGlueEnv(t)
+			e.term = tc.term
+			for k, v := range tc.env {
+				e.env[k] = v
+			}
+			if tc.config != "" {
+				e.writeConfig(t, tc.config)
+			}
+			code, stdout, stderr := e.run(t, "", tc.args...)
+			if code != tc.wantCode {
+				t.Fatalf("exit %d, want %d\nstdout: %s\nstderr: %s", code, tc.wantCode, stdout, stderr)
+			}
+			if tc.golden != "" {
+				golden.Assert(t, tc.golden, []byte(stdout))
+			}
+			for _, s := range tc.outHas {
+				if !strings.Contains(stdout, s) {
+					t.Fatalf("stdout missing %q:\n%q", s, stdout)
+				}
+			}
+			for _, s := range tc.outLacks {
+				if strings.Contains(stdout, s) {
+					t.Fatalf("stdout has %q:\n%q", s, stdout)
+				}
+			}
+			for _, s := range tc.errHas {
+				if !containsFolded(stderr, s) {
+					t.Fatalf("stderr missing %q:\n%s", s, stderr)
+				}
+			}
+		})
+	}
+}
+
+func TestThemeBackground(t *testing.T) {
+	c := theme.RGB(0x39, 0xd3, 0x53)
+	cases := []struct {
+		name  string
+		color theme.Color
+		depth theme.Depth
+		want  string
+	}{
+		{name: "truecolor", color: c, depth: theme.DepthTrue, want: "48;2;57;211;83"},
+		{name: "256", color: c, depth: theme.Depth256, want: "48;5;77"},
+		{name: "16 normal", color: c, depth: theme.Depth16, want: "42"},
+		{name: "16 bright", color: theme.RGB(255, 255, 255), depth: theme.Depth16, want: "107"},
+		{name: "indexed normal ignores depth", color: theme.ANSI(4), depth: theme.DepthTrue, want: "44"},
+		{name: "indexed bright", color: theme.ANSI(12), depth: theme.Depth256, want: "104"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := themeBackground(tc.color, tc.depth); got != tc.want {
+				t.Fatalf("themeBackground() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestThemePaintLine(t *testing.T) {
+	fg, bg := theme.RGB(1, 2, 3), theme.RGB(4, 5, 6)
+	paint := func(text string, bold bool) string {
+		if bold {
+			return "\x1b[1;38;2;1;2;3;48;2;4;5;6m" + text + "\x1b[0m"
+		}
+		return "\x1b[38;2;1;2;3;48;2;4;5;6m" + text + "\x1b[0m"
+	}
+	filled := theme.Span{Text: "ab", Fg: fg, Bg: bg, Fill: true}
+	// The gap is drawn in the base style, not in the style of either
+	// neighbor: the status line's empty cells are its own.
+	base := theme.Span{Fg: theme.RGB(7, 8, 9), Bg: bg, Fill: true}
+	gap := func(n int) string { return "\x1b[38;2;7;8;9;48;2;4;5;6m" + strings.Repeat(" ", n) + "\x1b[0m" }
+	cases := []struct {
+		name  string
+		line  theme.Line
+		width int
+		want  string
+	}{
+		{name: "no background", line: theme.Line{Spans: []theme.Span{{Text: "x", Fg: fg}}}, want: "\x1b[38;2;1;2;3mx\x1b[0m"},
+		{name: "bold filled", line: theme.Line{Spans: []theme.Span{{Text: "x", Fg: fg, Bg: bg, Fill: true, Bold: true}}}, want: paint("x", true)},
+		{name: "right part fills to the width", line: theme.Line{Spans: []theme.Span{filled}, Right: []theme.Span{filled}, Base: base}, width: 10, want: paint("ab", false) + gap(6) + paint("ab", false)},
+		{name: "wide glyphs count their cells", line: theme.Line{Spans: []theme.Span{{Text: "日本", Fg: fg, Bg: bg, Fill: true}}, Right: []theme.Span{filled}, Base: base}, width: 10, want: paint("日本", false) + gap(4) + paint("ab", false)},
+		{name: "unknown width keeps two spaces", line: theme.Line{Spans: []theme.Span{filled}, Right: []theme.Span{filled}, Base: base}, want: paint("ab", false) + gap(2) + paint("ab", false)},
+		{name: "too narrow keeps two spaces", line: theme.Line{Spans: []theme.Span{filled}, Right: []theme.Span{filled}, Base: base}, width: 5, want: paint("ab", false) + gap(2) + paint("ab", false)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := themePaintLine(tc.line, theme.DepthTrue, tc.width); got != tc.want {
+				t.Fatalf("themePaintLine() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestThemeSetCLI(t *testing.T) {
 	e := newGlueEnv(t)
 	file := e.configFile()
@@ -134,7 +296,7 @@ func TestThemeSetCLI(t *testing.T) {
 	}{
 		{
 			name: "unknown theme writes nothing", args: []string{"theme", "nope"}, wantCode: 1,
-			errHas: []string{`unknown theme "nope": choose lyna, light, ansi`},
+			errHas: []string{`unknown theme "nope": choose ` + strings.Join(app.ThemeNames(), ", ")},
 			check: func(t *testing.T) {
 				t.Helper()
 				if _, err := os.Lstat(filepath.Dir(file)); !os.IsNotExist(err) {
@@ -465,7 +627,23 @@ func TestThemeClaudeCLI(t *testing.T) {
 	}
 	themeFiles := func(dir string) []string {
 		rel, _ := filepath.Rel(e.root, dir)
-		return []string{filepath.Join(rel, "themes"), filepath.Join(rel, "themes", "lyna-ansi.json"), filepath.Join(rel, "themes", "lyna-light.json"), filepath.Join(rel, "themes", "lyna-lyna.json")}
+		out := []string{filepath.Join(rel, "themes")}
+		for _, name := range theme.Names() {
+			out = append(out, filepath.Join(rel, "themes", claudetheme.FileName(name)))
+		}
+		slices.Sort(out)
+		return out
+	}
+	// displayNames is the /theme list in documented order, without the
+	// palettes named.
+	displayNames := func(without ...string) string {
+		var names []string
+		for _, name := range app.ThemeNames() {
+			if !slices.Contains(without, name) {
+				names = append(names, claudetheme.DisplayName(name))
+			}
+		}
+		return strings.Join(names, ", ")
 	}
 	lightFile := filepath.Join(cfgDir, "themes", "lyna-light.json")
 	steps := []struct {
@@ -486,7 +664,7 @@ func TestThemeClaudeCLI(t *testing.T) {
 				"  created    " + filepath.Join(cfgDir, "themes", "lyna-lyna.json") + "\n",
 				"  created    " + lightFile + "\n",
 				"  created    " + filepath.Join(cfgDir, "themes", "lyna-ansi.json") + "\n",
-				"Pick one in Claude Code with /theme: Lyna, Lyna Light, Lyna ANSI.\n",
+				"Pick one in Claude Code with /theme: " + displayNames() + ".\n",
 				"Restart Claude Code sessions that are already running to see the new themes.\n",
 			},
 			wantChanges: themeFiles(cfgDir),
@@ -504,8 +682,8 @@ func TestThemeClaudeCLI(t *testing.T) {
 				}
 			},
 			args: []string{"theme", "claude"}, wantCode: 1,
-			outHas: []string{"  refused    " + lightFile + ": not written by lyna-tmux or edited since", "/theme: Lyna, Lyna ANSI.\n"},
-			errHas: []string{"1 of 3 theme files were not written"},
+			outHas: []string{"  refused    " + lightFile + ": not written by lyna-tmux or edited since", "/theme: " + displayNames("light") + ".\n"},
+			errHas: []string{fmt.Sprintf("1 of %d theme files were not written", len(theme.Names()))},
 		},
 		{
 			name: "defaults to ~/.claude", args: []string{"theme", "claude"},

@@ -45,28 +45,102 @@ type ThemeListing struct {
 // ThemeList loads the configuration and returns the palettes with the
 // configured one.
 func ThemeList(h Host) (ThemeListing, error) {
-	paths, cfg, err := LoadConfig(h)
+	paths, cfg, depth, err := themeSettings(h)
 	if err != nil {
 		return ThemeListing{}, err
 	}
-	depth := theme.DetectDepth(h.Getenv)
-	if cfg.UI.Color != "auto" {
-		if depth, err = theme.ParseDepth(cfg.UI.Color); err != nil {
-			return ThemeListing{}, err
-		}
-	}
-	palettes, err := themePalettes()
+	palettes, err := themePalettes(ThemeNames())
 	if err != nil {
 		return ThemeListing{}, err
 	}
 	return ThemeListing{Palettes: palettes, Current: cfg.UI.Theme, Depth: depth, ConfigPath: paths.ConfigFile()}, nil
 }
 
+// ThemeMockup is what `lyna-tmux theme preview` shows: the workspace drawn
+// in one or every theme.
+type ThemeMockup struct {
+	// Themes are the previewed palettes in documented order, each with the
+	// rows of its mock.
+	Themes []ThemeMock
+	// Current is the configured palette (ui.theme).
+	Current string
+	// Depth is the color depth to draw at: ui.color, or the depth detected
+	// from the terminal when it is auto.
+	Depth theme.Depth
+	// Icons is the resolved icon set (ui.icons), so the mock uses the glyphs
+	// the workspace would.
+	Icons theme.Icons
+}
+
+// ThemeMock is the workspace drawn in one palette.
+type ThemeMock struct {
+	Palette theme.Palette
+	Lines   []theme.Line
+}
+
+// ThemePreview loads the configuration and mocks the workspace in the named
+// theme, or in every theme when name is empty. The icon set and color depth
+// come from the configuration, as they would for a workspace, so the preview
+// shows what switching would give.
+func ThemePreview(h Host, name string) (ThemeMockup, error) {
+	if name != "" {
+		if err := themeKnown(name); err != nil {
+			return ThemeMockup{}, err
+		}
+	}
+	_, cfg, depth, err := themeSettings(h)
+	if err != nil {
+		return ThemeMockup{}, err
+	}
+	icons, err := theme.GetIcons(theme.ResolveIcons(cfg.UI.Icons, h.Getenv))
+	if err != nil {
+		return ThemeMockup{}, err
+	}
+	names := ThemeNames()
+	if name != "" {
+		names = []string{name}
+	}
+	palettes, err := themePalettes(names)
+	if err != nil {
+		return ThemeMockup{}, err
+	}
+	mockup := ThemeMockup{Current: cfg.UI.Theme, Depth: depth, Icons: icons, Themes: make([]ThemeMock, 0, len(palettes))}
+	for _, p := range palettes {
+		mockup.Themes = append(mockup.Themes, ThemeMock{Palette: p, Lines: theme.Preview(p, icons)})
+	}
+	return mockup, nil
+}
+
 // ThemeNames returns the theme names ui.theme accepts, in documented order.
 func ThemeNames() []string { return config.Choices(themeSection + "." + themeKey) }
 
-func themePalettes() ([]theme.Palette, error) {
+// themeKnown rejects a name that is not a configurable theme, naming the
+// ones that are.
+func themeKnown(name string) error {
 	names := ThemeNames()
+	if !slices.Contains(names, name) {
+		return fmt.Errorf("%w %q: choose %s", ErrThemeUnknown, name, strings.Join(names, ", "))
+	}
+	return nil
+}
+
+// themeSettings loads the configuration and resolves the color depth the
+// theme commands draw at.
+func themeSettings(h Host) (xdg.Paths, config.Config, theme.Depth, error) {
+	paths, cfg, err := LoadConfig(h)
+	if err != nil {
+		return xdg.Paths{}, config.Config{}, 0, err
+	}
+	depth := theme.DetectDepth(h.Getenv)
+	if cfg.UI.Color != "auto" {
+		if depth, err = theme.ParseDepth(cfg.UI.Color); err != nil {
+			return xdg.Paths{}, config.Config{}, 0, err
+		}
+	}
+	return paths, cfg, depth, nil
+}
+
+func themePalettes(names []string) ([]theme.Palette, error) {
 	out := make([]theme.Palette, 0, len(names))
 	for _, name := range names {
 		p, err := theme.Get(name)
@@ -97,9 +171,8 @@ type ThemeChange struct {
 // its permissions kept. Nothing is written when the name is unknown or when
 // the edited file would not be a valid configuration.
 func ThemeSet(h Host, name string) (ThemeChange, error) {
-	names := ThemeNames()
-	if !slices.Contains(names, name) {
-		return ThemeChange{}, fmt.Errorf("%w %q: choose %s", ErrThemeUnknown, name, strings.Join(names, ", "))
+	if err := themeKnown(name); err != nil {
+		return ThemeChange{}, err
 	}
 	paths, err := xdg.Resolve(h.Getenv, h.Home)
 	if err != nil {
@@ -170,7 +243,7 @@ func ThemeApply(ctx context.Context, h Host) (bool, error) {
 // <dir>/themes/lyna-*.json files are created or replaced, and a theme file the
 // user wrote or edited is never overwritten (see claudetheme.Write).
 func ThemeClaude(h Host) (claudetheme.Report, error) {
-	palettes, err := themePalettes()
+	palettes, err := themePalettes(ThemeNames())
 	if err != nil {
 		return claudetheme.Report{}, err
 	}

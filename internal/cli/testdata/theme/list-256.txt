@@ -1,8 +1,19 @@
-  THEME  STYLE            COLORS (256)
-* lyna   dark             color77 color75 color214 color203 color255 color102
-  light  light            color29 color26 color94 color160 color235 color59
-  ansi   terminal colors  color2 color4 color3 color1 color15 color7
+  THEME        STYLE            COLORS (256)
+* lyna         dark             color77 color75 color214 color203 color255 color102
+  slate        dark             color75 color176 color180 color210 color254 color103
+  dusk         dark             color179 color248 color179 color173 color187 color138
+  contrast     dark             color220 color81 color214 color203 color231 color249
+  nord         dark             color110 color109 color186 color131 color255 color109
+  rose         dark             color181 color182 color216 color168 color189 color103
+  mono         dark             color231 color250 color248 color231 color254 color245
+  solar-dark   dark             color36 color32 color136 color166 color254 color247
+  earth-dark   dark             color142 color108 color214 color203 color187 color138
+  light        light            color29 color26 color94 color160 color235 color59
+  solar-light  light            color36 color32 color136 color166 color235 color66
+  earth-light  light            color100 color24 color136 color124 color237 color242
+  ansi         terminal colors  color2 color4 color3 color1 color15 color7
 
 * is the configured theme (ui.theme in <config>).
+Preview one with: lyna-tmux theme preview <name>
 Switch with: lyna-tmux theme <name>
 Give Claude Code matching themes with: lyna-tmux theme claude

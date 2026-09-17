@@ -138,7 +138,8 @@ func (f File) checksum() string {
 func FileName(paletteName string) string { return filePrefix + paletteName + ".json" }
 
 // DisplayName returns the label /theme shows for a palette's theme: "Lyna"
-// for the default palette and "Lyna <Name>" for the others.
+// for the default palette and "Lyna <Name>" for the others, each hyphenated
+// word of the name capitalized on its own ("solar-dark" reads Solar Dark).
 func DisplayName(paletteName string) string {
 	switch paletteName {
 	case "", "lyna":
@@ -146,7 +147,13 @@ func DisplayName(paletteName string) string {
 	case "ansi":
 		return "Lyna ANSI"
 	}
-	return "Lyna " + strings.ToUpper(paletteName[:1]) + paletteName[1:]
+	words := strings.Split(paletteName, "-")
+	for i, w := range words {
+		if w != "" {
+			words[i] = strings.ToUpper(w[:1]) + w[1:]
+		}
+	}
+	return "Lyna " + strings.Join(words, " ")
 }
 
 func validPaletteName(name string) bool {
