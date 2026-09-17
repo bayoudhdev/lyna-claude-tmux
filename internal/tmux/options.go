@@ -31,7 +31,7 @@ const (
 // turns it off for the server; a Claude pane turns it back on for itself,
 // which is what carries the agent's desktop notifications and its progress
 // bar out of tmux without giving every shell pane the same channel.
-const OptPassthrough = "allow-passthrough"
+const OptPassthrough = "allow-passthrough" //nolint:gosec // G101: a tmux option name, not a credential
 
 // MaxBranchRunes bounds the branch name drawn in the status line.
 const MaxBranchRunes = 32

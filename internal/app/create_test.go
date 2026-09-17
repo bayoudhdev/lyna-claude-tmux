@@ -383,7 +383,7 @@ func TestCreateWorkspaceRequests(t *testing.T) {
 			// The terminal the user is looking at is read outside tmux and
 			// handed to the agent, which cannot see it from inside a pane.
 			name: "the notification channel follows the terminal outside", wantName: "api-3", wantRoles: []string{"claude"},
-			req:  CreateRequest{Dir: third, Layout: layout.Solo},
+			req: CreateRequest{Dir: third, Layout: layout.Solo},
 			setup: func(t *testing.T) {
 				t.Helper()
 				e.env["TERM_PROGRAM"] = "iTerm.app"
