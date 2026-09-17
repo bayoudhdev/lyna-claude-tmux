@@ -16,9 +16,12 @@ import (
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/watch"
 )
 
-// WatchInterval is how often a changes view reads the working tree without
-// an event: an edit made from a shell in a nested directory produces none.
-const WatchInterval = 3 * time.Second
+// WatchIdle is how long a changes view waits, with nothing else having
+// refreshed it, before reading the working tree anyway: an edit made from a
+// shell in a nested directory produces neither a file event nor a hook
+// signal. A change that does produce one is drawn as it happens, and puts
+// this read off again.
+const WatchIdle = 15 * time.Second
 
 // ErrWatchNoSession reports a changes view with no workspace to follow.
 var ErrWatchNoSession = errors.New("no workspace to follow")
@@ -114,10 +117,10 @@ func OpenWatch(ctx context.Context, h Host, req WatchRequest) (WatchView, error)
 	}
 	return WatchView{
 		Watcher: &watch.Watcher{
-			Dir:      req.Dir,
-			Source:   watch.Runner{Environ: func() []string { return h.Environ }},
-			Signal:   signal,
-			Interval: WatchInterval,
+			Dir:    req.Dir,
+			Source: watch.Runner{Environ: func() []string { return h.Environ }},
+			Signal: signal,
+			Idle:   WatchIdle,
 		},
 		Options: tui.ChangesOptions{Styles: tui.NewStyles(look), Popup: req.Popup, Dir: req.Dir, Home: h.Home},
 	}, nil

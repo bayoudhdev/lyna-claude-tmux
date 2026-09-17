@@ -454,7 +454,7 @@ func TestWatchFollowsRenamedWorkspace(t *testing.T) {
 	}
 	src := &watchFakeSource{}
 	w := view.Watcher
-	w.Source, w.Interval, w.Debounce = src, 0, time.Millisecond
+	w.Source, w.Idle, w.Debounce = src, 0, time.Millisecond
 	runCtx, cancel := context.WithCancel(t.Context())
 	var wg sync.WaitGroup
 	t.Cleanup(func() { cancel(); wg.Wait() })

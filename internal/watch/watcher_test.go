@@ -137,11 +137,45 @@ func TestWatcherSignalsAndCancellation(t *testing.T) {
 	}
 }
 
-func TestWatcherInterval(t *testing.T) {
+func TestWatcherIdleFallback(t *testing.T) {
 	src := &countingSource{dir: t.TempDir(), repoErr: ErrNotRepository}
-	w := &Watcher{Dir: src.dir, Source: src, Interval: 5 * time.Millisecond}
+	w := &Watcher{Dir: src.dir, Source: src, Idle: 5 * time.Millisecond}
 	updates, _ := runWatcher(t, w)
-	next(t, updates, "three interval refreshes", func(u Update) bool { return u.Changes.Branch.Ahead >= 3 })
+	next(t, updates, "three idle refreshes", func(u Update) bool { return u.Changes.Branch.Ahead >= 3 })
+}
+
+// TestWatcherIdleResetsOnRefresh proves the fallback is a fallback: a refresh
+// that a signal caused puts it off by a whole idle period instead of leaving
+// it to fire on the schedule it had. A signal at 2/3 of the period would be
+// followed 1/3 of a period later by a timer refresh if it did not.
+func TestWatcherIdleResetsOnRefresh(t *testing.T) {
+	const idle = 300 * time.Millisecond
+	src := &countingSource{dir: t.TempDir(), repoErr: ErrNotRepository}
+	signals := make(chan error)
+	w := &Watcher{
+		Dir: src.dir, Source: src, Idle: idle, Debounce: time.Millisecond,
+		Signal: func(ctx context.Context) error {
+			select {
+			case err := <-signals:
+				return err
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		},
+	}
+	updates, _ := runWatcher(t, w)
+	first := next(t, updates, "initial refresh", func(Update) bool { return true })
+
+	time.Sleep(idle * 2 / 3)
+	signals <- nil
+	signaled := next(t, updates, "refresh after the signal", func(u Update) bool { return u.Changes.Branch.Ahead >= 2 })
+	if gap := signaled.At.Sub(first.At); gap >= idle {
+		t.Fatalf("the signal refresh came %v after the first one, at or past the idle period %v: the fallback may have caused it", gap, idle)
+	}
+	fallback := next(t, updates, "the idle refresh", func(u Update) bool { return u.Changes.Branch.Ahead >= 3 })
+	if gap := fallback.At.Sub(signaled.At); gap < idle*4/5 {
+		t.Errorf("the idle refresh came %v after the signal refresh, less than %v: the fallback was not put off by it", gap, idle*4/5)
+	}
 }
 
 func TestRelevantEvent(t *testing.T) {

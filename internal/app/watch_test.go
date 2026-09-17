@@ -85,7 +85,7 @@ func TestOpenWatch(t *testing.T) {
 					t.Fatalf("options %+v", o)
 				}
 				w := v.Watcher
-				if w.Dir != dir || w.Interval != WatchInterval || w.Signal == nil {
+				if w.Dir != dir || w.Idle != WatchIdle || w.Signal == nil {
 					t.Fatalf("watcher %+v", w)
 				}
 				if _, ok := w.Source.(watch.Runner); !ok {
