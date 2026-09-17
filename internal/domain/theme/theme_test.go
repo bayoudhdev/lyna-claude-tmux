@@ -3,6 +3,7 @@ package theme
 import (
 	"errors"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -194,9 +195,19 @@ func TestDetectDepth(t *testing.T) {
 	}
 }
 
+// paletteNames is the documented set of built-in palettes, in the sorted
+// order Names returns. Adding a palette means adding it here too.
+var paletteNames = []string{
+	"ansi", "contrast", "dusk", "earth-dark", "earth-light", "light", "lyna",
+	"mono", "nord", "rose", "slate", "solar-dark", "solar-light",
+}
+
 func TestPalettes(t *testing.T) {
-	if got := Names(); !reflect.DeepEqual(got, []string{"ansi", "light", "lyna"}) {
-		t.Fatalf("Names() = %v", got)
+	if got := Names(); !reflect.DeepEqual(got, paletteNames) {
+		t.Fatalf("Names() = %v, want %v", got, paletteNames)
+	}
+	if !slices.IsSorted(Names()) {
+		t.Fatalf("Names() is not sorted: %v", Names())
 	}
 	for _, name := range Names() {
 		t.Run(name, func(t *testing.T) {
@@ -207,26 +218,54 @@ func TestPalettes(t *testing.T) {
 			if p.Name != name {
 				t.Fatalf("palette %q reports name %q", name, p.Name)
 			}
-			// Every semantic slot must be distinguishable from the background,
-			// otherwise that element disappears on screen.
+			// Every semantic slot must be set and distinguishable from the
+			// background, otherwise that element disappears on screen. A
+			// zero Color is RGB black, which only the high-contrast set uses
+			// on purpose, and there as the background alone.
 			v := reflect.ValueOf(p)
 			for i := range v.NumField() {
 				f := v.Type().Field(i)
 				c, ok := v.Field(i).Interface().(Color)
-				if !ok || f.Name == "Bg" {
+				if !ok {
 					continue
 				}
-				if c == p.Bg {
+				if c == (Color{}) && (f.Name != "Bg" || name != "contrast") {
+					t.Errorf("%s.%s is not set", name, f.Name)
+				}
+				if f.Name != "Bg" && c == p.Bg {
 					t.Errorf("%s.%s equals the background", name, f.Name)
 				}
 			}
 			if p.Waiting == p.Busy || p.Waiting == p.Idle || p.Busy == p.Idle {
 				t.Errorf("%s: agent states must use distinct colors", name)
 			}
+			if p.Bg.Indexed != p.Text.Indexed || p.Dark != (Luminance(p.Bg) < Luminance(p.Text)) {
+				t.Errorf("%s: Dark=%v does not match its background", name, p.Dark)
+			}
+			// Legibility bounds. The ansi palette is exempt: it borrows the
+			// terminal's own colors, whose real values are unknown here, so
+			// the xterm defaults it would be measured on prove nothing.
+			if name != "ansi" {
+				if got := Contrast(p.Text, p.Bg); got < 4.5 {
+					t.Errorf("%s: text contrast %.2f, want at least 4.5", name, got)
+				}
+				if got := Contrast(p.Muted, p.Bg); got < 3 {
+					t.Errorf("%s: muted contrast %.2f, want at least 3", name, got)
+				}
+			}
+			// Reduced depths must keep the text readable and the agent
+			// states apart: most terminals still run at 256 colors.
+			if To256(p.Text) == To256(p.Bg) || To16(p.Text) == To16(p.Bg) {
+				t.Errorf("%s: text and background merge at 256 (%d, %d) or 16 (%d, %d) colors", name, To256(p.Text), To256(p.Bg), To16(p.Text), To16(p.Bg))
+			}
+			states := []int{To256(p.Busy), To256(p.Waiting), To256(p.Idle)}
+			if len(slices.Compact(slices.Sorted(slices.Values(states)))) != 3 {
+				t.Errorf("%s: agent states merge at 256 colors: %v", name, states)
+			}
 		})
 	}
-	if _, err := Get("neon"); err == nil {
-		t.Fatal("Get(neon) succeeded")
+	if _, err := Get("neon"); err == nil || !strings.Contains(err.Error(), "available: [ansi contrast") {
+		t.Fatalf("Get(neon) = %v, want an error listing the names", err)
 	}
 }
 
