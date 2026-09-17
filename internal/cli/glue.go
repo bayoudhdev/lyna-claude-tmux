@@ -16,9 +16,9 @@ import (
 )
 
 // glueCommands are the commands Claude Code and tmux call: hook, statusline,
-// bell-forward, and the theme command.
+// the teammate launcher, bell-forward, and the theme command.
 func glueCommands(d Deps) []*cobra.Command {
-	return []*cobra.Command{hookCommand(d), statusCommand(d), bellCommand(d), themeCommand(d)}
+	return []*cobra.Command{hookCommand(d), statusCommand(d), teammateCommand(d), bellCommand(d), themeCommand(d)}
 }
 
 // pluginClaudeCommands are the subcommands of `plugin` for Claude Code.

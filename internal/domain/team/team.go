@@ -46,6 +46,13 @@ const LeadPane = "leader"
 // LeadType is the agent type of the entry that stands for the lead.
 const LeadType = "team-lead"
 
+// SwarmSocket is the start of the tmux socket name Claude Code builds a server
+// of its own on, when a team opens on the tmux backend from a terminal that is
+// not already inside tmux. It is a server lyna-tmux never created, so nothing
+// here ever sends it a command, reads it or ends it: the name is known only so
+// that it can be left alone.
+const SwarmSocket = "claude-swarm"
+
 // MaxConfigSize bounds a team configuration. A few members of a few hundred
 // bytes each, plus the prompt of every one, stay far below it; anything past
 // it is not a file this product wrote.

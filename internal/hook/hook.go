@@ -225,10 +225,6 @@ const (
 // skipped: every one of them is signaled, whatever its name holds.
 var fmtChangesSignal = "wait-for -S '" + tmux.ChangesChannel("#{session_id}") + "'"
 
-// fmtAgentsSignal signals the agents channel of the session holding the pane,
-// built the same way and for the same reasons as fmtChangesSignal.
-var fmtAgentsSignal = "wait-for -S '" + tmux.AgentsChannel("#{session_id}") + "'"
-
 // Commands returns the tmux batch for an event on pane and whether the pane
 // bell rings after it. known reports that payload was decoded; without it the
 // handler relies on the matcher each event is registered with. branch is the
@@ -237,7 +233,7 @@ var fmtAgentsSignal = "wait-for -S '" + tmux.AgentsChannel("#{session_id}") + "'
 func Commands(ev hookevent.Event, p Payload, known bool, pane string, branch *string, bell bool) ([]tmux.Command, bool) {
 	var cmds []tmux.Command
 	state := func(s string) { cmds = append(cmds, tmux.Command{"set-option", "-p", "-t", pane, tmux.OptState, s}) }
-	agents := func() { cmds = append(cmds, tmux.Command{"run-shell", "-C", "-t", pane, fmtAgentsSignal}) }
+	agents := func() { cmds = append(cmds, tmux.Command{"run-shell", "-C", "-t", pane, tmux.AgentsSignal}) }
 	ring := false
 
 	switch ev {
