@@ -1,6 +1,9 @@
 package tmux
 
-import "strings"
+import (
+	"errors"
+	"strings"
+)
 
 // escapeArg protects one argv element from tmux's command splitting. When tmux
 // parses its own argument vector, an element ending in ';' terminates the
@@ -126,6 +129,68 @@ func ShellJoin(args ...string) string {
 		quoted[i] = ShellQuote(a)
 	}
 	return strings.Join(quoted, " ")
+}
+
+// ShellSplit reads s as the words a POSIX shell would hand to a command, but
+// without running one: nothing is expanded, so a '$', a backquote or a glob
+// stays the text it is. Only the quoting a user relied on when they wrote the
+// string for a shell is honored. Blanks separate words; a single-quoted run
+// is literal; in a double-quoted run a backslash before '"', '\', '$' or '`'
+// yields that character and stays itself before anything else; outside quotes
+// a backslash yields the next character. A quote left open or a trailing
+// backslash is an error, since the string cannot mean what its author
+// intended. The words ShellJoin wrote read back unchanged.
+func ShellSplit(s string) ([]string, error) {
+	var words []string
+	var b strings.Builder
+	// A quoted empty run is a word, so "in a word" is tracked apart from the
+	// builder's length.
+	inWord := false
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch c {
+		case ' ', '\t', '\n':
+			if inWord {
+				words = append(words, b.String())
+				b.Reset()
+				inWord = false
+			}
+		case '\'':
+			inWord = true
+			j := strings.IndexByte(s[i+1:], '\'')
+			if j < 0 {
+				return nil, errors.New("an opening ' has no closing '")
+			}
+			b.WriteString(s[i+1 : i+1+j])
+			i += j + 1
+		case '"':
+			inWord = true
+			i++
+			for ; i < len(s) && s[i] != '"'; i++ {
+				if s[i] == '\\' && i+1 < len(s) && strings.IndexByte("\"\\$`", s[i+1]) >= 0 {
+					i++
+				}
+				b.WriteByte(s[i])
+			}
+			if i == len(s) {
+				return nil, errors.New(`an opening " has no closing "`)
+			}
+		case '\\':
+			inWord = true
+			if i+1 == len(s) {
+				return nil, errors.New("a backslash at the end escapes nothing")
+			}
+			i++
+			b.WriteByte(s[i])
+		default:
+			inWord = true
+			b.WriteByte(c)
+		}
+	}
+	if inWord {
+		words = append(words, b.String())
+	}
+	return words, nil
 }
 
 func isShellSafe(s string) bool {

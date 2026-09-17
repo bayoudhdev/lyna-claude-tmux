@@ -268,6 +268,75 @@ func FuzzShellQuote(f *testing.F) {
 	})
 }
 
+func TestShellSplit(t *testing.T) {
+	cases := []struct {
+		name    string
+		in      string
+		want    []string
+		wantErr string
+	}{
+		{name: "empty", in: ""},
+		{name: "blanks only", in: " \t\n "},
+		{name: "one word", in: "--verbose", want: []string{"--verbose"}},
+		{name: "blank runs", in: "  --model\t opus \n", want: []string{"--model", "opus"}},
+		{name: "double quotes keep a space", in: `--append-system-prompt "be brief"`, want: []string{"--append-system-prompt", "be brief"}},
+		{name: "single quotes keep a space", in: `--append-system-prompt 'be brief'`, want: []string{"--append-system-prompt", "be brief"}},
+		{name: "quotes join to their neighbors", in: `a"b c"d'e f'g`, want: []string{"ab cde fg"}},
+		{name: "quoted empty word", in: `'' "" x`, want: []string{"", "", "x"}},
+		{name: "backslash escapes a blank", in: `be\ brief`, want: []string{"be brief"}},
+		{name: "backslash escapes a quote", in: `it\'s`, want: []string{"it's"}},
+		{name: "backslash before a multibyte character", in: `\é`, want: []string{"é"}},
+		{name: "single quotes are literal", in: `'$HOME \n ` + "`id`'", want: []string{`$HOME \n ` + "`id`"}},
+		{name: "double quotes unescape the shell specials", in: `"\"\\\$\` + "`\"", want: []string{`"\$` + "`"}},
+		{name: "double quotes keep other backslashes", in: `"a\nb \x"`, want: []string{`a\nb \x`}},
+		{name: "nothing is expanded", in: "$HOME *.go ~ `id` $(id)", want: []string{"$HOME", "*.go", "~", "`id`", "$(id)"}},
+		{name: "prompt after a double dash", in: `-- "fix the tests"`, want: []string{"--", "fix the tests"}},
+		{name: "unterminated single quote", in: `--model 'opus`, wantErr: "an opening ' has no closing '"},
+		{name: "unterminated double quote", in: `--model "opus`, wantErr: `an opening " has no closing "`},
+		{name: "unterminated double quote after an escape", in: `"a\"`, wantErr: `an opening " has no closing "`},
+		{name: "trailing backslash", in: `--model opus\`, wantErr: "a backslash at the end escapes nothing"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := ShellSplit(tc.in)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("ShellSplit(%q) = %q, %v; want error %q", tc.in, got, err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil || !slices.Equal(got, tc.want) || (got == nil) != (tc.want == nil) {
+				t.Fatalf("ShellSplit(%q) = %#v, %v; want %#v", tc.in, got, err, tc.want)
+			}
+		})
+	}
+}
+
+// FuzzShellSplit pins ShellSplit as the inverse of ShellJoin: any word list
+// it reads out of a string, and any string quoted as one word, comes back
+// unchanged, and no input panics.
+func FuzzShellSplit(f *testing.F) {
+	for _, s := range []string{"", "a b", "'", `"`, `\`, `'a b' "c\"d" e\ f`, "$(x)", `""`, "é●"} {
+		f.Add(s)
+	}
+	f.Fuzz(func(t *testing.T, in string) {
+		if got, err := ShellSplit(ShellQuote(in)); err != nil || !slices.Equal(got, []string{in}) {
+			t.Fatalf("ShellSplit(ShellQuote(%q)) = %q, %v", in, got, err)
+		}
+		words, err := ShellSplit(in)
+		if err != nil {
+			if words != nil {
+				t.Fatalf("ShellSplit(%q) returned words %q with error %v", in, words, err)
+			}
+			return
+		}
+		again, err := ShellSplit(ShellJoin(words...))
+		if err != nil || !slices.Equal(again, words) || (again == nil) != (words == nil) {
+			t.Fatalf("ShellSplit(ShellJoin(%q)) = %#v, %v", words, again, err)
+		}
+	})
+}
+
 func FuzzEscapeArg(f *testing.F) {
 	for _, s := range []string{"", ";", "a;", `\;`, `\\;`} {
 		f.Add(s)
