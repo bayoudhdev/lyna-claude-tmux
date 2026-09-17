@@ -5,6 +5,9 @@
 #
 # Usage: scripts/bench.sh [--dry-run] [--bin PATH] [--runs N] [--output FILE]
 #
+# GO and HYPERFINE name the go and hyperfine commands to use when they are
+# not the ones on PATH.
+#
 # The commands run outside tmux (TMUX and TMUX_PANE unset) with scratch state
 # directories, so `hook Stop` takes its no-op path and nothing touches a real
 # tmux server or Claude configuration.
@@ -22,6 +25,10 @@ Options:
   --runs N       exact number of runs per command (default: hyperfine decides, at least 50)
   --output FILE  write the Markdown to FILE instead of standard output
   -h, --help     show this help
+
+Environment:
+  GO             the go command to use (default: go)
+  HYPERFINE      the hyperfine command to use (default: hyperfine)
 EOF
 }
 
@@ -72,6 +79,19 @@ fi
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 go_bin=${GO:-go}
+hyperfine_bin=${HYPERFINE:-hyperfine}
+
+# require fails, naming the tool, when the command standing for it cannot be
+# found. Only the tools beyond the POSIX base are looked for: the go
+# toolchain and hyperfine, the two a machine may lack.
+require() {
+  local tool=$1 cmd=$2 hint=$3
+  command -v "$cmd" >/dev/null 2>&1 && return
+  if [[ $cmd == "$tool" ]]; then
+    fail "$tool is required$hint"
+  fi
+  fail "$tool is required$hint: $cmd not found"
+}
 
 # word quotes one argument for a shell, and for the command strings hyperfine
 # splits itself when it runs without a shell. Plain words stay bare.
@@ -107,8 +127,11 @@ if ((dry_run)); then
   # The scratch directory is only created for a real run.
   work=${tmp_root%/}/lyna-tmux-bench.XXXXXX
 else
-  command -v hyperfine >/dev/null 2>&1 ||
-    fail "hyperfine is required (brew install hyperfine, apt-get install hyperfine or cargo install hyperfine)"
+  # Every tool is checked before the scratch directory exists, so a missing
+  # one is reported as such rather than as a failed build, and leaves
+  # nothing behind.
+  require go "$go_bin" " (set GO to the toolchain to use)"
+  require hyperfine "$hyperfine_bin" " (brew install hyperfine, apt-get install hyperfine or cargo install hyperfine)"
   work=$(mktemp -d "${tmp_root%/}/lyna-tmux-bench.XXXXXX")
   trap 'rm -rf "$work"' EXIT
   mkdir -p "$work/hello" "$work/home" "$work/claude"
@@ -149,7 +172,7 @@ if [[ -n $runs ]]; then
 fi
 
 for i in "${!names[@]}"; do
-  args=(hyperfine --shell=none --warmup 10 "${run_flags[@]}" --export-csv "$work/bench-$i.csv" --command-name "${names[$i]}")
+  args=("$hyperfine_bin" --shell=none --warmup 10 "${run_flags[@]}" --export-csv "$work/bench-$i.csv" --command-name "${names[$i]}")
   if [[ -n ${inputs[$i]} ]]; then
     args+=(--input "${inputs[$i]}")
   fi
@@ -185,7 +208,7 @@ report() {
   version=$("$bin" version 2>/dev/null | head -n 1) || version="unknown"
   # The machine comes from the Go toolchain, not uname: a shell translated by
   # Rosetta reports the translated architecture, not the one that runs here.
-  printf '%s\n\n' "Measured with $(hyperfine --version) on $(uname -s) $("$go_bin" env GOARCH), $("$go_bin" version | cut -d' ' -f3), lyna-tmux ${version#lyna-tmux }."
+  printf '%s\n\n' "Measured with $("$hyperfine_bin" --version) on $(uname -s) $("$go_bin" env GOARCH), $("$go_bin" version | cut -d' ' -f3), lyna-tmux ${version#lyna-tmux }."
   table
 }
 

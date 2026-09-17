@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -109,32 +110,54 @@ func repoRoot(t *testing.T) string {
 }
 
 func TestBenchScriptArguments(t *testing.T) {
+	// The missing-tool messages, verbatim: a run that dies in mktemp or in
+	// the build instead of naming the tool is what these cases guard.
+	const (
+		goRequired        = "bench.sh: go is required (set GO to the toolchain to use): /nonexistent/go not found\n"
+		hyperfineRequired = "bench.sh: hyperfine is required (brew install hyperfine, apt-get install hyperfine or cargo install hyperfine): "
+	)
 	cases := []struct {
 		name      string
 		args      []string
 		hyperfine bool
-		wantExit  int
-		wantOut   string
-		wantErr   string
-		golden    string
+		// env is added to the environment; GO points the script at a go
+		// that does not exist when set.
+		env      []string
+		wantExit int
+		wantOut  string
+		wantErr  string
+		golden   string
 	}{
 		{name: "dry run with a binary", args: []string{"--dry-run", "--runs", "3", "--bin", "/opt/lyna tools/lyna-tmux"}, golden: "bench/dry-run-bin.txt"},
 		{name: "dry run builds lyna-tmux", args: []string{"--dry-run"}, golden: "bench/dry-run-build.txt"},
 		{name: "dry run needs no hyperfine", args: []string{"--dry-run"}, hyperfine: false, wantOut: "hyperfine --shell=none"},
+		{name: "dry run needs no go", args: []string{"--dry-run"}, env: []string{"GO=/nonexistent/go"}, wantOut: "/nonexistent/go build"},
 		{name: "help", args: []string{"--help"}, wantOut: "Usage: scripts/bench.sh [--dry-run] [--bin PATH] [--runs N] [--output FILE]"},
+		{name: "help names the environment", args: []string{"--help"}, wantOut: "HYPERFINE      the hyperfine command to use (default: hyperfine)"},
 		{name: "unknown argument", args: []string{"--fast"}, wantExit: 2, wantErr: "unknown argument: --fast"},
 		{name: "missing value", args: []string{"--dry-run", "--bin"}, wantExit: 2, wantErr: "--bin needs a value"},
 		{name: "one run is refused", args: []string{"--runs", "1"}, wantExit: 2, wantErr: "--runs must be a whole number of at least 2"},
 		{name: "non-numeric runs are refused", args: []string{"--runs", "5x"}, wantExit: 2, wantErr: "--runs must be"},
-		{name: "hyperfine missing", args: nil, hyperfine: false, wantExit: 1, wantErr: "hyperfine is required"},
+		{name: "hyperfine missing", args: nil, hyperfine: false, wantExit: 1, wantErr: hyperfineRequired},
+		{name: "hyperfine missing with a binary", args: []string{"--bin", "/bin/sh"}, hyperfine: false, wantExit: 1, wantErr: hyperfineRequired},
+		{name: "go missing", args: nil, hyperfine: true, env: []string{"GO=/nonexistent/go"}, wantExit: 1, wantErr: goRequired},
+		{name: "go missing with a binary", args: []string{"--bin", "/bin/sh"}, hyperfine: true, env: []string{"GO=/nonexistent/go"}, wantExit: 1, wantErr: goRequired},
 		{name: "binary not executable", args: []string{"--bin", "/nonexistent/lyna-tmux"}, hyperfine: true, wantExit: 1, wantErr: "/nonexistent/lyna-tmux is not an executable file"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			e := newBenchEnv(t, tc.hyperfine || tc.golden != "")
 			// TMPDIR does not exist: a dry run must not create its scratch
-			// directory, and the printed paths stay stable for the goldens.
-			env := []string{"PATH=" + e.bin + ":/usr/bin:/bin", "TMPDIR=/nonexistent/tmp/", "BENCH_LOG=" + e.log}
+			// directory, the printed paths stay stable for the goldens, and a
+			// run missing a tool must fail on the tool, which it can only do
+			// by looking before it creates anything.
+			env := append([]string{"PATH=" + e.bin + ":/usr/bin:/bin", "TMPDIR=/nonexistent/tmp/", "BENCH_LOG=" + e.log}, tc.env...)
+			// A real run looks for hyperfine, so HYPERFINE names the fake, or
+			// nothing: a hyperfine installed on the machine must not stand
+			// in. The dry runs print the bare name the goldens hold.
+			if !slices.Contains(tc.args, "--dry-run") {
+				env = append(env, "HYPERFINE="+filepath.Join(e.bin, "hyperfine"))
+			}
 			stdout, stderr, exit := runBench(t, env, tc.args...)
 			if exit != tc.wantExit || !strings.Contains(stdout, tc.wantOut) || !strings.Contains(stderr, tc.wantErr) {
 				t.Fatalf("exit %d (want %d)\nstdout:\n%s\nstderr:\n%s", exit, tc.wantExit, stdout, stderr)
