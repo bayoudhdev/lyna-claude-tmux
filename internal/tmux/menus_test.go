@@ -198,7 +198,7 @@ func TestKeysMenuSeq(t *testing.T) {
 		{
 			name:      "defaults",
 			bindings:  keys.Defaults(keys.Options{AltKeys: true}),
-			wantItems: 16, // 26 root bindings minus 9 window keys and the menu key
+			wantItems: 17, // 27 root bindings minus 9 window keys and the menu key
 			wantSeps:  2,  // panes | windows | tools
 			wantHints: []string{`M-\`, "M-a", "M-e"},
 			notLabels: []string{"Menu", "Window 1"},

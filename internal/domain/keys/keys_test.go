@@ -45,7 +45,7 @@ func TestDefaultsTables(t *testing.T) {
 		wantRoot   int
 		wantPrefix string
 	}{
-		{name: "alt keys on", opts: Options{AltKeys: true}, wantRoot: 26, wantPrefix: "C-b"},
+		{name: "alt keys on", opts: Options{AltKeys: true}, wantRoot: 27, wantPrefix: "C-b"},
 		{name: "alt keys off", opts: Options{AltKeys: false, Prefix: "C-a"}, wantRoot: 0, wantPrefix: "C-a"},
 	}
 	for _, tc := range cases {

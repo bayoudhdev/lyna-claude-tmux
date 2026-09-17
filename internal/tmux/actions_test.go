@@ -35,6 +35,7 @@ func TestActionSeq(t *testing.T) {
 			keys.Binding{Action: keys.ActionNewWindow},
 			"new-window -c '#{?#{@lt_project},#{@lt_project},#{pane_current_path}}' ; set-option -p @lt_role shell",
 		},
+		{"agents rail", keys.Binding{Action: keys.ActionAgentsRail}, "run-shell -C '#{@lt_do_agents_rail}'"},
 		{"window", keys.Binding{Action: keys.ActionWindow, Arg: "3"}, "select-window -t :3"},
 		{"tree", keys.Binding{Action: keys.ActionTree}, "choose-tree -Zs"},
 		{"menu", keys.Binding{Action: keys.ActionMenu}, "run-shell -C '#{@lt_do_menu_keys}'"},
@@ -79,6 +80,45 @@ func TestEveryDefaultBindingHasAction(t *testing.T) {
 	}
 }
 
+// TestAgentsRailSeq pins the toggle text. Both branches live in one
+// conditional, whose commas separate them: the close branch is a format tmux
+// walks over as a whole, so its own commas are left alone, while the open
+// branch is plain text where a comma of the installation path would end the
+// branch.
+func TestAgentsRailSeq(t *testing.T) {
+	cases := []struct {
+		name string
+		env  Env
+		want string
+	}{
+		{
+			"toggle",
+			testEnv(),
+			`run-shell -C '#{?#{P:#{?#{==:#{@lt_role},agents},#{pane_id} ,}},` +
+				`kill-pane -t #{s/ .*//:#{P:#{?#{==:#{@lt_role},agents},#{pane_id} ,}}},` +
+				`split-window -b -h -l 28 -t #{s/ .*//:#{P:#{pane_id} }} ` +
+				`'\''/opt/lyna tools/bin/lmux'\'' agents --rail --auto` +
+				` ; set-option -p @lt_role agents ; last-pane}'`,
+		},
+		{
+			"comma in the path",
+			Env{Bin: "/opt/a,b/lmux"},
+			`run-shell -C '#{?#{P:#{?#{==:#{@lt_role},agents},#{pane_id} ,}},` +
+				`kill-pane -t #{s/ .*//:#{P:#{?#{==:#{@lt_role},agents},#{pane_id} ,}}},` +
+				`split-window -b -h -l 28 -t #{s/ .*//:#{P:#{pane_id} }} ` +
+				`/opt/a#,b/lmux agents --rail --auto` +
+				` ; set-option -p @lt_role agents ; last-pane}'`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.env.AgentsRailSeq().String(); got != tc.want {
+				t.Fatalf("AgentsRailSeq = %s\nwant             %s", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestRegistry(t *testing.T) {
 	e := testEnv()
 	reg := e.Registry()
@@ -96,6 +136,7 @@ func TestRegistry(t *testing.T) {
 	}{
 		{DoSplitRight, "split-window", false},
 		{DoAgents, "display-popup", false},
+		{DoAgentsRail, "run-shell", false},
 		{DoReview, "display-popup", false},
 		{DoSandbox, "display-popup", false},
 		{DoMenuKeys, "display-menu", false},

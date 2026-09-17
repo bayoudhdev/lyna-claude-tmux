@@ -40,6 +40,7 @@ const (
 	ActionWindow      Action = "window" // Arg is the window index
 	ActionTree        Action = "tree"
 	ActionAgents      Action = "agents"
+	ActionAgentsRail  Action = "agents-rail"
 	ActionReview      Action = "review"
 	ActionScratch     Action = "scratch"
 	ActionFocusClaude Action = "focus-claude"
@@ -102,6 +103,7 @@ func Defaults(o Options) []Binding {
 		out = append(out,
 			Binding{Key: "M-e", Table: TableRoot, Action: ActionTree, Group: GroupWindows, Help: "Sessions and windows"},
 			Binding{Key: "M-a", Table: TableRoot, Action: ActionAgents, Group: GroupTools, Help: "Agents"},
+			Binding{Key: "M-A", Table: TableRoot, Action: ActionAgentsRail, Group: GroupTools, Help: "Agents rail"},
 			Binding{Key: "M-g", Table: TableRoot, Action: ActionReview, Group: GroupTools, Help: "Review changes"},
 			Binding{Key: "M-s", Table: TableRoot, Action: ActionScratch, Group: GroupTools, Help: "Scratch shell"},
 			Binding{Key: "M-Space", Table: TableRoot, Action: ActionMenu, Group: GroupTools, Help: "Menu"},
@@ -139,6 +141,7 @@ func Defaults(o Options) []Binding {
 	out = append(out,
 		Binding{Key: "w", Table: TablePrefix, Action: ActionTree, Group: GroupWindows, Help: "Sessions and windows"},
 		Binding{Key: "a", Table: TablePrefix, Action: ActionAgents, Group: GroupTools, Help: "Agents"},
+		Binding{Key: "A", Table: TablePrefix, Action: ActionAgentsRail, Group: GroupTools, Help: "Agents rail"},
 		Binding{Key: "g", Table: TablePrefix, Action: ActionReview, Group: GroupTools, Help: "Review changes"},
 		Binding{Key: "S", Table: TablePrefix, Action: ActionScratch, Group: GroupTools, Help: "Scratch shell"},
 		Binding{Key: "Space", Table: TablePrefix, Action: ActionMenu, Group: GroupTools, Help: "Menu"},

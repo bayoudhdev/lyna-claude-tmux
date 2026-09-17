@@ -45,6 +45,7 @@ Alt is Option on macOS. Enable Option as Meta in your terminal first; see
 | Key | Action | Detail |
 | --- | --- | --- |
 | `Alt+a` | Agents | Agents picker, in a popup sized by `popup.width` and `popup.height` |
+| `Alt+A` | Agents rail | Opens the agents rail of the window, 28 cells on its left, or closes the one that is there |
 | `Alt+g` | Review changes | Review popup, always 95 percent by 95 percent |
 | `Alt+s` | Scratch shell | Throwaway shell popup, 80 percent by 70 percent, in the current pane's directory |
 | `Alt+Space` | Menu | The key menu, centered: every installed Alt binding except this one and the window numbers, each with its key and runnable from the menu |
@@ -67,6 +68,7 @@ prefix you configured; the table below assumes the default.
 | Key | Action |
 | --- | --- |
 | `a` | Agents |
+| `A` | Agents rail |
 | `g` | Review changes |
 | `S` | Scratch shell |
 | `Space` | Menu |
@@ -94,8 +96,9 @@ What changes:
 
 - No binding is installed in the tmux root table. Every Alt key, including the ones Claude
   Code uses and any you bound yourself, reaches the program in the pane untouched.
-- The prefix table is unchanged: all ten bindings above stay, so splits, the agents picker,
-  the review popup, the scratch shell, the menu, reload and detach remain reachable.
+- The prefix table is unchanged: all eleven bindings above stay, so splits, the agents
+  picker, the agents rail, the review popup, the scratch shell, the menu, reload and detach
+  remain reachable.
 - The menu has nothing left to list, so it falls back to three entries: Agents, Review
   changes and Scratch shell.
 - Mouse behavior is unchanged. It is controlled by `ui.mouse`, not by `ui.alt_keys`.
