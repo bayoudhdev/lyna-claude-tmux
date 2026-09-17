@@ -117,6 +117,12 @@ type Pane struct {
 	Height         int
 	Role           string
 	State          string
+	// Agent, AgentType and Team name the agent running in the pane: the name
+	// it was spawned under, the definition it was spawned from and the team it
+	// belongs to. All three are empty in a pane that runs no agent of a team.
+	Agent     string
+	AgentType string
+	Team      string
 }
 
 // Location renders "session:window.pane".
@@ -144,6 +150,9 @@ var paneFields = []string{
 	"#{pane_height}",
 	"#{" + OptRole + "}",
 	"#{" + OptState + "}",
+	"#{" + OptAgent + "}",
+	"#{" + OptAgentType + "}",
+	"#{" + OptTeam + "}",
 }
 
 // ListPanes lists panes. An empty target lists every pane on the server;
@@ -192,6 +201,9 @@ func parsePanes(out string) []Pane {
 			Height:         atoi(f[16]),
 			Role:           f[17],
 			State:          f[18],
+			Agent:          f[19],
+			AgentType:      f[20],
+			Team:           f[21],
 		})
 	}
 	return panes

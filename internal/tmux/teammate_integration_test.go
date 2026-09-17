@@ -1,6 +1,7 @@
 package tmux_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -64,8 +65,31 @@ func TestIntegrationTeammateLayout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := srv.Client.Batch(ctx, tmux.AdoptTeammate(tmux.Teammate{Pane: teammate, Agent: "review-api"})...); err != nil {
+	if _, err := srv.Client.Batch(ctx, tmux.AdoptTeammate(tmux.Teammate{
+		Pane: teammate, Agent: "review-api", AgentType: "api-developer", Team: "session-8f3c1d2a",
+	})...); err != nil {
 		t.Fatal(err)
+	}
+	// The agent a pane runs is read back from the server with the pane, which
+	// is what a view of the team is drawn from.
+	panes, err := srv.Client.ListPanes(ctx, window)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, p := range panes {
+		if p.ID != teammate {
+			continue
+		}
+		found = true
+		got := []string{p.Role, p.State, p.Agent, p.AgentType, p.Team}
+		want := []string{tmux.RoleTeammate, "busy", "review-api", "api-developer", "session-8f3c1d2a"}
+		if !slices.Equal(got, want) {
+			t.Fatalf("the teammate's pane lists %q, want %q", got, want)
+		}
+	}
+	if !found {
+		t.Fatalf("panes %+v, want the teammate's", panes)
 	}
 	if _, err := srv.Client.Run(ctx, "select-layout", "-t", window, "main-vertical"); err != nil {
 		t.Fatal(err)
