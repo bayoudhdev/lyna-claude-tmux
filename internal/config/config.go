@@ -41,6 +41,7 @@ type UI struct {
 	AltKeys          bool   `toml:"alt_keys"`
 	Mouse            bool   `toml:"mouse"`
 	AllowPassthrough bool   `toml:"allow_passthrough"`
+	FocusEvents      bool   `toml:"focus_events"`
 }
 
 // Workspace controls sessions and panes.

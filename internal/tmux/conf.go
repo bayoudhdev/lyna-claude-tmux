@@ -19,9 +19,11 @@ type ConfOptions struct {
 	Prefix           string
 	Mouse            bool
 	AllowPassthrough bool
-	Bell             bool
-	StatusPosition   string // top or bottom
-	HistoryLimit     int
+	// FocusEvents passes a focus change on to the program of a pane.
+	FocusEvents    bool
+	Bell           bool
+	StatusPosition string // top or bottom
+	HistoryLimit   int
 	// Shell is the default shell of new panes; empty keeps tmux's choice ($SHELL).
 	Shell string
 	// LocalConf is sourced last when it exists, so user settings win.
@@ -104,7 +106,12 @@ func GenerateConf(o ConfOptions) string {
 		w.set("-s", "extended-keys-format", "csi-u")
 	}
 	w.set("-s", "escape-time", "10")
-	w.set("-s", "focus-events", "on")
+	// tmux passes a focus change to a pane whose program asked for one, and a
+	// program that asks without reading the answer prints it: the agent client
+	// does exactly that, so its prompt fills with the escape sequence of every
+	// focus change. tmux leaves this off, and so does this file unless the
+	// configuration turns it on for programs that do read it.
+	w.set("-s", "focus-events", onOff(o.FocusEvents))
 	// Only copy mode writes the clipboard; programs in panes cannot.
 	w.set("-s", "set-clipboard", "external")
 	w.blank()

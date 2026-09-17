@@ -106,7 +106,7 @@ func TestGenerateConfSettings(t *testing.T) {
 		{
 			name:    "defaults",
 			mod:     func(*ConfOptions) {},
-			want:    []string{"set-option -g prefix C-b", "set-option -g mouse off", "set-option -g status-position bottom", "set-option -wg allow-passthrough off"},
+			want:    []string{"set-option -g prefix C-b", "set-option -g mouse off", "set-option -g status-position bottom", "set-option -wg allow-passthrough off", "set-option -s focus-events off"},
 			notWant: []string{"default-shell", "source-file -q", "terminal-features[91]"},
 		},
 		{
@@ -120,10 +120,12 @@ func TestGenerateConfSettings(t *testing.T) {
 			mod: func(o *ConfOptions) {
 				o.Prefix, o.Mouse, o.AllowPassthrough, o.StatusPosition = "C-a", true, true, "top"
 				o.Shell, o.LocalConf, o.HistoryLimit = "/usr/bin/fish shell", "/cfg/it's.conf", 5000
+				o.FocusEvents = true
 			},
 			want: []string{
 				"set-option -g prefix C-a", "set-option -g mouse on", "set-option -g status-position top",
 				"set-option -wg allow-passthrough on", "set-option -g default-shell '/usr/bin/fish shell'",
+				"set-option -s focus-events on",
 				`source-file -q '/cfg/it'\''s.conf'`, "set-option -g history-limit 5000",
 			},
 		},

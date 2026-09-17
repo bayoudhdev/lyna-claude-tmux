@@ -142,6 +142,7 @@ func confOptions(cfg config.Config, v tmux.Version, h Host, paths xdg.Paths) (tm
 		Prefix:           cfg.Workspace.Prefix,
 		Mouse:            cfg.UI.Mouse,
 		AllowPassthrough: cfg.UI.AllowPassthrough,
+		FocusEvents:      cfg.UI.FocusEvents,
 		Bell:             cfg.Claude.Bell,
 		StatusPosition:   cfg.UI.StatusPosition,
 		HistoryLimit:     cfg.Workspace.HistoryLimit,
