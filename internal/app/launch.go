@@ -19,6 +19,7 @@ import (
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/sandbox"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/session"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/fsx"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/termx"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/xdg"
 )
@@ -141,6 +142,7 @@ func (s *Server) prepareLaunch(h Host, root, name string, o LaunchOptions) (laun
 		Teams:             teams,
 		WorktreeBaseRef:   cfg.Claude.WorktreeBase,
 		WorkflowSize:      cfg.Claude.WorkflowSize,
+		NotifyChannel:     termx.NotifyChannel(termx.Detect(h.Getenv).Program),
 	})
 	if err != nil {
 		return launchPlan{}, err
@@ -203,7 +205,15 @@ func (lp launchPlan) paneProcs(h Host, plan layout.Plan, root, name string) ([]t
 				return nil, err
 			}
 			env := append(slices.Clip(cmd.Env), lp.display...)
-			procs[i] = tmux.PaneProcess{Argv: cmd.Argv, Env: env, Options: map[string]string{tmux.OptSettings: lp.settings}}
+			procs[i] = tmux.PaneProcess{Argv: cmd.Argv, Env: env, Options: map[string]string{
+				tmux.OptSettings: lp.settings,
+				// The agent's notifications and progress bar are escape
+				// sequences for the outer terminal. The server keeps them off,
+				// so a pane running the user's own programs cannot drive their
+				// terminal or clipboard; the pane running the agent allows
+				// them, because that is where they are meant to come from.
+				tmux.OptPassthrough: "on",
+			}}
 		case layout.RoleShell:
 		case layout.RoleChanges:
 			procs[i] = tmux.PaneProcess{Argv: []string{h.Exe, "watch", "--session", name, "--dir", root}}

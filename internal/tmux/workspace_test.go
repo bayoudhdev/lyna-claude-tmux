@@ -218,6 +218,15 @@ func TestWorkspaceValidate(t *testing.T) {
 		{name: "option overriding the role", mod: func(s *WorkspaceSpec) { s.Window.Procs[1].Options = map[string]string{OptRole: "claude"} }, wantErr: "not a user option"},
 		{name: "option value nul", mod: func(s *WorkspaceSpec) { s.Window.Procs[1].Options = map[string]string{"@a": "\x00"} }, wantErr: "NUL"},
 		{name: "option name characters", mod: func(s *WorkspaceSpec) { s.Window.Procs[1].Options = map[string]string{"@Lt_9-x": "#{pane_id}; $(id)"} }},
+		{name: "passthrough is a pane option a workspace sets", mod: func(s *WorkspaceSpec) {
+			s.Window.Procs[1].Options = map[string]string{OptPassthrough: "on"}
+		}},
+		{name: "passthrough takes only its own values", mod: func(s *WorkspaceSpec) {
+			s.Window.Procs[1].Options = map[string]string{OptPassthrough: "yes"}
+		}, wantErr: `allow-passthrough does not take "yes"`},
+		{name: "another tmux option is still refused", mod: func(s *WorkspaceSpec) {
+			s.Window.Procs[1].Options = map[string]string{"remain-on-exit": "on"}
+		}, wantErr: "not a user option"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

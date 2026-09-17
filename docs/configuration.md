@@ -126,7 +126,7 @@ Look and input model of the workspace.
 | `clock` | boolean | `true`, `false` | `true` | Draws the `%H:%M` clock at the right end of the status line. |
 | `alt_keys` | boolean | `true`, `false` | `true` | Installs the prefix-free Alt bindings. See [keys.md](keys.md). |
 | `mouse` | boolean | `true`, `false` | `true` | Turns the tmux `mouse` option on or off. With it off, clicks, menus and wheel scrolling never reach tmux. |
-| `allow_passthrough` | boolean | `true`, `false` | `false` | Lets programs in panes send escape sequences straight to your terminal. Off by default: pane output cannot drive your terminal or clipboard. |
+| `allow_passthrough` | boolean | `true`, `false` | `false` | Lets programs in panes send escape sequences straight to your terminal. Off by default: pane output cannot drive your terminal or clipboard. The pane running the agent always allows them, whatever this says, since that is where its desktop notifications and its progress bar come from. |
 | `focus_events` | boolean | `true`, `false` | `false` | Tells a pane when it gains or loses focus. Off by default, as in tmux itself: a program that asks for focus events without reading them prints each one as typed text, and the agent client is one of them. Turn it on for an editor that reloads a file when its pane regains focus. |
 
 There is no `[keys]` table. Key bindings are configured by `ui.alt_keys` and

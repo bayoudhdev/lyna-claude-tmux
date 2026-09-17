@@ -26,6 +26,13 @@ const (
 	OptClaudeParent = "@claude_parent"
 )
 
+// OptPassthrough is the tmux option that lets a program in a pane send an
+// escape sequence straight to the outer terminal. The generated configuration
+// turns it off for the server; a Claude pane turns it back on for itself,
+// which is what carries the agent's desktop notifications and its progress
+// bar out of tmux without giving every shell pane the same channel.
+const OptPassthrough = "allow-passthrough"
+
 // MaxBranchRunes bounds the branch name drawn in the status line.
 const MaxBranchRunes = 32
 

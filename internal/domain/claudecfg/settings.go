@@ -47,6 +47,10 @@ const (
 var (
 	worktreeBaseRefs = []string{"fresh", "head"}
 	workflowSizes    = []string{"small", "medium", "large", "unrestricted"}
+	// The channels Claude Code accepts for preferredNotifChannel. The caller
+	// picks one from the terminal the workspace was started from, which the
+	// agent cannot see from inside a pane.
+	notifChannels = []string{"iterm2", "iterm2_with_bell", "terminal_bell", "kitty", "notifications_disabled"}
 )
 
 // SettingsInput describes one per-launch settings document.
@@ -70,6 +74,11 @@ type SettingsInput struct {
 	WorktreeBaseRef string
 	// WorkflowSize is workflowSizeGuideline: small, medium, large, unrestricted or empty.
 	WorkflowSize string
+	// NotifyChannel is preferredNotifChannel, the way the agent tells the user
+	// it needs them. Empty leaves the choice to Claude Code, which reads the
+	// terminal it runs in: inside a workspace that terminal is tmux, not the
+	// one the user is looking at, so a launch passes what it detected outside.
+	NotifyChannel string
 }
 
 type document struct {
@@ -81,6 +90,7 @@ type document struct {
 	TeammateMode          string               `json:"teammateMode,omitempty"`
 	Worktree              *worktree            `json:"worktree,omitempty"`
 	WorkflowSizeGuideline string               `json:"workflowSizeGuideline,omitempty"`
+	PreferredNotifChannel string               `json:"preferredNotifChannel,omitempty"`
 }
 
 type statusLine struct {
@@ -159,6 +169,9 @@ func BuildSettings(in SettingsInput) ([]byte, error) {
 	if err := oneOf("workflow size", in.WorkflowSize, workflowSizes); err != nil {
 		return nil, err
 	}
+	if err := oneOf("notification channel", in.NotifyChannel, notifChannels); err != nil {
+		return nil, err
+	}
 	env, err := mergeEnv(in.Sandbox.Env, in.Env)
 	if err != nil {
 		return nil, err
@@ -178,6 +191,7 @@ func BuildSettings(in SettingsInput) ([]byte, error) {
 		doc.Worktree = &worktree{BaseRef: in.WorktreeBaseRef}
 	}
 	doc.WorkflowSizeGuideline = in.WorkflowSize
+	doc.PreferredNotifChannel = in.NotifyChannel
 
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)

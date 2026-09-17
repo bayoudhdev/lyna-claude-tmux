@@ -13,6 +13,7 @@ import (
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/claudecfg"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/sandbox"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/session"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/termx"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
 )
 
@@ -104,6 +105,7 @@ func SandboxShow(h Host, req SandboxShowRequest) ([]byte, error) {
 		Teams:             cfg.Claude.Teams,
 		WorktreeBaseRef:   cfg.Claude.WorktreeBase,
 		WorkflowSize:      cfg.Claude.WorkflowSize,
+		NotifyChannel:     termx.NotifyChannel(termx.Detect(h.Getenv).Program),
 	})
 }
 

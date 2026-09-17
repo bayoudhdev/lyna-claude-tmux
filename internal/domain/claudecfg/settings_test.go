@@ -52,11 +52,11 @@ func TestBuildSettingsGolden(t *testing.T) {
 			in:     SettingsInput{Bin: goldenBin, UserHasStatusLine: true, Sandbox: resolve(t, sandbox.Input{Profile: sandbox.Off})},
 		},
 		{
-			name:   "teams with lyna status line worktree base and workflow size",
+			name:   "teams with lyna status line worktree base workflow size and a notification channel",
 			golden: "settings/teams.golden",
 			in: SettingsInput{
 				Bin: goldenBin, StatusLine: StatusLineLyna, UserHasStatusLine: true, Teams: true,
-				WorktreeBaseRef: "head", WorkflowSize: "small",
+				WorktreeBaseRef: "head", WorkflowSize: "small", NotifyChannel: "terminal_bell",
 				Env:     map[string]string{"HTTPS_PROXY": "http://proxy.internal:3128"},
 				Sandbox: resolve(t, sandbox.Input{Profile: sandbox.Standard, Isolation: sandbox.IsolationContainer}),
 			},
@@ -102,6 +102,7 @@ type decoded struct {
 	TeammateMode          *string           `json:"teammateMode"`
 	Worktree              map[string]string `json:"worktree"`
 	WorkflowSizeGuideline *string           `json:"workflowSizeGuideline"`
+	PreferredNotifChannel *string           `json:"preferredNotifChannel"`
 }
 
 func build(t *testing.T, in SettingsInput) decoded {
@@ -217,7 +218,7 @@ func TestBuildSettingsOptions(t *testing.T) {
 			name: "no teams no teammate mode",
 			in:   SettingsInput{Bin: bin, Sandbox: std},
 			check: func(t *testing.T, d decoded) {
-				if d.TeammateMode != nil || d.Worktree != nil || d.WorkflowSizeGuideline != nil {
+				if d.TeammateMode != nil || d.Worktree != nil || d.WorkflowSizeGuideline != nil || d.PreferredNotifChannel != nil {
 					t.Fatalf("unexpected optional keys: %+v", d)
 				}
 			},
@@ -228,6 +229,24 @@ func TestBuildSettingsOptions(t *testing.T) {
 			check: func(t *testing.T, d decoded) {
 				if d.Worktree["baseRef"] != "fresh" || d.WorkflowSizeGuideline == nil || *d.WorkflowSizeGuideline != "unrestricted" {
 					t.Fatalf("worktree = %v, workflowSizeGuideline = %v", d.Worktree, d.WorkflowSizeGuideline)
+				}
+			},
+		},
+		{
+			name: "the notification channel of the terminal the workspace was started from",
+			in:   SettingsInput{Bin: bin, NotifyChannel: "iterm2_with_bell", Sandbox: std},
+			check: func(t *testing.T, d decoded) {
+				if d.PreferredNotifChannel == nil || *d.PreferredNotifChannel != "iterm2_with_bell" {
+					t.Fatalf("preferredNotifChannel = %v, want iterm2_with_bell", d.PreferredNotifChannel)
+				}
+			},
+		},
+		{
+			name: "no channel leaves the choice to Claude Code",
+			in:   SettingsInput{Bin: bin, Sandbox: std},
+			check: func(t *testing.T, d decoded) {
+				if d.PreferredNotifChannel != nil {
+					t.Fatalf("preferredNotifChannel = %v, want omitted", d.PreferredNotifChannel)
 				}
 			},
 		},
@@ -284,6 +303,7 @@ func TestBuildSettingsErrors(t *testing.T) {
 		{name: "bad status line", in: SettingsInput{Bin: "/b", StatusLine: "always", Sandbox: std}, want: "status line must be"},
 		{name: "bad worktree base", in: SettingsInput{Bin: "/b", WorktreeBaseRef: "main", Sandbox: std}, want: "worktree base must be"},
 		{name: "bad workflow size", in: SettingsInput{Bin: "/b", WorkflowSize: "huge", Sandbox: std}, want: "workflow size must be"},
+		{name: "bad notification channel", in: SettingsInput{Bin: "/b", NotifyChannel: "desktop", Sandbox: std}, want: "notification channel must be"},
 		{name: "bad env name", in: SettingsInput{Bin: "/b", Env: map[string]string{"1BAD": "x"}, Sandbox: std}, want: "environment variable name"},
 		{name: "env value with NUL", in: SettingsInput{Bin: "/b", Env: map[string]string{"GOOD": "a\x00b"}, Sandbox: std}, want: "NUL byte"},
 		{name: "env override of sandbox value", in: SettingsInput{Bin: "/b", Env: map[string]string{sandbox.EnvSubprocessScrub: "0"}, Sandbox: strict}, want: "cannot be overridden"},

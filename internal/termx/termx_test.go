@@ -322,3 +322,28 @@ func TestOptionAsMeta(t *testing.T) {
 		})
 	}
 }
+
+func TestNotifyChannel(t *testing.T) {
+	cases := []struct {
+		name    string
+		program Program
+		want    string
+	}{
+		{"iterm2 posts and rings", ProgramITerm2, NotifyITerm2Bell},
+		{"kitty posts", ProgramKitty, NotifyKitty},
+		{"terminal rings", ProgramAppleTerminal, NotifyBell},
+		{"ghostty rings", ProgramGhostty, NotifyBell},
+		{"wezterm rings", ProgramWezTerm, NotifyBell},
+		{"alacritty rings", ProgramAlacritty, NotifyBell},
+		{"vscode rings", ProgramVSCode, NotifyBell},
+		{"unknown rings", ProgramUnknown, NotifyBell},
+		{"custom program rings", Program("SomeTerm"), NotifyBell},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := NotifyChannel(tc.program); got != tc.want {
+				t.Fatalf("NotifyChannel(%q) = %q, want %q", tc.program, got, tc.want)
+			}
+		})
+	}
+}

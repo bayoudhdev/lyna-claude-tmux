@@ -25,8 +25,9 @@ type PaneProcess struct {
 	Shell string
 	// Env holds KEY=VALUE pairs set for this pane's process only.
 	Env []string
-	// Options are pane user options (names starting with @) set when the pane
-	// is created, in the same tmux invocation.
+	// Options are pane options set when the pane is created, in the same tmux
+	// invocation: the user options this workspace reads back (names starting
+	// with @) and the tmux options a single pane needs.
 	Options map[string]string
 }
 
@@ -337,7 +338,16 @@ func (p PaneProcess) validate() error {
 		return errors.New("shell command contains NUL")
 	}
 	for name, value := range p.Options {
-		if !isUserOption(name) || name == OptRole {
+		switch {
+		case name == OptRole:
+			// paneOptions writes the role itself, from the layout.
+			return fmt.Errorf("pane option %q is not a user option name", name)
+		case isUserOption(name):
+		case paneOptionValues[name] != nil:
+			if !slices.Contains(paneOptionValues[name], value) {
+				return fmt.Errorf("pane option %s does not take %q", name, value)
+			}
+		default:
 			return fmt.Errorf("pane option %q is not a user option name", name)
 		}
 		if strings.ContainsRune(value, 0) {
@@ -355,6 +365,13 @@ func (p PaneProcess) validate() error {
 	}
 	return nil
 }
+
+// paneOptionValues are the tmux options a pane may carry besides its user
+// options, and the values each of them takes. A caller hands the options over
+// as a map, so a name it could choose freely would let it set any option on
+// the pane, and a pane option that a window or the server inherits from would
+// reach further than the pane.
+var paneOptionValues = map[string][]string{OptPassthrough: {"on", "off", "all"}}
 
 // isUserOption reports whether s is a tmux user option name: @ followed by
 // letters, digits, '_' or '-'.

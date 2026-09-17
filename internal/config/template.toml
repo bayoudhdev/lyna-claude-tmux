@@ -20,7 +20,9 @@ clock = true
 alt_keys = true
 mouse = true
 # Let programs in panes send escape sequences straight to your terminal.
-# Off by default: pane output cannot drive your terminal or clipboard.
+# Off by default: pane output cannot drive your terminal or clipboard. The pane
+# running the agent always allows them, whatever this says, since that is where
+# its desktop notifications and its progress bar come from.
 allow_passthrough = false
 # Tell a pane when it gains or loses focus. Off by default: a program that asks
 # for focus events without reading them shows them as typed text, and the agent
