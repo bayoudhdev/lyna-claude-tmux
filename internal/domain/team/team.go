@@ -51,8 +51,14 @@ const LeadType = "team-lead"
 // it is not a file this product wrote.
 const MaxConfigSize = 1 << 20
 
-// ErrTooLarge reports a file past MaxConfigSize.
-var ErrTooLarge = errors.New("team: configuration is too large")
+// Errors this package reports on its own.
+var (
+	// ErrTooLarge reports a file past the size its kind allows.
+	ErrTooLarge = errors.New("team: file is too large")
+	// ErrNoTaskID reports a task file with no identifier, which nothing can
+	// claim, block or complete.
+	ErrNoTaskID = errors.New("team: task has no identifier")
+)
 
 // Member is one agent of the team.
 type Member struct {
