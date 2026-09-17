@@ -209,14 +209,6 @@ func (d Deps) branch(name, cwd string) *string {
 	}
 }
 
-// Formats evaluated by tmux while it executes the batch. Arithmetic runs
-// inside one set-option -F, which the server applies atomically, so hooks
-// fired concurrently for parallel subagents never lose an update.
-const (
-	fmtSubagentsInc = "#{e|+:#{" + tmux.OptSubagents + "},1}"
-	fmtSubagentsDec = "#{?#{e|>:#{" + tmux.OptSubagents + "},0},#{e|-:#{" + tmux.OptSubagents + "},1},0}"
-)
-
 // fmtChangesSignal signals the changes channel of the session holding the
 // pane. The session id is only known to tmux, so the command is built by
 // run-shell -C from a format. The id goes into a single-quoted token, where
@@ -285,10 +277,10 @@ func Commands(ev hookevent.Event, p Payload, known bool, pane string, branch *st
 			cmds = append(cmds, tmux.Command{"run-shell", "-C", "-t", pane, fmtChangesSignal})
 		}
 	case hookevent.SubagentStart:
-		cmds = append(cmds, tmux.Command{"set-option", "-p", "-t", pane, "-F", tmux.OptSubagents, fmtSubagentsInc})
+		cmds = append(cmds, tmux.StartSubagent(pane, p.AgentID, p.AgentType)...)
 		agents()
 	case hookevent.SubagentStop:
-		cmds = append(cmds, tmux.Command{"set-option", "-p", "-t", pane, "-F", tmux.OptSubagents, fmtSubagentsDec})
+		cmds = append(cmds, tmux.StopSubagent(pane, p.AgentID, p.AgentType)...)
 		agents()
 	case hookevent.TeammateIdle, hookevent.TaskCreated, hookevent.TaskCompleted:
 		// The event fires in the session that leads the team, and what it
@@ -301,10 +293,8 @@ func Commands(ev hookevent.Event, p Payload, known bool, pane string, branch *st
 		state(StateIdle)
 		ring = bell
 	case hookevent.SessionEnd:
-		cmds = append(cmds,
-			tmux.Command{"set-option", "-p", "-u", "-t", pane, tmux.OptState},
-			tmux.Command{"set-option", "-p", "-u", "-t", pane, tmux.OptSubagents},
-		)
+		cmds = append(cmds, tmux.Command{"set-option", "-p", "-u", "-t", pane, tmux.OptState})
+		cmds = append(cmds, tmux.ClearSubagents(pane)...)
 		agents()
 	}
 

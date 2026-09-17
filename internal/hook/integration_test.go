@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/team"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/testutil/tmuxtest"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
 )
@@ -115,6 +116,7 @@ func TestIntegrationStateMachine(t *testing.T) {
 		steps         []hookStep
 		wantState     string
 		wantSubagents string
+		wantRunning   string
 		wantBranch    string
 		wantBell      bool
 		wantLog       string
@@ -179,8 +181,31 @@ func TestIntegrationStateMachine(t *testing.T) {
 			wantSubagents: "0",
 		},
 		{
-			name:  "session end unsets state and subagents",
-			steps: []hookStep{{"UserPromptSubmit", `{}`}, {"SubagentStart", `{}`}, {"SessionEnd", `{"reason":"other"}`}},
+			name: "the subagents a pane runs are listed with it",
+			steps: []hookStep{
+				{"SubagentStart", `{"agent_id":"ag-1","agent_type":"Explore"}`},
+				{"SubagentStart", `{"agent_id":"ag-2","agent_type":"security-auditor"}`},
+				{"SubagentStop", `{"agent_id":"ag-1","agent_type":"Explore"}`},
+			},
+			wantSubagents: "1",
+			wantRunning:   "ag-2=security-auditor,",
+		},
+		{
+			name: "a subagent the agent did not name is counted only",
+			steps: []hookStep{
+				{"SubagentStart", `{"agent_id":"ag-1","agent_type":"Explore"}`},
+				{"SubagentStart", `{}`},
+			},
+			wantSubagents: "2",
+			wantRunning:   "ag-1=Explore,",
+		},
+		{
+			name: "session end unsets state, subagents and the list",
+			steps: []hookStep{
+				{"UserPromptSubmit", `{}`},
+				{"SubagentStart", `{"agent_id":"ag-1","agent_type":"Explore"}`},
+				{"SessionEnd", `{"reason":"other"}`},
+			},
 		},
 		{
 			name:   "plugin hook inside managed pane is a no-op",
@@ -225,6 +250,9 @@ func TestIntegrationStateMachine(t *testing.T) {
 			}
 			if got := srv.show(t, "-p", pane, tmux.OptSubagents); got != tc.wantSubagents {
 				t.Fatalf("@lt_subagents = %q; want %q", got, tc.wantSubagents)
+			}
+			if got := srv.show(t, "-p", pane, tmux.OptRunning); got != tc.wantRunning {
+				t.Fatalf("@lt_running = %q; want %q", got, tc.wantRunning)
 			}
 			if got := srv.show(t, "", "=sm-"+strconv.Itoa(i)+":", tmux.OptBranch); got != tc.wantBranch {
 				t.Fatalf("@lt_branch = %q; want %q", got, tc.wantBranch)
@@ -273,7 +301,7 @@ func TestIntegrationSessionEndAfterPaneClosed(t *testing.T) {
 }
 
 // Subagent hooks arrive concurrently when Claude runs subagents in parallel;
-// the counter must not lose updates.
+// neither the counter nor the list of running subagents may lose an update.
 func TestIntegrationSubagentCounterConcurrent(t *testing.T) {
 	srv := startLive(t)
 	pane, _, _ := srv.newSession(t, "counter")
@@ -290,12 +318,56 @@ func TestIntegrationSubagentCounterConcurrent(t *testing.T) {
 	if got := srv.show(t, "-p", pane, tmux.OptSubagents); got != "8" {
 		t.Fatalf("after 8 starts @lt_subagents = %q", got)
 	}
+	if got := team.ParseRunning(srv.show(t, "-p", pane, tmux.OptRunning)); len(got) != 8 {
+		t.Fatalf("after 8 starts the pane lists %d subagents: %+v", len(got), got)
+	}
+	// Three more stops than starts: the ones with nothing left to take off
+	// leave the list as it is.
 	run("SubagentStop", 11)
 	if got := srv.show(t, "-p", pane, tmux.OptSubagents); got != "0" {
 		t.Fatalf("after 11 stops @lt_subagents = %q", got)
 	}
+	if got := srv.show(t, "-p", pane, tmux.OptRunning); got != "" {
+		t.Fatalf("after 11 stops @lt_running = %q", got)
+	}
 	if logged := srv.readLog(t); logged != "" {
 		t.Fatalf("unexpected log %q", logged)
+	}
+}
+
+// TestIntegrationSubagentListCap drives a pane past the point where the list
+// of running subagents is worth keeping, which is what a session whose stop
+// hooks never ran arrives at: the count keeps counting, the list stops growing
+// rather than filling the option, and what it holds is still read back as the
+// subagents it lists.
+func TestIntegrationSubagentListCap(t *testing.T) {
+	srv := startLive(t)
+	pane, _, _ := srv.newSession(t, "cap")
+	const starts = 60
+	for i := range starts {
+		id := "agent-" + strconv.Itoa(i)
+		payload := `{"agent_id":"` + id + `","agent_type":"security-auditor"}`
+		if status := Run(tmuxtest.Context(t), Input{
+			Event: "SubagentStart", Stdin: strings.NewReader(payload), Getenv: srv.env(pane, nil),
+		}, srv.deps()); status != 0 {
+			t.Fatalf("SubagentStart %s: status %d", id, status)
+		}
+	}
+	if got := srv.show(t, "-p", pane, tmux.OptSubagents); got != strconv.Itoa(starts) {
+		t.Fatalf("@lt_subagents = %q, want %d", got, starts)
+	}
+	list := srv.show(t, "-p", pane, tmux.OptRunning)
+	if len(list) == 0 || len(list) > team.MaxRunning+len("agent-59=security-auditor,") {
+		t.Fatalf("@lt_running is %d characters", len(list))
+	}
+	running := team.ParseRunning(list)
+	if len(running) == 0 || len(running) >= starts {
+		t.Fatalf("the pane lists %d of %d subagents", len(running), starts)
+	}
+	for _, s := range running {
+		if s.Type != "security-auditor" || !strings.HasPrefix(s.ID, "agent-") {
+			t.Fatalf("the list holds %+v", s)
+		}
 	}
 }
 

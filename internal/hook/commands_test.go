@@ -60,8 +60,26 @@ func TestCommands(t *testing.T) {
 		{name: "post tool use unknown payload signals", ev: hookevent.PostToolUse, unknown: true, want: []tmux.Command{set("busy"), signal}},
 		{name: "subagent write only signals", ev: hookevent.PostToolUse, p: Payload{ToolName: "Write", AgentID: "a1"}, want: []tmux.Command{signal}},
 		{name: "subagent read does nothing", ev: hookevent.PostToolUse, p: Payload{ToolName: "Grep", AgentID: "a1"}, want: nil},
-		{name: "subagent start", ev: hookevent.SubagentStart, want: []tmux.Command{{"set-option", "-p", "-t", pane, "-F", "@lt_subagents", "#{e|+:#{@lt_subagents},1}"}, agents}},
-		{name: "subagent stop", ev: hookevent.SubagentStop, want: []tmux.Command{{"set-option", "-p", "-t", pane, "-F", "@lt_subagents", "#{?#{e|>:#{@lt_subagents},0},#{e|-:#{@lt_subagents},1},0}"}, agents}},
+		{
+			name: "subagent start", ev: hookevent.SubagentStart, p: Payload{AgentID: "ag-1", AgentType: "Explore"},
+			want: []tmux.Command{
+				{"set-option", "-p", "-t", pane, "-F", "@lt_subagents", "#{e|+:#{@lt_subagents},1}"},
+				{"set-option", "-p", "-t", pane, "-F", "@lt_running", "#{?#{e|<:#{n:@lt_running},512},#{@lt_running}ag-1=Explore#,,#{@lt_running}}"},
+				agents,
+			},
+		},
+		{
+			name: "subagent stop", ev: hookevent.SubagentStop, p: Payload{AgentID: "ag-1", AgentType: "Explore"},
+			want: []tmux.Command{
+				{"set-option", "-p", "-t", pane, "-F", "@lt_subagents", "#{?#{e|>:#{@lt_subagents},0},#{e|-:#{@lt_subagents},1},0}"},
+				{"set-option", "-p", "-t", pane, "-F", "@lt_running", "#{s/ag-1=Explore,//:@lt_running}"},
+				agents,
+			},
+		},
+		{
+			name: "a subagent the agent did not name is only counted", ev: hookevent.SubagentStart,
+			want: []tmux.Command{{"set-option", "-p", "-t", pane, "-F", "@lt_subagents", "#{e|+:#{@lt_subagents},1}"}, agents},
+		},
 		{name: "a teammate out of work refreshes the sidebar", ev: hookevent.TeammateIdle, want: []tmux.Command{agents}},
 		{name: "a task created refreshes the sidebar", ev: hookevent.TaskCreated, want: []tmux.Command{agents}},
 		{name: "a task completed refreshes the sidebar", ev: hookevent.TaskCompleted, want: []tmux.Command{agents}},
@@ -71,6 +89,7 @@ func TestCommands(t *testing.T) {
 		{name: "session end unsets", ev: hookevent.SessionEnd, p: Payload{Reason: "prompt_input_exit"}, want: []tmux.Command{
 			{"set-option", "-p", "-u", "-t", pane, "@lt_state"},
 			{"set-option", "-p", "-u", "-t", pane, "@lt_subagents"},
+			{"set-option", "-p", "-u", "-t", pane, "@lt_running"},
 			agents,
 		}},
 		{name: "unhandled event", ev: hookevent.Event("PreCompact"), want: nil},
