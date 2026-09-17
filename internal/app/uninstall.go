@@ -2,13 +2,16 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
+	"net"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/claudetheme"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/session"
@@ -18,46 +21,83 @@ import (
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/xdg"
 )
 
-// Manual uninstall steps that lyna-tmux cannot do for the user.
+// Traces of lyna-tmux in files it does not own: they are read to tell the
+// user what is left, never edited.
 const (
 	// UninstallClaudePlugin is the Claude Code command that removes the companion plugin.
-	UninstallClaudePlugin = "/plugin uninstall lyna-tmux@lyna-tmux"
-	// UninstallTPMLine is the tmux plugin manager entry of plugin mode.
-	UninstallTPMLine = "set -g @plugin 'bayoudhdev/lyna-claude-tmux'"
+	UninstallClaudePlugin = "/plugin uninstall " + uninstallClaudePluginID
+	// uninstallClaudePluginID is the plugin's key in the Claude Code plugin registry.
+	uninstallClaudePluginID = "lyna-tmux@lyna-tmux"
+	// uninstallClaudeRegistry is the registry file, below the Claude Code home.
+	uninstallClaudeRegistry = "plugins/installed_plugins.json"
+	// uninstallTPMPlugin is the tmux plugin manager name of plugin mode.
+	uninstallTPMPlugin = "bayoudhdev/lyna-claude-tmux"
+	// uninstallReadLimit bounds every user file uninstall looks into.
+	uninstallReadLimit = 1 << 20
+	// uninstallProbeTimeout bounds the connection that tells a running server
+	// from a socket file left behind.
+	uninstallProbeTimeout = 500 * time.Millisecond
 )
 
 // ErrUninstallInside reports an uninstall started from a pane of the server it
 // would stop.
 var ErrUninstallInside = errors.New("uninstall runs from a pane of the lyna-tmux server it stops")
 
-// UninstallPlan is what uninstall removes.
+// UninstallManual is a step uninstall leaves to the user: what to do and why
+// it is theirs, then how, as a shell command, a Claude Code command or the
+// line to delete.
+type UninstallManual struct {
+	Step string
+	How  string
+}
+
+// UninstallPlan is what uninstall stops and removes, and what it leaves to
+// the user.
 type UninstallPlan struct {
 	// SocketName is the tmux -L name of the server that is stopped.
 	SocketName string
+	// ServerSocket is the socket of the server when one answers on it, so
+	// stopping it is part of the plan; empty otherwise.
+	ServerSocket string
 	// Dirs are the existing lyna-tmux directories removed, in order.
 	Dirs []string
 	// Themes are the Claude Code theme files lyna-tmux generated and nobody changed since.
 	Themes []string
+	// Completions are the shell completion scripts `lyna-tmux completion`
+	// wrote where setup told the user to put them.
+	Completions []string
 	// KeptConfig is the configuration directory left in place without purge,
 	// empty when it is removed or absent.
 	KeptConfig string
-	// Binary is the lyna-tmux executable, which the user removes.
+	// Binary is the lyna-tmux executable when uninstall removes it, last of
+	// all; empty when it is gone or left to the user.
 	Binary string
+	// Manual is what remains for the user once Apply is done.
+	Manual []UninstallManual
 }
 
-// UninstallPlanFor lists what uninstall removes. purge adds the configuration
-// directory. Nothing is changed.
+// Empty reports a plan that stops nothing and removes nothing, so that
+// confirming it would change nothing.
+func (p UninstallPlan) Empty() bool {
+	return p.ServerSocket == "" && len(p.Dirs) == 0 && len(p.Themes) == 0 && len(p.Completions) == 0 && p.Binary == ""
+}
+
+// UninstallPlanFor lists what uninstall stops and removes. purge adds the
+// configuration directory. Nothing is changed.
 func UninstallPlanFor(h Host, purge bool) (UninstallPlan, error) {
 	paths, err := xdg.Resolve(h.Getenv, h.Home)
 	if err != nil {
 		return UninstallPlan{}, err
 	}
-	p := UninstallPlan{SocketName: tmux.DefaultSocketName, Binary: h.Exe}
+	p := UninstallPlan{SocketName: tmux.DefaultSocketName}
 	if name := h.Getenv(session.EnvSocketName); name != "" {
 		if err := session.Validate(name); err != nil {
 			return UninstallPlan{}, fmt.Errorf("%s: %w", session.EnvSocketName, err)
 		}
 		p.SocketName = name
+	}
+	if socket := SocketPath(h.Getenv, p.SocketName); uninstallServerAnswers(socket) {
+		p.ServerSocket = socket
 	}
 	dirs := []string{paths.State, paths.Cache, paths.Data}
 	if purge {
@@ -76,11 +116,175 @@ func UninstallPlanFor(h Host, purge bool) (UninstallPlan, error) {
 	if _, err := os.Lstat(paths.Config); err == nil && !purge {
 		p.KeptConfig = paths.Config
 	}
-	p.Themes, err = uninstallThemes(xdg.ClaudeHome(h.Getenv, h.Home))
+	claudeHome := xdg.ClaudeHome(h.Getenv, h.Home)
+	p.Themes, err = uninstallThemes(claudeHome)
 	if err != nil {
 		return UninstallPlan{}, err
 	}
+	// The binary goes first in the manual list: without it the rest of the
+	// list is what a fresh machine would still show.
+	var manual *UninstallManual
+	p.Binary, manual, err = uninstallBinary(h.Exe, os.Getuid())
+	if err != nil {
+		return UninstallPlan{}, err
+	}
+	if manual != nil {
+		p.Manual = append(p.Manual, *manual)
+	}
+	var foreign []UninstallManual
+	p.Completions, foreign, err = uninstallCompletions(h.Getenv, paths.Home)
+	if err != nil {
+		return UninstallPlan{}, err
+	}
+	p.Manual = append(p.Manual, foreign...)
+	if uninstallClaudePluginInstalled(claudeHome) {
+		p.Manual = append(p.Manual, UninstallManual{Step: "in Claude Code, remove the companion plugin", How: UninstallClaudePlugin})
+	}
+	lines, err := uninstallTmuxConfLines(h.Getenv, paths.Home)
+	if err != nil {
+		return UninstallPlan{}, err
+	}
+	p.Manual = append(p.Manual, lines...)
 	return p, nil
+}
+
+// uninstallServerAnswers reports whether a tmux server accepts connections on
+// socket. A socket file alone proves nothing: tmux leaves one behind when the
+// server dies, and its clients unlink it on the next refused connection.
+func uninstallServerAnswers(socket string) bool {
+	conn, err := net.DialTimeout("unix", socket, uninstallProbeTimeout)
+	if err != nil {
+		return false
+	}
+	_ = conn.Close()
+	return true
+}
+
+// uninstallCompletionPaths are the completion scripts `lyna-tmux setup` tells
+// the user to write, one per shell, plus the places bash and fish load from
+// when the XDG variables move them: a user who followed the guidance to the
+// letter and one who adapted it to their layout both get found.
+func uninstallCompletionPaths(getenv func(string) string, home string) []string {
+	var out []string
+	add := func(path string) {
+		if !slices.Contains(out, path) {
+			out = append(out, path)
+		}
+	}
+	xdgDir := func(name, fallback string) string {
+		if v := getenv(name); v != "" && filepath.IsAbs(v) {
+			return filepath.Clean(v)
+		}
+		return fallback
+	}
+	add(filepath.Join(home, ".local", "share", "bash-completion", "completions", xdg.AppName))
+	add(filepath.Join(xdgDir("XDG_DATA_HOME", filepath.Join(home, ".local", "share")), "bash-completion", "completions", xdg.AppName))
+	add(filepath.Join(home, ".zfunc", "_"+xdg.AppName))
+	add(filepath.Join(home, ".config", "fish", "completions", xdg.AppName+".fish"))
+	add(filepath.Join(xdgDir("XDG_CONFIG_HOME", filepath.Join(home, ".config")), "fish", "completions", xdg.AppName+".fish"))
+	return out
+}
+
+// uninstallCompletions sorts the completion paths into the scripts
+// `lyna-tmux completion` wrote, which are removed, and files of another
+// origin at those paths, which are named to the user: a dotfile manager's
+// link or an edited script is not lyna-tmux's to delete.
+func uninstallCompletions(getenv func(string) string, home string) (remove []string, manual []UninstallManual, err error) {
+	for _, path := range uninstallCompletionPaths(getenv, home) {
+		info, err := os.Lstat(path)
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, nil, err
+		}
+		if info.Mode().IsRegular() && uninstallGeneratedCompletion(path) {
+			remove = append(remove, path)
+			continue
+		}
+		manual = append(manual, UninstallManual{
+			Step: "remove " + path + " if it is lyna-tmux's: it is not the script `lyna-tmux completion` writes",
+			How:  "rm " + path,
+		})
+	}
+	return remove, manual, nil
+}
+
+// uninstallCompletionHeaders are the first lines of the completion scripts
+// the CLI generates, as words, one per shell. The bash and fish headers go on
+// with an editor mode marker, which is not compared.
+var uninstallCompletionHeaders = [][]string{
+	{"#", "bash", "completion", "V2", "for", xdg.AppName},
+	{"#compdef", xdg.AppName},
+	{"#", "fish", "completion", "for", xdg.AppName},
+}
+
+// uninstallGeneratedCompletion reports whether path is a regular file that
+// starts like a completion script the CLI generates for its own name.
+func uninstallGeneratedCompletion(path string) bool {
+	data, err := fsx.ReadFileNoFollow(path, uninstallReadLimit)
+	if err != nil {
+		return false
+	}
+	first, _, _ := strings.Cut(string(data), "\n")
+	words := strings.Fields(first)
+	for _, header := range uninstallCompletionHeaders {
+		if len(words) >= len(header) && slices.Equal(words[:len(header)], header) {
+			return true
+		}
+	}
+	return false
+}
+
+// uninstallClaudePluginInstalled reports whether the Claude Code plugin
+// registry lists the companion plugin. No registry means no plugin was ever
+// installed. A registry that cannot be read or decoded, or whose shape is
+// not the known one, counts as listing it: a command that finds nothing to
+// uninstall costs the user less than a plugin left behind.
+func uninstallClaudePluginInstalled(claudeHome string) bool {
+	data, err := fsx.ReadFileLimited(filepath.Join(claudeHome, filepath.FromSlash(uninstallClaudeRegistry)), uninstallReadLimit)
+	if errors.Is(err, fs.ErrNotExist) {
+		return false
+	}
+	if err != nil {
+		return true
+	}
+	var registry struct {
+		Plugins map[string]json.RawMessage `json:"plugins"`
+	}
+	if err := json.Unmarshal(data, &registry); err != nil || registry.Plugins == nil {
+		return true
+	}
+	_, ok := registry.Plugins[uninstallClaudePluginID]
+	return ok
+}
+
+// uninstallTmuxConfLines finds the lines of the user's tmux configuration
+// that mention lyna-tmux: the plugin manager entry and the source-file line
+// of plugin mode, which would break their tmux start once the state directory
+// is gone. The files tmux reads are looked at, links followed because dotfile
+// managers link them, and nothing is written.
+func uninstallTmuxConfLines(getenv func(string) string, home string) ([]UninstallManual, error) {
+	configHome := filepath.Join(home, ".config")
+	if v := getenv("XDG_CONFIG_HOME"); v != "" && filepath.IsAbs(v) {
+		configHome = filepath.Clean(v)
+	}
+	var out []UninstallManual
+	for _, file := range []string{filepath.Join(home, ".tmux.conf"), filepath.Join(configHome, "tmux", "tmux.conf")} {
+		data, err := fsx.ReadFileLimited(file, uninstallReadLimit)
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		for i, line := range strings.Split(string(data), "\n") {
+			if strings.Contains(line, uninstallTPMPlugin) || strings.Contains(line, xdg.AppName) {
+				out = append(out, UninstallManual{Step: fmt.Sprintf("remove line %d of %s", i+1, file), How: strings.TrimSpace(line)})
+			}
+		}
+	}
+	return out, nil
 }
 
 // uninstallOwned lists, for each directory of the layout, the entries
@@ -183,9 +387,10 @@ type UninstallResult struct {
 }
 
 // Apply stops the lyna-tmux server of the plan's socket name, then removes the
-// review installation, the listed directories and the theme files that are
-// still generated and unchanged. It refuses to run from a pane of that server,
-// which would stop it midway. Other tmux servers are never contacted.
+// review installation, the listed directories, the theme files that are still
+// generated and unchanged, the completion scripts still generated, and the
+// binary last of all. It refuses to run from a pane of that server, which
+// would stop it midway. Other tmux servers are never contacted.
 func (p UninstallPlan) Apply(ctx context.Context, h Host) (UninstallResult, error) {
 	var res UninstallResult
 	socket := SocketPath(h.Getenv, p.SocketName)
@@ -227,5 +432,35 @@ func (p UninstallPlan) Apply(ctx context.Context, h Host) (UninstallResult, erro
 		}
 		res.Removed = append(res.Removed, theme)
 	}
+	for _, script := range p.Completions {
+		// Checked again: the script may have been replaced since the plan.
+		if !uninstallGeneratedCompletion(script) {
+			continue
+		}
+		if err := os.Remove(script); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return res, fmt.Errorf("remove %s: %w", script, err)
+		}
+		res.Removed = append(res.Removed, script)
+	}
+	if p.Binary == "" {
+		return res, nil
+	}
+	// The binary goes last so that a refusal or a failure here leaves
+	// everything else removed rather than a half-removed state. It is
+	// classified again: the file may have been replaced since the plan.
+	remove, manual, err := uninstallBinary(p.Binary, os.Getuid())
+	if err != nil {
+		return res, err
+	}
+	if manual != nil {
+		return res, fmt.Errorf("%s (%s)", manual.Step, manual.How)
+	}
+	if remove == "" {
+		return res, nil
+	}
+	if err := os.Remove(remove); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return res, fmt.Errorf("remove %s: %w", remove, err)
+	}
+	res.Removed = append(res.Removed, remove)
 	return res, nil
 }
