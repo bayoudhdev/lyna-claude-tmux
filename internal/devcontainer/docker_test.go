@@ -75,18 +75,18 @@ func TestArgv(t *testing.T) {
 			want: []string{
 				"docker", "exec", "--interactive", "--tty", "--user", "dev", "--workdir", "/workspace",
 				"--env", "TERM", "--env", "COLORTERM", "--env", "LANG", "lyna-tmux-api",
-				"lyna-tmux", "create", "-l", "duo", "--", "--model", "opus; rm -rf /",
+				"lmux", "create", "-l", "duo", "--", "--model", "opus; rm -rf /",
 			},
 		},
-		{name: "team subcommand", got: CreateArgv("docker", target, []string{"team", "--detach"})[15:], want: []string{"lyna-tmux", "team", "--detach"}},
-		{name: "create without arguments", got: CreateArgv("docker", target, []string{"create"})[15:], want: []string{"lyna-tmux", "create"}},
+		{name: "team subcommand", got: CreateArgv("docker", target, []string{"team", "--detach"})[15:], want: []string{"lmux", "team", "--detach"}},
+		{name: "create without arguments", got: CreateArgv("docker", target, []string{"create"})[15:], want: []string{"lmux", "create"}},
 		{
 			name: "detached create has no terminal flags",
 			got:  CreateDetachedArgv("docker", target, []string{"create", "--detach", "--", "--model", "opus; rm -rf /"}),
 			want: []string{
 				"docker", "exec", "--user", "dev", "--workdir", "/workspace",
 				"--env", "TERM", "--env", "COLORTERM", "--env", "LANG", "lyna-tmux-api",
-				"lyna-tmux", "create", "--detach", "--", "--model", "opus; rm -rf /",
+				"lmux", "create", "--detach", "--", "--model", "opus; rm -rf /",
 			},
 		},
 		{name: "stop", got: StopArgv("docker", target), want: []string{"docker", "stop", "lyna-tmux-api"}},
@@ -658,5 +658,5 @@ func TestExec(t *testing.T) {
 func ExampleCreateArgv() {
 	argv := CreateArgv("docker", Target{Dir: "/src/api", Project: "api", User: "dev"}, []string{"create", "-l", "trio"})
 	fmt.Println(strings.Join(argv, " "))
-	// Output: docker exec --interactive --tty --user dev --workdir /workspace --env TERM --env COLORTERM --env LANG lyna-tmux-api lyna-tmux create -l trio
+	// Output: docker exec --interactive --tty --user dev --workdir /workspace --env TERM --env COLORTERM --env LANG lyna-tmux-api lmux create -l trio
 }

@@ -207,7 +207,7 @@ func TestCreateIsolatedCLI(t *testing.T) {
 			wantArgv: []string{
 				"exec", "--interactive", "--tty", "--user", "lyna", "--workdir", "/workspace",
 				"--env", "TERM", "--env", "COLORTERM", "--env", "LANG", "lyna-tmux-api",
-				"lyna-tmux", "create", "--model=opus", "--sandbox=standard", "--width=120", "--height=40",
+				"lmux", "create", "--model=opus", "--sandbox=standard", "--width=120", "--height=40",
 				"--isolation=container", "/workspace", "--", "--verbose",
 			},
 			inner: "the attached workspace writes on this terminal\n",
@@ -220,33 +220,33 @@ func TestCreateIsolatedCLI(t *testing.T) {
 			args: []string{"create", "--isolation", "container", "--detach"},
 			wantArgv: []string{
 				"exec", "--user", "lyna", "--workdir", "/workspace", "--env", "TERM", "--env", "COLORTERM", "--env", "LANG",
-				"lyna-tmux-api", "lyna-tmux", "create", "--sandbox=standard", "--width=120", "--height=40",
+				"lyna-tmux-api", "lmux", "create", "--sandbox=standard", "--width=120", "--height=40",
 				"--isolation=container", "--detach", "/workspace",
 			},
-			inner: "Workspace api is running. Attach with: lyna-tmux attach api\n",
+			inner: "Workspace api is running. Attach with: lmux attach api\n",
 			outHas: []string{
 				"runs in the dev container lyna-tmux-api",
-				"Attach with: lyna-tmux create --isolation container",
+				"Attach with: lmux create --isolation container",
 			},
 			// The command the container prints names its own tmux server,
 			// which this host has no workspace on.
-			outLacks: []string{"lyna-tmux attach api"},
+			outLacks: []string{"lmux attach api"},
 		},
 		{
 			name: "detached team says how to reopen the team", state: "running\n",
 			args: []string{"team", "--isolation", "container", "--detach"},
 			wantArgv: []string{
 				"exec", "--user", "lyna", "--workdir", "/workspace", "--env", "TERM", "--env", "COLORTERM", "--env", "LANG",
-				"lyna-tmux-api", "lyna-tmux", "team", "--sandbox=standard", "--width=120", "--height=40",
+				"lyna-tmux-api", "lmux", "team", "--sandbox=standard", "--width=120", "--height=40",
 				"--isolation=container", "--detach", "/workspace",
 			},
-			outHas: []string{"Attach with: lyna-tmux team --isolation container"},
+			outHas: []string{"Attach with: lmux team --isolation container"},
 		},
 		{
 			name: "the container is not running and the question is declined", state: "exited\n", term: true,
 			args: []string{"create", "--isolation", "container"}, wantCode: 1, stdin: "n\n",
 			outHas: []string{"Build and start it now?"},
-			errHas: []string{"lyna-tmux-api", "lyna-tmux sandbox devcontainer up"},
+			errHas: []string{"lyna-tmux-api", "lmux sandbox devcontainer up"},
 		},
 		{
 			name: "the container was never created", term: true,
@@ -259,7 +259,7 @@ func TestCreateIsolatedCLI(t *testing.T) {
 			wantArgv: []string{
 				"exec", "--interactive", "--tty", "--user", "lyna", "--workdir", "/workspace",
 				"--env", "TERM", "--env", "COLORTERM", "--env", "LANG", "lyna-tmux-api",
-				"lyna-tmux", "create", "--sandbox=standard", "--width=120", "--height=40",
+				"lmux", "create", "--sandbox=standard", "--width=120", "--height=40",
 				"--isolation=container", "/workspace",
 			},
 			// The image build and the firewall run attached, then the workspace.
@@ -273,7 +273,7 @@ func TestCreateIsolatedCLI(t *testing.T) {
 			args: []string{"create", "--isolation", "container", "--detach", "--start-container"},
 			wantArgv: []string{
 				"exec", "--user", "lyna", "--workdir", "/workspace", "--env", "TERM", "--env", "COLORTERM", "--env", "LANG",
-				"lyna-tmux-api", "lyna-tmux", "create", "--sandbox=standard", "--width=120", "--height=40",
+				"lyna-tmux-api", "lmux", "create", "--sandbox=standard", "--width=120", "--height=40",
 				"--isolation=container", "--detach", "/workspace",
 			},
 			wantAttached: 3,
@@ -283,12 +283,12 @@ func TestCreateIsolatedCLI(t *testing.T) {
 		{
 			name: "without a terminal the flag is named", state: "exited\n", files: true,
 			args: []string{"create", "--isolation", "container", "--detach"}, wantCode: 1,
-			errHas: []string{"lyna-tmux sandbox devcontainer up", "--start-container"},
+			errHas: []string{"lmux sandbox devcontainer up", "--start-container"},
 		},
 		{
 			name: "docker is not installed", noDocker: true, term: true,
 			args: []string{"create", "--isolation", "container"}, wantCode: 1,
-			errHas: []string{"docker is not on PATH", "lyna-tmux doctor"},
+			errHas: []string{"docker is not on PATH", "lmux doctor"},
 		},
 		{
 			name: "bash isolation is created on this host", term: true,

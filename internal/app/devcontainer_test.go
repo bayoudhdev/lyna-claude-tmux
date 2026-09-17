@@ -55,13 +55,13 @@ func writeELF(t *testing.T, path string, machine elf.Machine) string {
 }
 
 // fakeCheckout writes a minimal checkout of the lyna-tmux module below dir,
-// whose cmd/lyna-tmux builds in a second, and returns its root.
+// whose cmd/lmux builds in a second, and returns its root.
 func fakeCheckout(t *testing.T, root string) string {
 	t.Helper()
 	for name, content := range map[string]string{
 		"go.mod":                      "module " + devcontainer.ModulePath + "\n",
 		"internal/version/version.go": "package version\n\nvar Version = \"\"\n",
-		"cmd/lyna-tmux/main.go": "package main\n\nimport (\n\t\"fmt\"\n\n\t\"" + devcontainer.ModulePath +
+		"cmd/lmux/main.go": "package main\n\nimport (\n\t\"fmt\"\n\n\t\"" + devcontainer.ModulePath +
 			"/internal/version\"\n)\n\nfunc main() { fmt.Println(version.Version) }\n",
 	} {
 		path := filepath.Join(root, filepath.FromSlash(name))
@@ -128,26 +128,26 @@ func TestDevcontainerInit(t *testing.T) {
 			req: func(*testing.T, string) DevcontainerInitRequest {
 				return DevcontainerInitRequest{Version: "2.0.0", Identity: released}
 			},
-			errHas: []string{"invalid lyna-tmux version"},
+			errHas: []string{"invalid lmux version"},
 		},
 		{
 			name: "a staged binary from the flag",
 			req: func(t *testing.T, root string) DevcontainerInitRequest {
-				return DevcontainerInitRequest{Binary: writeELF(t, filepath.Join(root, "build", "lyna-tmux"), elf.EM_X86_64), Identity: dev}
+				return DevcontainerInitRequest{Binary: writeELF(t, filepath.Join(root, "build", "lmux"), elf.EM_X86_64), Identity: dev}
 			},
 			wantSource: "staged from", wantStaged: true,
 		},
 		{
 			name: "a binary for another architecture is refused",
 			req: func(t *testing.T, root string) DevcontainerInitRequest {
-				return DevcontainerInitRequest{Binary: writeELF(t, filepath.Join(root, "build", "lyna-tmux"), elf.EM_AARCH64), Identity: dev}
+				return DevcontainerInitRequest{Binary: writeELF(t, filepath.Join(root, "build", "lmux"), elf.EM_AARCH64), Identity: dev}
 			},
 			errHas: []string{"the image needs linux/amd64"},
 		},
 		{
 			name: "a binary that is not ELF is refused",
 			req: func(t *testing.T, root string) DevcontainerInitRequest {
-				path := filepath.Join(root, "build", "lyna-tmux")
+				path := filepath.Join(root, "build", "lmux")
 				mkdir(t, filepath.Dir(path))
 				if err := os.WriteFile(path, []byte("#!/bin/sh\n"), 0o755); err != nil {
 					t.Fatal(err)
@@ -166,7 +166,7 @@ func TestDevcontainerInit(t *testing.T) {
 		{
 			name: "binary and version together are refused",
 			req: func(t *testing.T, root string) DevcontainerInitRequest {
-				return DevcontainerInitRequest{Binary: writeELF(t, filepath.Join(root, "build", "lyna-tmux"), elf.EM_X86_64), Version: "v2.0.0", Identity: released}
+				return DevcontainerInitRequest{Binary: writeELF(t, filepath.Join(root, "build", "lmux"), elf.EM_X86_64), Version: "v2.0.0", Identity: released}
 			},
 			wantErr: devcontainer.ErrSourceConflict, errHas: []string{"--binary", "--version"},
 		},
@@ -211,7 +211,7 @@ func TestDevcontainerInit(t *testing.T) {
 			name: "a build that fails is reported", bins: []string{"go"},
 			before: func(t *testing.T, root string) {
 				checkout := fakeCheckout(t, filepath.Join(root, "services"))
-				if err := os.WriteFile(filepath.Join(checkout, "cmd", "lyna-tmux", "main.go"), []byte("package main\n\nfunc main() { undefined() }\n"), 0o644); err != nil {
+				if err := os.WriteFile(filepath.Join(checkout, "cmd", "lmux", "main.go"), []byte("package main\n\nfunc main() { undefined() }\n"), 0o644); err != nil {
 					t.Fatal(err)
 				}
 			},
@@ -278,10 +278,10 @@ func TestDevcontainerInit(t *testing.T) {
 		{
 			name: "the staged binary is replaced with force",
 			before: func(t *testing.T, root string) {
-				writeELF(t, filepath.Join(root, "services", "web", ".devcontainer", "lyna-tmux"), elf.EM_AARCH64)
+				writeELF(t, filepath.Join(root, "services", "web", ".devcontainer", "lmux"), elf.EM_AARCH64)
 			},
 			req: func(t *testing.T, root string) DevcontainerInitRequest {
-				return DevcontainerInitRequest{Force: true, Binary: writeELF(t, filepath.Join(root, "build", "lyna-tmux"), elf.EM_X86_64), Identity: dev}
+				return DevcontainerInitRequest{Force: true, Binary: writeELF(t, filepath.Join(root, "build", "lmux"), elf.EM_X86_64), Identity: dev}
 			},
 			wantSource: "staged from", wantStaged: true,
 		},
@@ -400,7 +400,7 @@ func TestDevcontainerInit(t *testing.T) {
 			if tc.wantStaged {
 				// Write reports paths in name order; the .gitignore entry
 				// comes last, added after the files are in place.
-				want = append(want, filepath.Join(target, ".devcontainer", "lyna-tmux"), filepath.Join(target, ".devcontainer", ".gitignore"))
+				want = append(want, filepath.Join(target, ".devcontainer", "lmux"), filepath.Join(target, ".devcontainer", ".gitignore"))
 			}
 			if !slices.Equal(res.Written, want) {
 				t.Fatalf("written %q, want %q", res.Written, want)
@@ -416,7 +416,7 @@ func TestDevcontainerInit(t *testing.T) {
 			}
 			switch {
 			case tc.wantStaged:
-				binary := filepath.Join(target, ".devcontainer", "lyna-tmux")
+				binary := filepath.Join(target, ".devcontainer", "lmux")
 				assertMode(t, binary, 0o755)
 				data, err := os.ReadFile(binary)
 				if err != nil {
@@ -429,7 +429,7 @@ func TestDevcontainerInit(t *testing.T) {
 					t.Fatalf("Dockerfile does not pin the staged digest:\n%s", dockerfile)
 				}
 				ignore, err := os.ReadFile(filepath.Join(target, ".devcontainer", ".gitignore"))
-				if err != nil || !strings.Contains(string(ignore), "\nlyna-tmux\n") {
+				if err != nil || !strings.Contains(string(ignore), "\nlmux\n") {
 					t.Fatalf(".gitignore = %q, %v", ignore, err)
 				}
 				if strings.Contains(string(dockerfile), "install-lyna-tmux.sh") {
@@ -521,7 +521,7 @@ func TestDevcontainerTarget(t *testing.T) {
 		errHas    string
 	}{
 		{name: "without files when none are needed"},
-		{name: "files needed but missing", needFiles: true, wantErr: ErrDevcontainerMissing, errHas: "lyna-tmux sandbox devcontainer init"},
+		{name: "files needed but missing", needFiles: true, wantErr: ErrDevcontainerMissing, errHas: "lmux sandbox devcontainer init"},
 		{name: "files present", needFiles: true, setup: func(t *testing.T, dir string) {
 			mkdir(t, filepath.Join(dir, ".devcontainer"))
 			if err := os.WriteFile(filepath.Join(dir, ".devcontainer", "Dockerfile"), []byte("FROM x\n"), 0o644); err != nil {

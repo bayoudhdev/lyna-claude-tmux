@@ -24,7 +24,7 @@ func infraCommands(d Deps) []*cobra.Command {
 // created here as usual.
 //
 // At container isolation the workspace runs in the project's dev container:
-// `lyna-tmux create` is started inside the running container with the same
+// `lmux create` is started inside the running container with the same
 // flags, attached to this terminal, or without a terminal when detached, in
 // which case this host reports where the workspace runs and how to reach it
 // from here.
@@ -49,7 +49,7 @@ func (d Deps) createIsolated(cmd *cobra.Command, s *app.Server, req app.CreateRe
 	}
 	// Running the same subcommand again, create or team, attaches this
 	// terminal to the workspace that is now open in the container.
-	_, err = fmt.Fprintf(cmd.OutOrStdout(), "The workspace for %s runs in the dev container %s. Attach with: lyna-tmux %s --isolation container\n",
+	_, err = fmt.Fprintf(cmd.OutOrStdout(), "The workspace for %s runs in the dev container %s. Attach with: lmux %s --isolation container\n",
 		sanitize.Line(cc.Target.Dir), cc.Target.Container(), cc.Args[0])
 	return true, err
 }

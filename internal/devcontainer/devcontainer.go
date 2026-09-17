@@ -42,9 +42,9 @@ const (
 	FileDockerfile    = Dir + "/Dockerfile"
 	FileFirewall      = Dir + "/init-firewall.sh"
 	FileAllowedDomain = Dir + "/allowed-domains"
-	// FileBinary is the lyna-tmux binary staged next to the Dockerfile when
-	// the image copies one in rather than downloading a release.
-	FileBinary = Dir + "/lyna-tmux"
+	// FileBinary is the lmux binary staged next to the Dockerfile when the
+	// image copies one in rather than downloading a release.
+	FileBinary = Dir + "/lmux"
 	// FileGitignore keeps the staged binary out of the repository.
 	FileGitignore = Dir + "/.gitignore"
 )
@@ -384,11 +384,11 @@ func Verify(dir string, files map[string][]byte) error {
 		got, err := fsx.ReadFileNoFollow(target, MaxFileBytes)
 		switch {
 		case errors.Is(err, fs.ErrNotExist):
-			return fmt.Errorf("%s: %w; run `lyna-tmux sandbox devcontainer init`", target, ErrMissing)
+			return fmt.Errorf("%s: %w; run `lmux sandbox devcontainer init`", target, ErrMissing)
 		case err != nil:
 			return err
 		case !bytes.Equal(got, files[name]):
-			return fmt.Errorf("%s: %w; run `lyna-tmux sandbox devcontainer init --force` to restore it, or move your changes into the lyna-tmux configuration", target, ErrModified)
+			return fmt.Errorf("%s: %w; run `lmux sandbox devcontainer init --force` to restore it, or move your changes into the lyna-tmux configuration", target, ErrModified)
 		}
 	}
 	return nil

@@ -17,14 +17,15 @@ import (
 	"sync"
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/fsx"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/xdg"
 )
 
 // ModulePath is the Go module lyna-tmux is built from. Build compiles its
-// cmd/lyna-tmux package and ModuleRoot recognizes a checkout by it.
+// cmd/lmux package and ModuleRoot recognizes a checkout by it.
 const ModulePath = "github.com/bayoudhdev/lyna-claude-tmux"
 
-// BinaryPath is where the image installs lyna-tmux.
-const BinaryPath = "/usr/local/bin/lyna-tmux"
+// BinaryPath is where the image installs the command.
+const BinaryPath = "/usr/local/bin/" + xdg.Command
 
 // MaxBinaryBytes bounds a binary read for staging or hashing. A release
 // binary is a few tens of megabytes.
@@ -75,7 +76,7 @@ var (
 // TestDetectSourceRoundTrip pins that they stay in step.
 const (
 	installScript = "sh /tmp/install-lyna-tmux.sh"
-	stagedLine    = "COPY lyna-tmux " + BinaryPath
+	stagedLine    = "COPY " + xdg.Command + " " + BinaryPath
 )
 
 func (s Source) validate() error {
@@ -84,7 +85,7 @@ func (s Source) validate() error {
 		return ErrSourceConflict
 	case s.Version != "":
 		if !versionPattern().MatchString(s.Version) {
-			return fmt.Errorf("devcontainer: invalid lyna-tmux version %q (vX.Y.Z)", s.Version)
+			return fmt.Errorf("devcontainer: invalid lmux version %q (vX.Y.Z)", s.Version)
 		}
 	case s.BinarySHA256 != "":
 		if !digestPattern().MatchString(s.BinarySHA256) {
@@ -186,7 +187,7 @@ func modulePathOf(gomod []byte) string {
 	return ""
 }
 
-// Identity is stamped into a built binary, so that lyna-tmux version inside
+// Identity is stamped into a built binary, so that lmux version inside
 // the container reports the build the image came from.
 type Identity struct {
 	Version, Commit, Date string
@@ -205,7 +206,7 @@ func (id Identity) ldflags() string {
 	return strings.Join(flags, " ")
 }
 
-// Build compiles cmd/lyna-tmux of the checkout at root into a static
+// Build compiles cmd/lmux of the checkout at root into a static
 // linux/goarch executable with the go binary at goBin, and returns its bytes.
 // The build runs with the environment of this process, so it shares the
 // module and build caches of the user. The binary is identified as the
@@ -221,8 +222,8 @@ func Build(ctx context.Context, goBin, root, goarch string, id Identity) ([]byte
 		return nil, err
 	}
 	defer func() { _ = os.RemoveAll(tmp) }()
-	out := filepath.Join(tmp, "lyna-tmux")
-	cmd := exec.CommandContext(ctx, goBin, "build", "-trimpath", "-buildvcs=false", "-ldflags", id.ldflags(), "-o", out, "./cmd/lyna-tmux")
+	out := filepath.Join(tmp, "lmux")
+	cmd := exec.CommandContext(ctx, goBin, "build", "-trimpath", "-buildvcs=false", "-ldflags", id.ldflags(), "-o", out, "./cmd/lmux")
 	cmd.Dir = root
 	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH="+goarch, "CGO_ENABLED=0")
 	var output bytes.Buffer
@@ -255,7 +256,7 @@ func DetectSource(dir string) (Source, error) {
 	text, err := fsx.ReadFileNoFollow(dockerfile, MaxFileBytes)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		return Source{}, fmt.Errorf("%s: %w; run `lyna-tmux sandbox devcontainer init`", dockerfile, ErrMissing)
+		return Source{}, fmt.Errorf("%s: %w; run `lmux sandbox devcontainer init`", dockerfile, ErrMissing)
 	case err != nil:
 		return Source{}, err
 	}
@@ -264,7 +265,7 @@ func DetectSource(dir string) (Source, error) {
 		data, err := fsx.ReadFileNoFollow(binary, MaxBinaryBytes)
 		switch {
 		case errors.Is(err, fs.ErrNotExist):
-			return Source{}, fmt.Errorf("%s: %w; run `lyna-tmux sandbox devcontainer init --force` to stage it again", binary, ErrBinaryMissing)
+			return Source{}, fmt.Errorf("%s: %w; run `lmux sandbox devcontainer init --force` to stage it again", binary, ErrBinaryMissing)
 		case err != nil:
 			return Source{}, err
 		}
@@ -273,11 +274,11 @@ func DetectSource(dir string) (Source, error) {
 	if m := releaseLine().FindSubmatch(text); m != nil && versionPattern().Match(m[1]) {
 		return Source{Version: string(m[1])}, nil
 	}
-	return Source{}, fmt.Errorf("%s: %w; run `lyna-tmux sandbox devcontainer init --force` to restore it", dockerfile, ErrModified)
+	return Source{}, fmt.Errorf("%s: %w; run `lmux sandbox devcontainer init --force` to restore it", dockerfile, ErrModified)
 }
 
 // ignoreHeader explains the entry IgnoreBinary adds.
-const ignoreHeader = "# The lyna-tmux binary staged by lyna-tmux sandbox devcontainer init is built for this machine.\n"
+const ignoreHeader = "# The lmux binary staged by lmux sandbox devcontainer init is built for this machine.\n"
 
 // IgnoreBinary makes sure the .gitignore of the .devcontainer directory under
 // dir lists the staged binary, creating the file when there is none and

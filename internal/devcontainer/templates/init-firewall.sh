@@ -12,7 +12,7 @@
 # a container whose firewall did not come up must not keep an open network.
 #
 # LYNA_TMUX_FIREWALL_ALLOWLIST and LYNA_TMUX_FIREWALL_RESOLV name the files
-# the script reads. `lyna-tmux sandbox devcontainer up` points the first at the
+# the script reads. `lmux sandbox devcontainer up` points the first at the
 # allowlist it rendered, so a stale image cannot widen it; sudo resets the
 # environment, so the container user cannot set either.
 set -Eeuo pipefail

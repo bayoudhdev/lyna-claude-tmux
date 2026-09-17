@@ -38,7 +38,7 @@ func sandboxProfilesCommand(d Deps) *cobra.Command {
 		Long: "Show what each sandbox profile protects and allows at the default bash isolation, and\n" +
 			"what each isolation level confines. The descriptions are derived from the settings a\n" +
 			"launch writes, before the project's ecosystems and your configured additions.",
-		Example: "  lyna-tmux sandbox profiles",
+		Example: "  lmux sandbox profiles",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			out := cmd.OutOrStdout()
@@ -160,9 +160,9 @@ func sandboxShowCommand(d Deps) *cobra.Command {
 			"for byte: the sandbox, permissions, hooks and status line. The profile and isolation\n" +
 			"level default to the configuration. Nothing is written, and an isolation level this\n" +
 			"machine cannot run is shown too.",
-		Example: "  lyna-tmux sandbox show\n" +
-			"  lyna-tmux sandbox show strict --dir ~/src/api\n" +
-			"  lyna-tmux sandbox show --isolation process | jq .sandbox",
+		Example: "  lmux sandbox show\n" +
+			"  lmux sandbox show strict --dir ~/src/api\n" +
+			"  lmux sandbox show --isolation process | jq .sandbox",
 		Args: cobra.MaximumNArgs(1),
 		ValidArgsFunction: func(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
 			if len(args) > 0 {
@@ -214,8 +214,8 @@ func sandboxStatusCommand(d Deps) *cobra.Command {
 			"allowlist, the unsandboxed fallback and the bypass policy, followed by the platform\n" +
 			"checks for it. In a pane or popup of a workspace the profile is the one the workspace\n" +
 			"was created with; elsewhere it comes from the configuration.",
-		Example: "  lyna-tmux sandbox status\n" +
-			"  lyna-tmux sandbox status --json --dir ~/src/api",
+		Example: "  lmux sandbox status\n" +
+			"  lmux sandbox status --json --dir ~/src/api",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			out := cmd.OutOrStdout()
@@ -223,7 +223,7 @@ func sandboxStatusCommand(d Deps) *cobra.Command {
 			err := sandboxStatus(cmd, d, dir, asJSON)
 			if hold {
 				if err != nil {
-					fmt.Fprintf(out, "lyna-tmux sandbox status: %s\n", sanitize.Line(err.Error()))
+					fmt.Fprintf(out, "lmux sandbox status: %s\n", sanitize.Line(err.Error()))
 				}
 				fmt.Fprint(out, "\nPress any key to close.")
 				sandboxWaitKey(cmd.InOrStdin())

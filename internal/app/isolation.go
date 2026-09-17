@@ -49,10 +49,10 @@ func isolationAvailable(h Host, isolation sandbox.Isolation) error {
 		case ev.DevContainer():
 			return nil
 		case ev.Runtime:
-			return fmt.Errorf("%w: %s; container isolation runs the workspace inside the project's dev container, which `lyna-tmux sandbox devcontainer up` builds and starts",
+			return fmt.Errorf("%w: %s; container isolation runs the workspace inside the project's dev container, which `lmux sandbox devcontainer up` builds and starts",
 				ErrIsolationUnsupported, ev.Reason())
 		}
-		return fmt.Errorf("%w: container isolation runs the workspace inside the project's dev container; start it with `lyna-tmux sandbox devcontainer up`, then run `lyna-tmux create --isolation container`", ErrIsolationUnsupported)
+		return fmt.Errorf("%w: container isolation runs the workspace inside the project's dev container; start it with `lmux sandbox devcontainer up`, then run `lmux create --isolation container`", ErrIsolationUnsupported)
 	}
 	return fmt.Errorf("%w: %s", ErrIsolationUnsupported, isolation)
 }
