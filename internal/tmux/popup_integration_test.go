@@ -70,3 +70,43 @@ func TestIntegrationPopupSpec(t *testing.T) {
 	}
 	n.WaitScreen(t, "popup-ready", true)
 }
+
+// TestIntegrationPopupOverPane opens a popup named by the pane it covers,
+// which is what a program running inside a pane knows about itself: it reads
+// $TMUX_PANE and never the name of the client drawing it.
+func TestIntegrationPopupOverPane(t *testing.T) {
+	root := t.TempDir()
+	n := tmuxtest.StartNested(t, "/dev/null", root, 120, 30)
+	ctx := tmuxtest.Context(t)
+	pane, err := n.Inner.Client.Display(ctx, tmux.ExactSession("main"), "#{pane_id}")
+	if err != nil {
+		t.Fatal(err)
+	}
+	script := `echo over-the-pane && "$1" -S "$2" wait-for lt-popup-close`
+	cmd, err := tmux.PopupSpec{
+		Pane: pane, Width: "60", Height: "12", Dir: root, Title: "review",
+		Argv: []string{"/bin/sh", "-c", script, "sh", n.Inner.Bin, tmuxtest.SocketPath(n.Inner.Name)},
+	}.Command()
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, err := n.Inner.Client.Batch(ctx, cmd)
+		done <- err
+	}()
+	n.WaitScreen(t, "over-the-pane", false)
+	n.WaitScreen(t, " review ", false)
+	if _, err := n.Inner.Client.Run(ctx, "wait-for", "-S", "lt-popup-close"); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("display-popup over pane %s: %v", pane, err)
+		}
+	case <-ctx.Done():
+		t.Fatal("display-popup did not return after the popup closed")
+	}
+	n.WaitScreen(t, "over-the-pane", true)
+}
