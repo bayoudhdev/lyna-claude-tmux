@@ -49,6 +49,9 @@ make fmt               # gofumpt and goimports
 scripts/bench.sh       # start-up benchmarks as a Markdown table
 ```
 
+`scripts/bench.sh` runs the `go` and `hyperfine` on PATH; set `GO` or
+`HYPERFINE` to point either one somewhere else.
+
 Optional end-to-end test of the dev container (builds an image, needs network access):
 
 ```sh
