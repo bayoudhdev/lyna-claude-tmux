@@ -215,10 +215,26 @@ func (r *recorder) summary() []string {
 func rendered(t *testing.T) Target {
 	t.Helper()
 	tgt := Target{Dir: t.TempDir(), Project: target.Project, User: target.User}
-	files, err := Render(Options{Project: tgt.Project, User: tgt.User})
+	files, err := Render(Options{Project: tgt.Project, User: tgt.User, Source: release})
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := Write(tgt.Dir, files, false); err != nil {
+		t.Fatal(err)
+	}
+	return tgt
+}
+
+// renderedStaged is rendered with a staged binary in place of the release.
+func renderedStaged(t *testing.T) Target {
+	t.Helper()
+	binary := linuxBinary(runtime.GOARCH)
+	tgt := Target{Dir: t.TempDir(), Project: target.Project, User: target.User}
+	files, err := Render(Options{Project: tgt.Project, User: tgt.User, Source: Source{BinarySHA256: Digest(binary)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	files[FileBinary] = binary
 	if _, err := Write(tgt.Dir, files, false); err != nil {
 		t.Fatal(err)
 	}
@@ -337,6 +353,62 @@ func TestLifecycle(t *testing.T) {
 			wantErr: ErrModified,
 		},
 		{
+			name:    "up builds a project with a staged binary",
+			op:      func(d Docker, tg Target) error { return d.Up(t.Context(), tg) },
+			project: renderedStaged,
+			states:  []string{""},
+			want:    []string{"attach build --tag", "capture container ls", "capture run --detach", "attach exec --interactive"},
+		},
+		{
+			name: "up fails before docker when the staged binary is missing",
+			op:   func(d Docker, tg Target) error { return d.Up(t.Context(), tg) },
+			project: func(t *testing.T) Target {
+				tgt := renderedStaged(t)
+				if err := os.Remove(filepath.Join(tgt.Dir, filepath.FromSlash(FileBinary))); err != nil {
+					t.Fatal(err)
+				}
+				return tgt
+			},
+			want:    nil,
+			wantErr: ErrBinaryMissing,
+		},
+		{
+			name: "up refuses a swapped staged binary",
+			op:   func(d Docker, tg Target) error { return d.Up(t.Context(), tg) },
+			project: func(t *testing.T) Target {
+				tgt := renderedStaged(t)
+				tamper(t, tgt.Dir, FileBinary, string(linuxBinary("amd64"))+"\n")
+				return tgt
+			},
+			want:    nil,
+			wantErr: ErrModified,
+		},
+		{
+			name: "up refuses a Dockerfile that names no source",
+			op:   func(d Docker, tg Target) error { return d.Up(t.Context(), tg) },
+			project: func(t *testing.T) Target {
+				tgt := rendered(t)
+				tamper(t, tgt.Dir, FileDockerfile, "FROM debian:13-slim\nRUN true\n")
+				return tgt
+			},
+			want:    nil,
+			wantErr: ErrModified,
+		},
+		{
+			name: "shell fails before docker when the staged binary is missing",
+			op:   func(d Docker, tg Target) error { return d.Shell(t.Context(), tg) },
+			project: func(t *testing.T) Target {
+				tgt := renderedStaged(t)
+				if err := os.Remove(filepath.Join(tgt.Dir, filepath.FromSlash(FileBinary))); err != nil {
+					t.Fatal(err)
+				}
+				return tgt
+			},
+			states:  []string{"running"},
+			want:    nil,
+			wantErr: ErrBinaryMissing,
+		},
+		{
 			name: "up refuses a project without the rendered files",
 			op:   func(d Docker, tg Target) error { return d.Up(t.Context(), tg) },
 			project: func(t *testing.T) Target {
@@ -350,7 +422,7 @@ func TestLifecycle(t *testing.T) {
 			op:   func(d Docker, tg Target) error { return d.Up(t.Context(), tg) },
 			project: func(t *testing.T) Target {
 				tgt := rendered(t)
-				files, err := Render(Options{Project: tgt.Project, User: tgt.User, AllowedDomains: []string{"pkg.internal.example"}})
+				files, err := Render(Options{Project: tgt.Project, User: tgt.User, Source: release, AllowedDomains: []string{"pkg.internal.example"}})
 				if err != nil {
 					t.Fatal(err)
 				}

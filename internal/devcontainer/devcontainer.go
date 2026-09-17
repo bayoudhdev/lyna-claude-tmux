@@ -3,7 +3,9 @@
 // lyna-tmux and Claude Code), a default-deny egress firewall with a
 // domain allowlist resolved at container start, the project bind mounted at
 // /workspace and the Claude configuration in a per-project named volume. The
-// Docker socket is never mounted.
+// Docker socket is never mounted. The lyna-tmux inside the image is either a
+// binary staged next to the Dockerfile or a release downloaded when the image
+// builds (Source).
 //
 // The same files work with any editor that supports the Dev Containers
 // specification and with the docker lifecycle in docker.go.
@@ -40,6 +42,11 @@ const (
 	FileDockerfile    = Dir + "/Dockerfile"
 	FileFirewall      = Dir + "/init-firewall.sh"
 	FileAllowedDomain = Dir + "/allowed-domains"
+	// FileBinary is the lyna-tmux binary staged next to the Dockerfile when
+	// the image copies one in rather than downloading a release.
+	FileBinary = Dir + "/lyna-tmux"
+	// FileGitignore keeps the staged binary out of the repository.
+	FileGitignore = Dir + "/.gitignore"
 )
 
 // Paths inside the container.
@@ -82,9 +89,9 @@ type Options struct {
 	Timezone string
 	// AllowedDomains are added to DefaultDomains.
 	AllowedDomains []string
-	// Version pins the lyna-tmux release installed in the image (vX.Y.Z);
-	// empty installs the latest release.
-	Version string
+	// Source is where the lyna-tmux binary of the image comes from; it is
+	// required, as nothing sensible can be rendered without one.
+	Source Source
 	// ClaudeVersion is passed to the Claude Code native installer: latest,
 	// stable or a version number.
 	ClaudeVersion string
@@ -185,13 +192,16 @@ func ValidateDomain(d string) error {
 
 // resolved is Options after defaults and validation.
 type resolved struct {
-	Project, User, Timezone, Version, ClaudeVersion string
-	InstallRef                                      string
-	// Marker and Workspace are constants the template writes into the image;
-	// they travel here so the paths the isolation checks look for and the
-	// paths the image creates cannot drift apart.
-	Marker, Workspace string
-	Domains           []string
+	Project, User, Timezone, ClaudeVersion string
+	// Version and BinarySHA256 are the validated Source; the template takes
+	// the branch of the one that is set.
+	Version, BinarySHA256 string
+	// Marker, Workspace and BinaryPath are constants the template writes into
+	// the image; they travel here so the paths the isolation checks and
+	// DetectSource look for and the paths the image creates cannot drift
+	// apart.
+	Marker, Workspace, BinaryPath string
+	Domains                       []string
 }
 
 func (o Options) resolve() (resolved, error) {
@@ -199,11 +209,12 @@ func (o Options) resolve() (resolved, error) {
 		Project:       o.Project,
 		User:          cmp.Or(o.User, DefaultUser),
 		Timezone:      cmp.Or(o.Timezone, DefaultTimezone),
-		Version:       o.Version,
 		ClaudeVersion: cmp.Or(o.ClaudeVersion, DefaultClaudeVersion),
-		InstallRef:    "main",
+		Version:       o.Source.Version,
+		BinarySHA256:  o.Source.BinarySHA256,
 		Marker:        MarkerPath,
 		Workspace:     WorkspacePath,
+		BinaryPath:    BinaryPath,
 	}
 	if err := ValidateProject(r.Project); err != nil {
 		return resolved{}, err
@@ -214,12 +225,8 @@ func (o Options) resolve() (resolved, error) {
 	if !timezonePattern().MatchString(r.Timezone) {
 		return resolved{}, fmt.Errorf("devcontainer: invalid timezone %q (an IANA name such as Europe/Paris)", r.Timezone)
 	}
-	if r.Version != "" {
-		if !versionPattern().MatchString(r.Version) {
-			return resolved{}, fmt.Errorf("devcontainer: invalid lyna-tmux version %q (vX.Y.Z)", r.Version)
-		}
-		// The installer is fetched from the same tag it installs.
-		r.InstallRef = r.Version
+	if err := o.Source.validate(); err != nil {
+		return resolved{}, err
 	}
 	if !claudePattern().MatchString(r.ClaudeVersion) {
 		return resolved{}, fmt.Errorf("devcontainer: invalid Claude Code version %q (latest, stable or X.Y.Z)", r.ClaudeVersion)
@@ -390,7 +397,8 @@ func Verify(dir string, files map[string][]byte) error {
 // Write stores rendered files under dir. Nothing is written when any target
 // already exists (unless force) or when any path component under dir is a
 // symbolic link, so a refused write never leaves a half-updated directory.
-// Scripts get mode 0755, other files 0644. It returns the written paths.
+// Scripts and the staged binary get mode 0755, other files 0644. It returns
+// the written paths.
 func Write(dir string, files map[string][]byte, force bool) ([]string, error) {
 	names := make([]string, 0, len(files))
 	for name := range files {
@@ -411,7 +419,7 @@ func Write(dir string, files map[string][]byte, force bool) ([]string, error) {
 			return written, err
 		}
 		mode := fs.FileMode(0o644)
-		if strings.HasSuffix(name, ".sh") {
+		if strings.HasSuffix(name, ".sh") || name == FileBinary {
 			mode = 0o755
 		}
 		if err := fsx.WriteFileAtomic(target, files[name], mode); err != nil {

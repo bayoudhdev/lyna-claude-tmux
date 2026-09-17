@@ -48,10 +48,13 @@ RUN chown root:root /usr/local/bin/init-firewall.sh /usr/local/etc/lyna-tmux/all
     && chmod 0440 /etc/sudoers.d/lyna-tmux-firewall \
     && visudo -cf /etc/sudoers.d/lyna-tmux-firewall
 
-# lyna-tmux from its release, verified against the release checksums.
-RUN curl --proto '=https' --tlsv1.2 -fsSL "https://raw.githubusercontent.com/bayoudhdev/lyna-claude-tmux/main/scripts/install.sh" -o /tmp/install-lyna-tmux.sh \
-    && sh /tmp/install-lyna-tmux.sh --prefix /usr/local/bin \
-    && rm /tmp/install-lyna-tmux.sh
+# lyna-tmux staged next to this Dockerfile by init: a build from the checkout
+# on this machine, or the file given to --binary. The digest pins the file the
+# Dockerfile was rendered for, so a swapped binary fails the build.
+COPY lyna-tmux /usr/local/bin/lyna-tmux
+RUN printf '%s  %s\n' 'abababababababababababababababababababababababababababababababab' '/usr/local/bin/lyna-tmux' | sha256sum --check --strict - \
+    && chown root:root /usr/local/bin/lyna-tmux \
+    && chmod 0755 /usr/local/bin/lyna-tmux
 
 USER ${USERNAME}
 

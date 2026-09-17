@@ -48,7 +48,8 @@ RUN chown root:root /usr/local/bin/init-firewall.sh /usr/local/etc/lyna-tmux/all
     && chmod 0440 /etc/sudoers.d/lyna-tmux-firewall \
     && visudo -cf /etc/sudoers.d/lyna-tmux-firewall
 
-# lyna-tmux from its release, verified against the release checksums.
+# lyna-tmux from its release, verified against the release checksums. The
+# installer comes from the tag it installs.
 RUN curl --proto '=https' --tlsv1.2 -fsSL "https://raw.githubusercontent.com/bayoudhdev/lyna-claude-tmux/v1.2.3/scripts/install.sh" -o /tmp/install-lyna-tmux.sh \
     && sh /tmp/install-lyna-tmux.sh --prefix /usr/local/bin --version v1.2.3 \
     && rm /tmp/install-lyna-tmux.sh

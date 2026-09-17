@@ -4,15 +4,17 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 )
 
-// TestDockerLifecycleE2E renders the files into a scratch project, builds the
-// image, starts the container with the firewall, checks the tools inside and
-// tears everything down. It needs a working Docker engine, network access and
-// a published lyna-tmux release, so it runs only when LYNA_TMUX_E2E_DOCKER=1.
+// TestDockerLifecycleE2E builds lyna-tmux for the image from this checkout,
+// renders the files into a scratch project, builds the image, starts the
+// container with the firewall, checks the tools inside and tears everything
+// down. It needs a working Docker engine and network access, so it runs only
+// when LYNA_TMUX_E2E_DOCKER=1.
 func TestDockerLifecycleE2E(t *testing.T) {
 	if os.Getenv("LYNA_TMUX_E2E_DOCKER") != "1" {
 		t.Skip("set LYNA_TMUX_E2E_DOCKER=1 to build and run the dev container (needs Docker and network access)")
@@ -26,10 +28,12 @@ func TestDockerLifecycleE2E(t *testing.T) {
 
 	dir := t.TempDir()
 	project := "e2e-" + strings.ToLower(time.Now().UTC().Format("20060102t150405"))
-	files, err := Render(Options{Project: project})
+	binary := buildFromCheckout(t, runtime.GOARCH)
+	files, err := Render(Options{Project: project, Source: Source{BinarySHA256: Digest(binary)}})
 	if err != nil {
 		t.Fatal(err)
 	}
+	files[FileBinary] = binary
 	if _, err := Write(dir, files, false); err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +75,10 @@ func TestDockerLifecycleE2E(t *testing.T) {
 		want    string
 		wantErr bool
 	}{
-		{name: "lyna-tmux installed", args: []string{"lyna-tmux", "version"}, want: "lyna-tmux"},
+		// The staged build carries the identity buildFromCheckout stamps.
+		{name: "lyna-tmux installed", args: []string{"lyna-tmux", "version"}, want: "lyna-tmux e2e-test linux/"},
+		{name: "lyna-tmux is root owned", args: []string{"stat", "-c", "%U %a", BinaryPath}, want: "root 755"},
+		{name: "staged binary is not in the image context", args: []string{"test", "-f", "/workspace/" + FileBinary}},
 		{name: "claude installed", args: []string{"claude", "--version"}, want: "Claude Code"},
 		{name: "tmux installed", args: []string{"tmux", "-V"}, want: "tmux 3."},
 		{name: "runs as the container user", args: []string{"id", "-un"}, want: target.User},

@@ -691,7 +691,7 @@ func TestReleaseArtifactsMatchInstaller(t *testing.T) {
 	// The image runs the installer with its own flags: run install.sh with the
 	// same flags and an http base URL, which the script refuses only after
 	// every flag has been parsed.
-	files, err := devcontainer.Render(devcontainer.Options{Project: "api", Version: "v1.2.3"})
+	files, err := devcontainer.Render(devcontainer.Options{Project: "api", Source: devcontainer.Source{Version: "v1.2.3"}})
 	if err != nil {
 		t.Fatal(err)
 	}

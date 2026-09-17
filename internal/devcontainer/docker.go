@@ -230,7 +230,8 @@ type Docker struct {
 	// Options are what the project's dev container files must render to. Up
 	// re-renders them and refuses to build anything else, so a repository
 	// cannot ship the image that is supposed to confine it. The project name
-	// and the container user come from the Target.
+	// and the container user come from the Target, and the binary source
+	// from the project's Dockerfile (DetectSource), so Source is ignored.
 	Options Options
 }
 
@@ -256,10 +257,15 @@ func (d Docker) feed(ctx context.Context, argv []string, script []byte) error {
 	return err
 }
 
-// files renders the dev container of t from the options of d.
+// files renders the dev container of t from the options of d and the binary
+// source init recorded in the project.
 func (d Docker) files(t Target) (map[string][]byte, error) {
+	src, err := DetectSource(t.Dir)
+	if err != nil {
+		return nil, err
+	}
 	o := d.Options
-	o.Project, o.User = t.Project, t.User
+	o.Project, o.User, o.Source = t.Project, t.User, src
 	return Render(o)
 }
 

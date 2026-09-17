@@ -5,13 +5,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
+	"runtime"
 
 	"github.com/spf13/cobra"
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/app"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/devcontainer"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/sanitize"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/version"
 )
+
+// devcontainerIdentity is the build identity of this executable, which init
+// stamps into a local build and falls back to as the release to pin. Tests
+// replace it to stand for a released or a development build.
+var devcontainerIdentity = version.Get
 
 func devcontainerCommand(d Deps) *cobra.Command {
 	cmd := &cobra.Command{
@@ -20,7 +28,8 @@ func devcontainerCommand(d Deps) *cobra.Command {
 		Long: "Container isolation runs the whole workspace inside a dev container: tmux, Claude, its\n" +
 			"hooks and MCP servers. The container gets the project at /workspace, a firewall that\n" +
 			"only lets the allowed domains out (sandbox.allowed_domains adds to them) and a volume\n" +
-			"for the Claude configuration. The Docker socket is never mounted.",
+			"for the Claude configuration. The Docker socket is never mounted. Every command works\n" +
+			"on the directory given, or the current directory: never on a parent of it.",
 		Example: "  lyna-tmux sandbox devcontainer init\n" +
 			"  lyna-tmux sandbox devcontainer up\n" +
 			"  lyna-tmux create --isolation container",
@@ -31,27 +40,69 @@ func devcontainerCommand(d Deps) *cobra.Command {
 }
 
 func devcontainerInitCommand(d Deps) *cobra.Command {
-	var force bool
+	var (
+		force           bool
+		binary, release string
+	)
 	cmd := &cobra.Command{
 		Use:   "init [dir]",
-		Short: "Write the .devcontainer files into the project",
+		Short: "Write the .devcontainer files into the directory",
 		Long: "Write devcontainer.json, a Dockerfile, the firewall script and the allowed domains into\n" +
-			"the .devcontainer directory of the project that contains dir (the current directory by\n" +
-			"default). Existing files are kept unless --force is given.",
+			"the .devcontainer directory of dir (the current directory by default, never a parent of\n" +
+			"it). Existing files are kept unless --force is given.\n\n" +
+			"The lyna-tmux inside the image is, in this order: this executable when it already is a\n" +
+			"Linux build for the image architecture; a build of the lyna-tmux checkout that contains\n" +
+			"dir or the current directory, when go is on PATH; or the release this executable was\n" +
+			"built from, downloaded when the image builds. Without any of these, init fails and names\n" +
+			"the two flags that decide instead: --binary stages a Linux build of your own next to the\n" +
+			"Dockerfile (mode 0755, ignored by git), --version pins a published release.",
 		Example: "  lyna-tmux sandbox devcontainer init\n" +
-			"  lyna-tmux sandbox devcontainer init ~/src/api --force",
+			"  lyna-tmux sandbox devcontainer init ~/src/api --force\n" +
+			"  lyna-tmux sandbox devcontainer init --binary ./dist/lyna-tmux-linux-arm64\n" +
+			"  lyna-tmux sandbox devcontainer init --version v1.2.0",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			h, dir, err := d.devcontainerDir(args)
+			h, err := d.Host()
 			if err != nil {
 				return err
 			}
-			written, err := app.DevcontainerInit(h, dir, force)
+			cwd, err := d.Getwd()
+			if err != nil {
+				return err
+			}
+			req := app.DevcontainerInitRequest{
+				Cwd:      cwd,
+				Named:    len(args) == 1,
+				Force:    force,
+				Version:  release,
+				OS:       runtime.GOOS,
+				Arch:     runtime.GOARCH,
+				Identity: devcontainerIdentity(),
+			}
+			if req.Named {
+				if req.Dir, err = expandDir(args[0], h.Home, d.Getwd); err != nil {
+					return err
+				}
+			}
+			if binary != "" {
+				if req.Binary, err = expandDir(binary, h.Home, d.Getwd); err != nil {
+					return err
+				}
+			}
+			target, err := app.DevcontainerDir(cwd, req.Dir)
 			if err != nil {
 				return err
 			}
 			out := cmd.OutOrStdout()
-			for _, p := range written {
+			// The directory is named before anything is written, so a wrong
+			// target is visible even when the write is refused.
+			fmt.Fprintf(out, "Dev container directory: %s\n", sanitize.Line(filepath.Join(target, devcontainer.Dir)))
+			res, err := app.DevcontainerInit(cmd.Context(), h, req)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(out, "lyna-tmux in the image: %s\n", sanitize.Line(res.Source))
+			for _, p := range res.Written {
 				fmt.Fprintf(out, "Wrote %s\n", sanitize.Line(p))
 			}
 			_, err = fmt.Fprintln(out, "Start it with: lyna-tmux sandbox devcontainer up")
@@ -59,6 +110,9 @@ func devcontainerInitCommand(d Deps) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&force, "force", false, "replace existing files")
+	cmd.Flags().StringVar(&binary, "binary", "", "stage this Linux build of lyna-tmux in the image instead of building or downloading one")
+	cmd.Flags().StringVar(&release, "version", "", "download this lyna-tmux release (vX.Y.Z) when the image builds")
+	cmd.MarkFlagsMutuallyExclusive("binary", "version")
 	return cmd
 }
 
@@ -66,11 +120,12 @@ func devcontainerUpCommand(d Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "up [dir]",
 		Short: "Build the image, start the container and apply its firewall",
-		Long: "Build the image from the project's .devcontainer directory, create or start the\n" +
-			"container and apply the egress firewall. The image is the isolation boundary, so the\n" +
-			"files must be the ones lyna-tmux renders: a build refuses any other content and names\n" +
-			"the file to restore with `lyna-tmux sandbox devcontainer init --force`. Add hosts\n" +
-			"through sandbox.allowed_domains in the configuration, then init --force and up again.",
+		Long: "Build the image from the .devcontainer directory of dir (the current directory by\n" +
+			"default), create or start the container and apply the egress firewall. The image is the\n" +
+			"isolation boundary, so the files must be the ones lyna-tmux renders: a build refuses any\n" +
+			"other content and names the file to restore with `lyna-tmux sandbox devcontainer init\n" +
+			"--force`, as it does when the lyna-tmux binary init staged is gone. Add hosts through\n" +
+			"sandbox.allowed_domains in the configuration, then init --force and up again.",
 		Example: "  lyna-tmux sandbox devcontainer up",
 		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -126,21 +181,28 @@ func devcontainerDownCommand(d Deps) *cobra.Command {
 	}
 }
 
-// devcontainerDir resolves the host and the optional directory argument.
+// devcontainerDir resolves the directory a devcontainer command works on: the
+// optional argument, or the working directory. It is never an ancestor.
 func (d Deps) devcontainerDir(args []string) (app.Host, string, error) {
 	h, err := d.Host()
 	if err != nil {
 		return app.Host{}, "", err
 	}
+	cwd, err := d.Getwd()
+	if err != nil {
+		return app.Host{}, "", err
+	}
 	arg := ""
 	if len(args) == 1 {
-		arg = args[0]
+		if arg, err = expandDir(args[0], h.Home, d.Getwd); err != nil {
+			return app.Host{}, "", err
+		}
 	}
-	dir, err := d.infraDir(h, arg)
+	dir, err := app.DevcontainerDir(cwd, arg)
 	return h, dir, err
 }
 
-// devcontainerTarget resolves the container of the project and the docker
+// devcontainerTarget resolves the container of the directory and the docker
 // driver for it.
 func (d Deps) devcontainerTarget(cmd *cobra.Command, args []string, needFiles bool) (devcontainer.Target, devcontainer.Docker, error) {
 	_, dir, err := d.devcontainerDir(args)

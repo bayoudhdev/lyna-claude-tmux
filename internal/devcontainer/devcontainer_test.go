@@ -16,6 +16,13 @@ import (
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/testutil/golden"
 )
 
+// Sources the tests render with: a pinned release, and a staged binary whose
+// digest is fixed so the golden Dockerfile does not depend on a build.
+var (
+	release = Source{Version: "v1.2.3"}
+	staged  = Source{BinarySHA256: strings.Repeat("ab", 32)}
+)
+
 func TestProjectName(t *testing.T) {
 	cases := []struct{ dir, want string }{
 		{"/home/u/src/lyna-claude-tmux", "lyna-claude-tmux"},
@@ -134,9 +141,9 @@ func TestRenderGolden(t *testing.T) {
 		name string
 		opts Options
 	}{
-		{name: "defaults", opts: Options{Project: "lyna-claude-tmux"}},
+		{name: "defaults", opts: Options{Project: "lyna-claude-tmux", Source: staged}},
 		{name: "pinned", opts: Options{
-			Project: "api", User: "dev", Timezone: "Africa/Tunis", Version: "v1.2.3", ClaudeVersion: "2.1.273",
+			Project: "api", User: "dev", Timezone: "Africa/Tunis", Source: release, ClaudeVersion: "2.1.273",
 			AllowedDomains: []string{"registry.npmjs.org", "PROXY.golang.org.", "github.com", "sum.golang.org"},
 		}},
 	}
@@ -166,6 +173,20 @@ func TestRenderGolden(t *testing.T) {
 			if strings.Contains(string(files[FileJSON]), "docker.sock") || strings.Contains(string(files[FileDockerfile]), "docker.sock") {
 				t.Fatal("the docker socket must never be mounted")
 			}
+			// The image installs lyna-tmux exactly one way: the staged copy
+			// or the release download, never both and never a floating
+			// "latest" that only exists once a release is published.
+			dockerfile := string(files[FileDockerfile])
+			hasCopy, hasRelease := strings.Contains(dockerfile, stagedLine), strings.Contains(dockerfile, installScript)
+			if hasCopy == hasRelease {
+				t.Fatalf("Dockerfile copies a binary = %v and downloads a release = %v:\n%s", hasCopy, hasRelease, dockerfile)
+			}
+			if hasRelease && !strings.Contains(dockerfile, "--version "+tc.opts.Source.Version) {
+				t.Fatalf("release install is not pinned to %s:\n%s", tc.opts.Source.Version, dockerfile)
+			}
+			if strings.Contains(dockerfile, "/main/scripts/install.sh") {
+				t.Fatalf("installer fetched from an unpinned branch:\n%s", dockerfile)
+			}
 		})
 	}
 }
@@ -173,7 +194,7 @@ func TestRenderGolden(t *testing.T) {
 // TestRenderedFirewallIsTheTemplate pins that the script shipped in the
 // image is byte for byte the one the firewall tests execute.
 func TestRenderedFirewallIsTheTemplate(t *testing.T) {
-	files, err := Render(Options{Project: "p"})
+	files, err := Render(Options{Project: "p", Source: release})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +212,7 @@ func TestRenderedFirewallIsTheTemplate(t *testing.T) {
 // the workspace mount point. Without either one a lyna-tmux dev container
 // would be refused the relaxations it is entitled to.
 func TestRenderedImageCarriesTheIsolationMarker(t *testing.T) {
-	files, err := Render(Options{Project: "p"})
+	files, err := Render(Options{Project: "p", Source: release})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +243,7 @@ func TestFirewallScriptPayload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	files, err := Render(Options{Project: "p"})
+	files, err := Render(Options{Project: "p", Source: release})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -302,7 +323,7 @@ func TestVerify(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
-			files, err := Render(Options{Project: "api"})
+			files, err := Render(Options{Project: "api", Source: release})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -356,16 +377,21 @@ func TestRenderRejects(t *testing.T) {
 		opts    Options
 		wantErr string
 	}{
-		{"missing project", Options{}, "invalid project name"},
-		{"root user", Options{Project: "p", User: "root"}, "invalid user"},
-		{"user injection", Options{Project: "p", User: "a\nRUN curl evil"}, "invalid user"},
-		{"timezone injection", Options{Project: "p", Timezone: "UTC\nRUN id"}, "invalid timezone"},
-		{"timezone traversal", Options{Project: "p", Timezone: "../../etc/passwd"}, "invalid timezone"},
-		{"version without v", Options{Project: "p", Version: "1.2.3"}, "invalid lyna-tmux version"},
-		{"version injection", Options{Project: "p", Version: "v1.2.3 && id"}, "invalid lyna-tmux version"},
-		{"claude channel", Options{Project: "p", ClaudeVersion: "nightly"}, "invalid Claude Code version"},
-		{"claude injection", Options{Project: "p", ClaudeVersion: "latest; id"}, "invalid Claude Code version"},
-		{"bad domain", Options{Project: "p", AllowedDomains: []string{"good.com", "*.bad.com"}}, "wildcard"},
+		{"missing project", Options{Source: release}, "invalid project name"},
+		{"root user", Options{Project: "p", User: "root", Source: release}, "invalid user"},
+		{"user injection", Options{Project: "p", User: "a\nRUN curl evil", Source: release}, "invalid user"},
+		{"timezone injection", Options{Project: "p", Timezone: "UTC\nRUN id", Source: release}, "invalid timezone"},
+		{"timezone traversal", Options{Project: "p", Timezone: "../../etc/passwd", Source: release}, "invalid timezone"},
+		{"no source", Options{Project: "p"}, ErrNoSource.Error()},
+		{"two sources", Options{Project: "p", Source: Source{Version: "v1.2.3", BinarySHA256: staged.BinarySHA256}}, ErrSourceConflict.Error()},
+		{"version without v", Options{Project: "p", Source: Source{Version: "1.2.3"}}, "invalid lyna-tmux version"},
+		{"version injection", Options{Project: "p", Source: Source{Version: "v1.2.3 && id"}}, "invalid lyna-tmux version"},
+		{"short digest", Options{Project: "p", Source: Source{BinarySHA256: "abc"}}, "invalid binary digest"},
+		{"digest injection", Options{Project: "p", Source: Source{BinarySHA256: strings.Repeat("a", 63) + "'"}}, "invalid binary digest"},
+		{"upper-case digest", Options{Project: "p", Source: Source{BinarySHA256: strings.Repeat("AB", 32)}}, "invalid binary digest"},
+		{"claude channel", Options{Project: "p", Source: release, ClaudeVersion: "nightly"}, "invalid Claude Code version"},
+		{"claude injection", Options{Project: "p", Source: release, ClaudeVersion: "latest; id"}, "invalid Claude Code version"},
+		{"bad domain", Options{Project: "p", Source: release, AllowedDomains: []string{"good.com", "*.bad.com"}}, "wildcard"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -378,7 +404,7 @@ func TestRenderRejects(t *testing.T) {
 }
 
 func TestRenderDeduplicatesDomains(t *testing.T) {
-	files, err := Render(Options{Project: "p", AllowedDomains: []string{"API.anthropic.com", "example.dev", "example.dev."}})
+	files, err := Render(Options{Project: "p", Source: release, AllowedDomains: []string{"API.anthropic.com", "example.dev", "example.dev."}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -404,6 +430,7 @@ func TestWrite(t *testing.T) {
 	files := map[string][]byte{
 		FileJSON:     []byte("{}\n"),
 		FileFirewall: []byte("#!/usr/bin/env bash\n"),
+		FileBinary:   []byte("\x7fELF"),
 	}
 	cases := []struct {
 		name    string
@@ -523,7 +550,7 @@ func TestWrite(t *testing.T) {
 					t.Fatal(err)
 				}
 				wantMode := fs.FileMode(0o644)
-				if strings.HasSuffix(name, ".sh") {
+				if strings.HasSuffix(name, ".sh") || name == FileBinary {
 					wantMode = 0o755
 				}
 				if info.Mode().Perm() != wantMode {

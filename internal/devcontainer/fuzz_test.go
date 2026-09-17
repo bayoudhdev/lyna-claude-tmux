@@ -2,6 +2,7 @@ package devcontainer
 
 import (
 	"bytes"
+	"debug/elf"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,7 +40,7 @@ func FuzzProjectName(f *testing.F) {
 // FuzzVerify checks the rule the build rests on: a project passes only when
 // its file holds the rendered bytes, whatever else the content looks like.
 func FuzzVerify(f *testing.F) {
-	files, err := Render(Options{Project: "api"})
+	files, err := Render(Options{Project: "api", Source: release})
 	if err != nil {
 		f.Fatal(err)
 	}
@@ -61,6 +62,49 @@ func FuzzVerify(f *testing.F) {
 	})
 }
 
+// FuzzValidateBinary checks that the ELF check never panics on arbitrary
+// bytes and accepts nothing that does not start with the ELF magic.
+func FuzzValidateBinary(f *testing.F) {
+	for _, seed := range [][]byte{linuxBinary("amd64"), linuxBinary("arm64"), linuxBinary("386"), []byte("MZ"), nil, []byte("\x7fELF")} {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, data []byte) {
+		for goarch := range elfTargets {
+			if err := ValidateBinary(data, goarch); err == nil && !bytes.HasPrefix(data, []byte(elf.ELFMAG)) {
+				t.Fatalf("accepted %q for %s", data[:min(8, len(data))], goarch)
+			}
+		}
+	})
+}
+
+// FuzzDetectSource checks that whatever a Dockerfile holds, the source read
+// back is a valid release version or an error: the parser never hands Render
+// a version the pattern refuses, and never panics.
+func FuzzDetectSource(f *testing.F) {
+	files, err := Render(Options{Project: "api", Source: release})
+	if err != nil {
+		f.Fatal(err)
+	}
+	for _, seed := range []string{string(files[FileDockerfile]), "", stagedLine, installScript + " --prefix /usr/local/bin --version v1.2.3\n", installScript + " --prefix /usr/local/bin --version ../x\n"} {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, content string) {
+		dir := t.TempDir()
+		writeFile(t, dir, FileDockerfile, content)
+		src, err := DetectSource(dir)
+		switch {
+		case err != nil:
+			if src != (Source{}) {
+				t.Fatalf("source %+v returned with error %v", src, err)
+			}
+		case src.BinarySHA256 != "":
+			t.Fatalf("a staged source without a binary on disk: %+v", src)
+		case !versionPattern().MatchString(src.Version):
+			t.Fatalf("version %q read from the Dockerfile", src.Version)
+		}
+	})
+}
+
 // FuzzRender checks that an accepted domain can only appear as its own line of
 // the allowlist, and that rendering never panics.
 func FuzzRender(f *testing.F) {
@@ -68,7 +112,7 @@ func FuzzRender(f *testing.F) {
 		f.Add(seed)
 	}
 	f.Fuzz(func(t *testing.T, domain string) {
-		files, err := Render(Options{Project: "api", AllowedDomains: []string{domain}})
+		files, err := Render(Options{Project: "api", Source: release, AllowedDomains: []string{domain}})
 		if err != nil {
 			return
 		}
