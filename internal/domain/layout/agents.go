@@ -55,6 +55,39 @@ func TeamLeadShare(width int) int {
 	return min(max(100-rail, MinRailShare), 100-MinRailShare)
 }
 
+// WithRail puts the agents rail in front of a plan: the rail becomes the
+// window and the first pane of the plan splits it, so the rail is the leftmost
+// pane and the one main-vertical then keeps a column of its own for.
+//
+// A plan that already carries a rail is returned unchanged, and so is one with
+// no room left for a pane: the rail is worth a pane of its own, never the pane
+// of something else.
+func WithRail(p Plan, width int) Plan {
+	if len(p.Panes) == 0 || len(p.Panes) >= MaxPanes {
+		return p
+	}
+	for _, pane := range p.Panes {
+		if pane.Role == RoleAgents {
+			return p
+		}
+	}
+	panes := make([]Pane, 0, len(p.Panes)+1)
+	panes = append(panes, Pane{Role: RoleAgents})
+	for i, pane := range p.Panes {
+		if i == 0 {
+			// The pane that was the window becomes the split of the rail, with
+			// what the rail leaves of the width.
+			pane.Split, pane.Size, pane.Parent = SplitRight, TeamLeadShare(width), 0
+		} else {
+			pane.Parent++
+		}
+		panes = append(panes, pane)
+	}
+	p.Panes = panes
+	p.Focus++
+	return p
+}
+
 // AgentWindow is the window a teammate has just been opened in, described as
 // it is once that pane exists.
 type AgentWindow struct {

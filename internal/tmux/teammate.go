@@ -127,3 +127,31 @@ func BreakOutTeammate(pane, window, name, remembered string) Seq {
 // single-quoted token, where the characters a session id is made of carry no
 // meaning.
 var AgentsSignal = "wait-for -S '" + AgentsChannel("#{session_id}") + "'"
+
+// OpenRail returns the command that opens the agents rail of a window beside
+// anchor, the window's leftmost pane, and prints the id of the pane it made.
+//
+// The rail does not take the cursor with it (-d): it opens by itself while the
+// user is typing in a pane of their own. Its width is a number of cells given
+// at the split, since the rail holds a fixed set of columns rather than a
+// share of a window. An anchor that is not a pane id returns nothing.
+func OpenRail(anchor string, proc PaneProcess) Command {
+	if !ValidPaneID(anchor) {
+		return nil
+	}
+	return append(Command{
+		"split-window", "-b", "-h", "-d", "-P", "-F", "#{pane_id}",
+		"-l", strconv.Itoa(layout.RailWidth), "-t", anchor,
+	}, proc.args()...)
+}
+
+// AdoptRail returns the commands that make a pane the agents rail: the role
+// the views, the tiling and the toggle read it by. The pane keeps tmux's own
+// behavior when its program exits, which is how a rail that opened by itself
+// takes itself off the screen again.
+func AdoptRail(pane string) Seq {
+	if !ValidPaneID(pane) {
+		return nil
+	}
+	return Cmd("set-option", "-p", "-t", pane, OptRole, RoleAgents)
+}

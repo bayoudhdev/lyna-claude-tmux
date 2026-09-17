@@ -1,6 +1,7 @@
 package layout_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/layout"
@@ -177,5 +178,115 @@ func TestTeamLeadShare(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestWithRail checks the rail joins a plan as its own pane, in front of every
+// other one, and that the plan it makes is one a window can be built from.
+func TestWithRail(t *testing.T) {
+	trio, err := layout.Builtin(layout.Trio, layout.Options{Width: 240, Height: 60})
+	if err != nil {
+		t.Fatal(err)
+	}
+	full := layout.Plan{Name: "full", Panes: make([]layout.Pane, layout.MaxPanes)}
+	for i := range full.Panes {
+		full.Panes[i] = layout.Pane{Role: layout.RoleClaude, Split: layout.SplitDown, Size: 50, Parent: max(i-1, 0)}
+	}
+	full.Panes[0] = layout.Pane{Role: layout.RoleClaude}
+	cases := []struct {
+		name    string
+		plan    layout.Plan
+		width   int
+		want    []layout.Role
+		parents []int
+		focus   int
+	}{
+		{
+			name:    "a plan of one pane",
+			plan:    layout.Plan{Name: "solo", Panes: []layout.Pane{{Role: layout.RoleClaude}}},
+			width:   200,
+			want:    []layout.Role{layout.RoleAgents, layout.RoleClaude},
+			parents: []int{0, 0},
+			focus:   1,
+		},
+		{
+			name:    "every later pane keeps the pane it splits",
+			plan:    trio,
+			width:   240,
+			want:    []layout.Role{layout.RoleAgents, layout.RoleClaude, layout.RoleShell, layout.RoleChanges},
+			parents: []int{0, 0, 1, 2},
+			focus:   1,
+		},
+		{
+			name:    "a plan that carries the rail already",
+			plan:    layout.Plan{Name: "team", Panes: []layout.Pane{{Role: layout.RoleAgents}, {Role: layout.RoleClaude, Split: layout.SplitRight, Size: 80}}, Focus: 1},
+			width:   240,
+			want:    []layout.Role{layout.RoleAgents, layout.RoleClaude},
+			parents: []int{0, 0},
+			focus:   1,
+		},
+		{
+			name:    "a plan with no room for another pane",
+			plan:    full,
+			width:   240,
+			want:    slices.Repeat([]layout.Role{layout.RoleClaude}, layout.MaxPanes),
+			parents: []int{0, 0, 1, 2, 3, 4, 5, 6, 7},
+			focus:   0,
+		},
+		{
+			name:    "a plan with no pane at all",
+			plan:    layout.Plan{Name: "none"},
+			width:   240,
+			want:    nil,
+			parents: nil,
+			focus:   0,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := layout.WithRail(tc.plan, tc.width)
+			roles := make([]layout.Role, len(got.Panes))
+			parents := make([]int, len(got.Panes))
+			for i, pane := range got.Panes {
+				roles[i], parents[i] = pane.Role, pane.Parent
+			}
+			if !slices.Equal(roles, tc.want) {
+				t.Fatalf("roles %v, want %v", roles, tc.want)
+			}
+			if !slices.Equal(parents, tc.parents) {
+				t.Fatalf("parents %v, want %v", parents, tc.parents)
+			}
+			if got.Focus != tc.focus {
+				t.Fatalf("focus %d, want %d", got.Focus, tc.focus)
+			}
+			if len(got.Panes) > 0 {
+				if err := got.Validate(); err != nil {
+					t.Fatalf("the plan cannot be built: %v", err)
+				}
+			}
+			if len(got.Panes) > len(tc.plan.Panes) {
+				if share := got.Panes[1].Size; share != layout.TeamLeadShare(tc.width) {
+					t.Fatalf("the pane beside the rail takes %d%%, want %d%%", share, layout.TeamLeadShare(tc.width))
+				}
+				if got.Panes[1].Split != layout.SplitRight {
+					t.Fatalf("the rail is split %q, want right", got.Panes[1].Split)
+				}
+			}
+		})
+	}
+}
+
+// TestWithRailKeepsItsInput guards the plan the caller passed: a plan is a
+// value, and the one that goes in is still the one it was after a rail was
+// made from it.
+func TestWithRailKeepsItsInput(t *testing.T) {
+	in := layout.Plan{Name: "duo", Panes: []layout.Pane{
+		{Role: layout.RoleClaude},
+		{Role: layout.RoleShell, Split: layout.SplitRight, Size: 38, Parent: 0},
+	}}
+	before := slices.Clone(in.Panes)
+	layout.WithRail(in, 200)
+	if !slices.Equal(in.Panes, before) || in.Focus != 0 {
+		t.Fatalf("the plan was modified: %+v, want %+v", in.Panes, before)
 	}
 }

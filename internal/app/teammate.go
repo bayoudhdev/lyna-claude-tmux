@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/config"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/layout"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/session"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/team"
@@ -38,6 +39,9 @@ type TeammateRequest struct {
 	// AgentPanes is workspace.agent_panes: how many teammates share the lead's
 	// window before the next one opens as a window of its own.
 	AgentPanes int
+	// Sidebar is ui.agents_sidebar: whether a workspace opens the agents rail
+	// by itself when the first agent arrives in it.
+	Sidebar string
 	// LogPath is the diagnostic log; empty logs nothing.
 	LogPath string
 	// Now timestamps log lines; nil uses the clock.
@@ -148,6 +152,7 @@ func adoptTeammatePane(ctx context.Context, h Host, req TeammateRequest) (teamma
 	place := teammatePlace{
 		pane: pane, window: fields[2], remembered: fields[5], agent: spawn.Name,
 		size: layout.AgentWindow{Width: cells(fields[3]), Height: cells(fields[4]), Max: req.AgentPanes},
+		rail: railProcess(h.Exe, req.Sidebar),
 	}
 	if err := placeTeammatePane(ctx, client, place); err != nil {
 		hook.Log(req.LogPath, req.now(), "teammate", "the pane stays where Claude Code opened it: %v", err)
@@ -163,6 +168,21 @@ type teammatePlace struct {
 	pane, window, remembered, agent string
 	// size is the window as the policy reads it, with its panes still to count.
 	size layout.AgentWindow
+	// rail is the agents rail to open in the window when it carries none, or
+	// the zero process when the workspace opens none by itself.
+	rail tmux.PaneProcess
+}
+
+// railProcess is the rail a workspace opens by itself when the first agent
+// arrives in it, or the zero process when its configuration opens none. Such a
+// rail takes itself off the screen again once the agents it opened for are
+// gone, which is what makes the mode a mode rather than a pane left to close
+// by hand.
+func railProcess(exe, sidebar string) tmux.PaneProcess {
+	if sidebar != config.SidebarAuto || exe == "" {
+		return tmux.PaneProcess{}
+	}
+	return tmux.PaneProcess{Argv: []string{exe, "agents", "--rail", "--auto"}}
 }
 
 // placeTeammatePane applies the pane policy: the teammate keeps its place
@@ -174,10 +194,15 @@ func placeTeammatePane(ctx context.Context, client *tmux.Client, p teammatePlace
 	if err != nil {
 		return err
 	}
-	lead, rail, w := "", "", p.size
+	lead, rail, anchor, w := "", "", "", p.size
 	for _, pane := range panes {
 		if pane.WindowID != p.window {
 			continue
+		}
+		if anchor == "" {
+			// tmux numbers the panes of a window by where they are on the
+			// screen, so the first one is the one a rail opens to the left of.
+			anchor = pane.ID
 		}
 		switch pane.Role {
 		case tmux.RoleTeammate:
@@ -201,12 +226,40 @@ func placeTeammatePane(ctx context.Context, client *tmux.Client, p teammatePlace
 			w.Others++
 		}
 	}
+	// The rail opens with the first agent of a workspace that asks for one,
+	// wherever that agent then goes: a rail that cannot be opened is a rail the
+	// window has none of, never a teammate that failed to be placed.
+	var railErr error
+	if rail == "" && len(p.rail.Argv) > 0 {
+		if rail, railErr = openRail(ctx, client, anchor, p.rail); rail != "" {
+			w.Rail = layout.RailWidth
+		}
+	}
 	if layout.PlaceAgent(w) == layout.PlaceHere {
 		_, err = client.Batch(ctx, tmux.TileAgents(p.window, lead, rail)...)
-		return err
+		return errors.Join(railErr, err)
 	}
 	_, err = client.Batch(ctx, tmux.BreakOutTeammate(p.pane, p.window, p.agent, p.remembered)...)
-	return err
+	return errors.Join(railErr, err)
+}
+
+// openRail opens the agents rail of a window beside its leftmost pane and
+// makes it a pane of ours. It returns the rail, which is empty when none was
+// opened.
+func openRail(ctx context.Context, client *tmux.Client, anchor string, proc tmux.PaneProcess) (string, error) {
+	cmd := tmux.OpenRail(anchor, proc)
+	if len(cmd) == 0 {
+		return "", fmt.Errorf("no pane to open the agents rail beside (%q)", sanitize.Line(anchor))
+	}
+	out, err := client.Run(ctx, cmd[0], cmd[1:]...)
+	if err != nil {
+		return "", fmt.Errorf("open the agents rail: %w", err)
+	}
+	pane := strings.TrimSpace(out)
+	if _, err := client.Batch(ctx, tmux.AdoptRail(pane)...); err != nil {
+		return pane, fmt.Errorf("label the agents rail: %w", err)
+	}
+	return pane, nil
 }
 
 func (req TeammateRequest) tmux(h Host, socket tmux.Socket) *tmux.Client {

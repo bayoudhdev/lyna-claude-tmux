@@ -1,6 +1,7 @@
 package tmux_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -147,6 +148,58 @@ func TestBreakOutTeammate(t *testing.T) {
 			got := tmux.BreakOutTeammate(tc.pane, tc.window, tc.agent, tc.remembered).String()
 			if got != tc.want {
 				t.Fatalf("BreakOutTeammate:\n got %s\nwant %s", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestOpenRail(t *testing.T) {
+	proc := tmux.PaneProcess{Argv: []string{"/opt/lmux", "agents", "--rail", "--auto"}}
+	cases := []struct {
+		name, anchor string
+		proc         tmux.PaneProcess
+		want         tmux.Command
+	}{
+		{
+			name: "beside the leftmost pane of a window", anchor: "%4", proc: proc,
+			want: tmux.Command{
+				"split-window", "-b", "-h", "-d", "-P", "-F", "#{pane_id}", "-l", "28", "-t", "%4",
+				"--", "/opt/lmux", "agents", "--rail", "--auto",
+			},
+		},
+		{
+			name: "a rail given the environment of its pane", anchor: "%4",
+			proc: tmux.PaneProcess{Argv: []string{"/opt/lmux", "agents", "--rail"}, Env: []string{"LYNA_TMUX_SESSION=api"}},
+			want: tmux.Command{
+				"split-window", "-b", "-h", "-d", "-P", "-F", "#{pane_id}", "-l", "28", "-t", "%4",
+				"-e", "LYNA_TMUX_SESSION=api", "--", "/opt/lmux", "agents", "--rail",
+			},
+		},
+		{name: "a pane named instead of identified", anchor: "{left}", proc: proc},
+		{name: "no pane at all", proc: proc},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tmux.OpenRail(tc.anchor, tc.proc)
+			if !slices.Equal(got, tc.want) {
+				t.Fatalf("OpenRail:\n got %q\nwant %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestAdoptRail(t *testing.T) {
+	cases := []struct {
+		name, pane, want string
+	}{
+		{name: "a pane of ours", pane: "%7", want: "set-option -p -t %7 @lt_role agents"},
+		{name: "a pane named instead of identified", pane: "{top-left}"},
+		{name: "no pane at all"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tmux.AdoptRail(tc.pane).String(); got != tc.want {
+				t.Fatalf("AdoptRail = %q, want %q", got, tc.want)
 			}
 		})
 	}

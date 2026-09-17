@@ -168,10 +168,7 @@ func Builtin(name string, o Options) (Plan, error) {
 		// The rail is the window, and the lead splits it: the rail is then the
 		// leftmost pane of the window, which is the one the agent area is
 		// tiled beside rather than over.
-		p = Plan{Panes: []Pane{
-			{Role: RoleAgents},
-			{Role: RoleClaude, Split: SplitRight, Size: TeamLeadShare(o.Width), Parent: 0},
-		}, Focus: 1}
+		p = WithRail(Plan{Panes: []Pane{{Role: RoleClaude}}}, o.Width)
 	default:
 		return Plan{}, fmt.Errorf("%w %q", ErrUnknown, name)
 	}

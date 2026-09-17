@@ -404,6 +404,33 @@ func TestCreateWorkspaceRequests(t *testing.T) {
 			},
 		},
 		{
+			// The rail is asked for by the configuration, so the layout the
+			// user chose is the layout they get, with the rail in front of it.
+			name: "a workspace that always carries the rail", wantName: "rails", wantRoles: []string{"agents", "claude", "shell"},
+			req: CreateRequest{Dir: other, Name: "rails", Layout: layout.Duo, Width: 240, Height: 60},
+			setup: func(t *testing.T) {
+				t.Helper()
+				s.Config.UI.AgentsSidebar = config.SidebarAlways
+				t.Cleanup(func() { s.Config.UI.AgentsSidebar = config.SidebarAuto })
+			},
+			check: func(t *testing.T, _ CreateResult) {
+				t.Helper()
+				panes, err := s.Client.ListPanes(tmuxtest.Context(t), tmux.ExactSession("rails"))
+				if err != nil || len(panes) != 3 {
+					t.Fatalf("panes %+v, %v", panes, err)
+				}
+				if panes[0].Width != layout.RailWidth {
+					t.Fatalf("the rail is %d cells wide, want %d", panes[0].Width, layout.RailWidth)
+				}
+				// The workspace it follows is named on the command line: a rail
+				// opened with the window is not one that closes with the agents.
+				calls := e.exeCalls(t, 2)
+				if want := "agents|--rail|--session|rails|"; calls[len(calls)-1] != want {
+					t.Fatalf("the rail ran %q, want %q", calls[len(calls)-1], want)
+				}
+			},
+		},
+		{
 			name: "custom layout with a command pane", wantName: "tests", wantRoles: []string{"claude", "command"},
 			req: CreateRequest{Dir: other, Name: "tests", Layout: "tests"},
 			setup: func(t *testing.T) {

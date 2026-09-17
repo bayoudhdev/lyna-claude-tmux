@@ -43,17 +43,21 @@ func teammateCommand(d Deps) *cobra.Command {
 				// the teammate still has to start.
 				return d.Exec(claudePath, append([]string{claudePath}, rest...), os.Environ())
 			}
+			defaults := config.Default()
 			req := app.TeammateRequest{
 				ClaudePath: claudePath, Args: rest, Now: d.Now,
-				AgentPanes: config.Default().Workspace.AgentPanes,
+				AgentPanes: defaults.Workspace.AgentPanes,
+				Sidebar:    defaults.UI.AgentsSidebar,
 			}
 			// The configuration decides how many teammates share the lead's
-			// window. One that cannot be read leaves the default in place:
-			// a teammate is started here, not a workspace.
+			// window and whether the workspace opens the agents rail with the
+			// first of them. One that cannot be read leaves the defaults in
+			// place: a teammate is started here, not a workspace.
 			if paths, err := xdg.Resolve(h.Getenv, h.Home); err == nil {
 				req.LogPath = paths.LogFile()
 				if cfg, _, err := config.Load(paths.ConfigFile()); err == nil {
 					req.AgentPanes = cfg.Workspace.AgentPanes
+					req.Sidebar = cfg.UI.AgentsSidebar
 				}
 			}
 			run, err := app.Teammate(cmd.Context(), h, req)

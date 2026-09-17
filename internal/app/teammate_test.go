@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/config"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/layout"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/session"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/testutil/tmuxtest"
@@ -445,6 +446,150 @@ func TestWithEnv(t *testing.T) {
 			got := withEnv(tc.environ, tc.assignments...)
 			if !slices.Equal(got, tc.want) {
 				t.Fatalf("withEnv:\n got %q\nwant %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// writeExeStub puts a program at the host's own path that stays running, so a
+// pane the launcher opens for the rail is a pane that lives long enough to be
+// read back.
+func writeExeStub(t *testing.T, h *testHost) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(h.Exe), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(h.Exe, []byte("#!/bin/sh\nexec sleep 3600\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// railPanes returns the agents rails of a window.
+func railPanes(t *testing.T, s *Server, window string) []tmux.Pane {
+	t.Helper()
+	panes, err := s.Client.ListPanes(tmuxtest.Context(t), window)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rails []tmux.Pane
+	for _, p := range panes {
+		if p.WindowID == window && p.Role == tmux.RoleAgents {
+			rails = append(rails, p)
+		}
+	}
+	return rails
+}
+
+// TestTeammateOpensTheRail drives the auto mode on a real server: the first
+// teammate of a workspace that asks for the rail opens it beside the leftmost
+// pane of the window, a window that carries one already is given no second
+// one, and every other mode leaves the window as it was.
+func TestTeammateOpensTheRail(t *testing.T) {
+	cases := []struct {
+		name, sidebar string
+		// existing carries a rail into the window before the teammate arrives.
+		existing bool
+		// wantOpened expects a rail opened by the launcher itself.
+		wantOpened bool
+		wantRails  int
+	}{
+		{name: "auto opens it with the first teammate", sidebar: config.SidebarAuto, wantOpened: true, wantRails: 1},
+		{name: "a window that carries one keeps the one it has", sidebar: config.SidebarAuto, existing: true, wantRails: 1},
+		{name: "the key mode waits to be asked", sidebar: config.SidebarKey},
+		{name: "off opens none", sidebar: config.SidebarOff},
+		{name: "always is opened with the workspace, not here", sidebar: config.SidebarAlways},
+		{name: "a workspace with no configuration read opens none"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := tmuxtest.Context(t)
+			h := newTestHost(t)
+			writeExeStub(t, h)
+			s := openServer(t, h)
+			scene := openTeammateScene(t, h, s, 240, 60)
+			existing := ""
+			if tc.existing {
+				out, err := s.Client.Run(ctx, "split-window", "-b", "-h", "-d", "-t", scene.lead,
+					"-l", strconv.Itoa(layout.RailWidth), "-P", "-F", "#{pane_id}", "sleep 3600")
+				if err != nil {
+					t.Fatal(err)
+				}
+				existing = strings.TrimSpace(out)
+				if _, err := s.Client.Run(ctx, "set-option", "-p", "-t", existing, tmux.OptRole, tmux.RoleAgents); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			if _, err := Teammate(ctx, h.Host, TeammateRequest{
+				ClaudePath: "/bin/sh", Args: spawnArgs, AgentPanes: 3, Sidebar: tc.sidebar,
+			}); err != nil {
+				t.Fatalf("Teammate: %v", err)
+			}
+
+			rails := railPanes(t, s, scene.window)
+			if len(rails) != tc.wantRails {
+				t.Fatalf("the window carries %d rails, want %d", len(rails), tc.wantRails)
+			}
+			if tc.wantRails == 0 {
+				return
+			}
+			rail := rails[0]
+			if tc.existing {
+				if rail.ID != existing {
+					t.Fatalf("the rail is %s, want the one the window had (%s)", rail.ID, existing)
+				}
+				return
+			}
+			if !tc.wantOpened {
+				t.Fatalf("a rail was opened for a workspace that asks for none: %+v", rail)
+			}
+			// tmux numbers the panes of a window by where they are on the
+			// screen, so the rail being the first of them is the rail being the
+			// leftmost column.
+			panes, err := s.Client.ListPanes(ctx, scene.window)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(panes) == 0 || panes[0].ID != rail.ID {
+				t.Fatalf("the window reads %+v, want the rail first", panes)
+			}
+			if rail.Width != layout.RailWidth {
+				t.Fatalf("the rail is %d cells wide, want %d", rail.Width, layout.RailWidth)
+			}
+			if rail.Active {
+				t.Fatal("the rail took the cursor with it")
+			}
+			started, err := s.Client.Display(ctx, rail.ID, "#{pane_start_command}")
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, want := range []string{h.Exe, "agents", "--rail", "--auto"} {
+				if !strings.Contains(started, want) {
+					t.Fatalf("the rail runs %q, which lacks %q", started, want)
+				}
+			}
+		})
+	}
+}
+
+// TestRailProcess covers what each sidebar mode asks of the launcher.
+func TestRailProcess(t *testing.T) {
+	cases := []struct {
+		name, exe, sidebar string
+		want               []string
+	}{
+		{name: "auto", exe: "/opt/lmux", sidebar: config.SidebarAuto, want: []string{"/opt/lmux", "agents", "--rail", "--auto"}},
+		{name: "always", exe: "/opt/lmux", sidebar: config.SidebarAlways},
+		{name: "key", exe: "/opt/lmux", sidebar: config.SidebarKey},
+		{name: "off", exe: "/opt/lmux", sidebar: config.SidebarOff},
+		{name: "no mode", exe: "/opt/lmux"},
+		{name: "a binary that cannot be named", sidebar: config.SidebarAuto},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := railProcess(tc.exe, tc.sidebar)
+			if !slices.Equal(got.Argv, tc.want) {
+				t.Fatalf("railProcess(%q, %q) = %q, want %q", tc.exe, tc.sidebar, got.Argv, tc.want)
 			}
 		})
 	}
