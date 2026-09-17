@@ -1,27 +1,13 @@
- ◎ agents                 6
+ ◎ agents                 5
 ▾ lead 1
   ◆ api                  0s
-▾ teammates 3
+▸ teammates 3
   ○ build-api            0s
   ⠋ review-api           0s
-  · write-docs           0s
 ▾ subagents 1
   ⠋ security-auditor     0s
 ▾ elsewhere 1
   ⠋ web                  0s
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/team"
@@ -127,7 +128,9 @@ func TestAgentBarReadsItsChannel(t *testing.T) {
 		t.Fatalf("the reading was not drawn:\n%s", plain(next.(viewer)))
 	}
 	close(ch)
-	if _, ok := cmd().(agentBarClosedMsg); !ok {
+	// The rail keeps its animation going beside its readings, so what comes
+	// back is a batch: the reading is the part of it that is not a timer.
+	if !readsAgain(t, cmd) {
 		t.Fatal("a closed channel is not reported as the end of the readings")
 	}
 	// A rail with nothing to wait on waits for nothing.
@@ -503,4 +506,199 @@ func TestAgentBarClosesByItself(t *testing.T) {
 			}
 		})
 	}
+}
+
+// movingClock is a clock the test moves by hand, so an animation is driven
+// frame by frame instead of waited for.
+type movingClock struct{ at time.Time }
+
+func (c *movingClock) now() time.Time { return c.at }
+func (c *movingClock) step(n int)     { c.at = c.at.Add(time.Duration(n) * AgentBarFrame) }
+func newClock() *movingClock          { return &movingClock{at: fixedNow} }
+
+// quietView is a workspace working alone: a lead that is waiting, no team and
+// nothing that moves.
+func quietView() team.View {
+	return team.Build(team.Input{Session: "api", Panes: []team.Pane{
+		{ID: "%1", Session: "api", Window: "@1", Role: team.RoleClaude, State: team.StateWaiting, Active: true},
+	}})
+}
+
+// TestAgentBarSpinnerTurns turns the spinner of a working agent frame by frame
+// and checks the rail asks for the next frame exactly while something moves.
+func TestAgentBarSpinnerTurns(t *testing.T) {
+	clk := newClock()
+	m := newBar(t, AgentBarOptions{Width: 28, Height: 20, Now: clk.now}, barView())
+	for i, want := range []string{spinnerFrames[0], spinnerFrames[1], spinnerFrames[2]} {
+		if got := plain(m); !strings.Contains(got, want) {
+			t.Fatalf("frame %d lacks %q:\n%s", i, want, got)
+		}
+		_, cmd := m.Update(agentBarTickMsg{at: clk.at})
+		if cmd == nil {
+			t.Fatalf("frame %d asked for no next frame while an agent works", i)
+		}
+		clk.step(1)
+	}
+	// A rail with nothing moving draws once and waits: no frame is scheduled,
+	// and none is scheduled twice either.
+	quiet := newBar(t, AgentBarOptions{Width: 28, Height: 20, Now: clk.now}, quietView())
+	if cmd := quiet.tick(); cmd != nil {
+		t.Fatal("a rail with nothing moving asked for a frame")
+	}
+	if _, cmd := m.Update(agentBarTickMsg{at: clk.at}); cmd == nil {
+		t.Fatal("the working rail stopped asking for frames")
+	}
+	if cmd := m.tick(); cmd != nil {
+		t.Fatal("a frame was asked for twice")
+	}
+}
+
+// TestAgentBarDrawsArrivals covers what the rail draws for a row that arrived
+// while it was on screen, and for one that took a new state: the rows the rail
+// opened on are not drawn arriving, since it did not watch them arrive.
+func TestAgentBarDrawsArrivals(t *testing.T) {
+	clk := newClock()
+	m := newBar(t, AgentBarOptions{Width: 28, Height: 30, Now: clk.now}, quietView())
+	if m.moving(m.update.View.Rows[0]) {
+		t.Fatal("the rail plays back the team it opened on")
+	}
+	apply(m, barUpdate(barView(), nil))
+	arrived := rowNamedInView(t, m.update.View, "review-api")
+	for step := range AgentBarSteps {
+		if !m.moving(arrived) {
+			t.Fatalf("step %d: the row that arrived is not moving", step)
+		}
+		if got, want := m.step(m.since[rowKey(arrived)].born), step; got != want {
+			t.Fatalf("arrival step %d, want %d", got, want)
+		}
+		clk.step(1)
+	}
+	if m.moving(arrived) {
+		t.Fatal("the arrival never ends")
+	}
+
+	// The same agent in a new state is drawn changing, once, for as long as the
+	// change is worth noticing.
+	busy := barView()
+	for i := range busy.Rows {
+		if busy.Rows[i].Name == "review-api" {
+			busy.Rows[i].State = team.StateIdle
+		}
+	}
+	apply(m, barUpdate(busy, nil))
+	changed := rowNamedInView(t, m.update.View, "review-api")
+	if m.step(m.since[rowKey(changed)].changed) != 0 {
+		t.Fatal("the state change is not drawn")
+	}
+	clk.step(AgentBarSteps)
+	if m.moving(changed) {
+		t.Fatal("the state change never ends")
+	}
+}
+
+// rowNamedInView finds a row of a view by name.
+func rowNamedInView(t *testing.T, v team.View, name string) team.Row {
+	t.Helper()
+	for _, r := range v.Rows {
+		if r.Name == name {
+			return r
+		}
+	}
+	t.Fatalf("no row named %q", name)
+	return team.Row{}
+}
+
+// TestAgentBarFoldsOverFrames takes a section away a few rows at a time and
+// brings it back the same way.
+func TestAgentBarFoldsOverFrames(t *testing.T) {
+	clk := newClock()
+	m := newBar(t, AgentBarOptions{Width: 28, Height: 30, Now: clk.now}, barView())
+	// The cursor starts on the lead: two lines down is the teammates section,
+	// which holds three agents.
+	apply(m, press("down"), press("down"), press("space"))
+	for _, want := range []int{2, 1, 0, 0} {
+		if got := teammatesDrawn(m); got != want {
+			t.Fatalf("closing: %d teammates drawn, want %d", got, want)
+		}
+		clk.step(1)
+		apply(m, agentBarTickMsg{at: clk.at})
+	}
+	apply(m, press("space"))
+	for _, want := range []int{1, 2, 3, 3} {
+		if got := teammatesDrawn(m); got != want {
+			t.Fatalf("opening: %d teammates drawn, want %d", got, want)
+		}
+		clk.step(1)
+		apply(m, agentBarTickMsg{at: clk.at})
+	}
+	// The heading says what the section holds whatever it is drawing.
+	if !strings.Contains(plain(m), "teammates 3") {
+		t.Fatalf("the heading lost its count:\n%s", plain(m))
+	}
+}
+
+// teammatesDrawn counts the agent rows of the teammates section on screen.
+func teammatesDrawn(m *AgentBarModel) int {
+	n := 0
+	for _, it := range m.items {
+		if !it.header && it.group == team.GroupTeammates {
+			n++
+		}
+	}
+	return n
+}
+
+// TestArrivingStyle pins the colors a row comes up through.
+func TestArrivingStyle(t *testing.T) {
+	s := goldenStyles(t)
+	cases := []struct {
+		name string
+		step int
+		want lipgloss.Style
+	}{
+		{name: "the first frame is barely there", step: 0, want: s.Border},
+		{name: "then it comes up", step: 1, want: s.Muted},
+		{name: "then it is a row like the others", step: 2, want: s.Text},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := arrivingStyle(s, tc.step, s.Text)
+			if got.Render("agent") != tc.want.Render("agent") {
+				t.Fatalf("step %d renders %q, want %q", tc.step, got.Render("agent"), tc.want.Render("agent"))
+			}
+		})
+	}
+}
+
+// TestAgentBarMovingFrames pins what a movement looks like on screen: the rail
+// drawing a team as it arrives, and a section on its way closed.
+func TestAgentBarMovingFrames(t *testing.T) {
+	clk := newClock()
+	arriving := newBar(t, AgentBarOptions{Width: 28, Height: 16, Now: clk.now}, quietView())
+	apply(arriving, barUpdate(barView(), nil))
+	assertFrame(t, "rail-arriving", arriving, 28, 16, true)
+
+	folding := newBar(t, AgentBarOptions{Width: 28, Height: 16, Now: clk.now}, barView())
+	apply(folding, press("down"), press("down"), press("space"))
+	assertFrame(t, "rail-folding", folding, 28, 16, false)
+}
+
+// readsAgain reports whether a command waits on the readings again, through
+// however many commands the rail batched around that one.
+func readsAgain(t *testing.T, cmd tea.Cmd) bool {
+	t.Helper()
+	if cmd == nil || timerCmd(cmd) {
+		return false
+	}
+	msg := cmd()
+	if batch, ok := msg.(tea.BatchMsg); ok {
+		for _, c := range batch {
+			if readsAgain(t, c) {
+				return true
+			}
+		}
+		return false
+	}
+	_, ok := msg.(agentBarClosedMsg)
+	return ok
 }

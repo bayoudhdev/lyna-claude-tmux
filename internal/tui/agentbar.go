@@ -62,6 +62,29 @@ type AgentBarOptions struct {
 type (
 	agentBarUpdateMsg struct{ update AgentBarUpdate }
 	agentBarClosedMsg struct{}
+	// agentBarTickMsg is one animation frame. It is scheduled only while
+	// something on the rail is moving, so a rail with nothing to show draws
+	// once and then waits.
+	agentBarTickMsg struct{ at time.Time }
+)
+
+// The animation budget of the rail.
+const (
+	// AgentBarFrame is how long one animation frame lasts.
+	AgentBarFrame = 80 * time.Millisecond
+	// AgentBarSteps is how many frames an arrival, a state change and a section
+	// opening or closing take.
+	AgentBarSteps = 3
+	// AgentBarMove is how long each of those takes: long enough to be seen,
+	// short enough that the rail is never behind the agents it draws.
+	AgentBarMove = AgentBarSteps * AgentBarFrame
+)
+
+// spinnerFrames are the frames a working agent turns through, and
+// asciiSpinner the same for a terminal without the braille block.
+var (
+	spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+	asciiSpinner  = []string{"-", "\\", "|", "/"}
 )
 
 // AgentBarNoteMsg is one line for the footer of the rail: what an action the
@@ -77,6 +100,9 @@ type barItem struct {
 	group  team.Group
 	header bool
 	row    team.Row
+	// count is how many agents a heading stands for, which is not how many are
+	// drawn under it while the section is opening or closing.
+	count int
 }
 
 // agentBarKeys are the keys of the rail beyond the movement it shares with
@@ -111,12 +137,29 @@ type AgentBarModel struct {
 	// since remembers when a row was first seen in the state it is in, so the
 	// age a row shows is the age of what it is doing.
 	since map[string]stateSince
+	// frame counts the animation frames drawn, ticking says a frame is already
+	// scheduled, and folds holds the sections that are opening or closing.
+	frame   int
+	ticking bool
+	folds   map[team.Group]foldAnim
 }
 
 // stateSince is a state and the first time the rail saw a row in it.
+//
+// born and changed are what the rail draws a movement from: born is when a row
+// arrived, changed when it last took a new state, and both are zero for the
+// rows of the first reading, which the rail did not watch arrive.
 type stateSince struct {
-	state string
-	at    time.Time
+	state   string
+	at      time.Time
+	born    time.Time
+	changed time.Time
+}
+
+// foldAnim is a section opening or closing, and when it started.
+type foldAnim struct {
+	at      time.Time
+	opening bool
 }
 
 // NewAgentBar builds the rail.
@@ -130,6 +173,7 @@ func NewAgentBar(opts AgentBarOptions) *AgentBarModel {
 		height: h,
 		folded: map[team.Group]bool{},
 		since:  map[string]stateSince{},
+		folds:  map[team.Group]foldAnim{},
 		filter: lineInput{limit: 64},
 		keys: agentBarKeys{
 			Focus:  key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "focus")),
@@ -161,27 +205,94 @@ func (m *AgentBarModel) wait() tea.Cmd {
 	}
 }
 
-// Update handles messages.
+// Update handles messages, and keeps the animation going while there is
+// something to animate.
 func (m *AgentBarModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	cmd := m.handle(msg)
+	return m, tea.Batch(cmd, m.tick())
+}
+
+// tick schedules the next animation frame, or nothing at all when the rail is
+// still: an idle rail costs no redraw, and a frame is never asked for twice.
+func (m *AgentBarModel) tick() tea.Cmd {
+	if m.ticking || !m.animating() {
+		return nil
+	}
+	m.ticking = true
+	return tea.Tick(AgentBarFrame, func(t time.Time) tea.Msg { return agentBarTickMsg{at: t} })
+}
+
+// animating reports whether anything on the rail is moving: an agent at work
+// turns its spinner, a row that just arrived is still arriving, a row that just
+// changed state is still changing, and a section is opening or closing.
+func (m *AgentBarModel) animating() bool {
+	now := m.now()
+	for _, f := range m.folds {
+		if now.Sub(f.at) < AgentBarMove {
+			return true
+		}
+	}
+	for _, it := range m.items {
+		if it.header {
+			continue
+		}
+		if it.row.State == team.StateBusy {
+			return true
+		}
+		if m.moving(it.row) {
+			return true
+		}
+	}
+	return false
+}
+
+// moving reports a row that is still arriving or still changing state.
+func (m *AgentBarModel) moving(r team.Row) bool {
+	return m.step(m.since[rowKey(r)].born) >= 0 || m.step(m.since[rowKey(r)].changed) >= 0
+}
+
+// step is which frame of a movement started at t is drawn, and -1 once the
+// movement is over. A zero time is a movement that never started, which is what
+// the rows the rail was opened on carry: they were there before it drew.
+func (m *AgentBarModel) step(t time.Time) int {
+	if t.IsZero() {
+		return -1
+	}
+	elapsed := m.now().Sub(t)
+	if elapsed < 0 || elapsed >= AgentBarMove {
+		return -1
+	}
+	return int(elapsed / AgentBarFrame)
+}
+
+// handle applies one message.
+func (m *AgentBarModel) handle(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
+	case agentBarTickMsg:
+		m.ticking = false
+		m.frame++
+		// A section that is opening shows another row on every frame.
+		m.rebuild()
+		m.clampList()
+		return nil
 	case tea.WindowSizeMsg:
 		m.width, m.height = max(msg.Width, 1), max(msg.Height, 1)
 		m.clampList()
 	case agentBarUpdateMsg:
 		m.setUpdate(msg.update)
 		if m.leaving() {
-			return m, tea.Quit
+			return tea.Quit
 		}
-		return m, m.wait()
+		return m.wait()
 	case agentBarClosedMsg:
 		m.closed = true
 	case AgentBarNoteMsg:
 		m.note = msg.Text
 	case tea.KeyPressMsg:
 		m.note = ""
-		return m, m.key(msg)
+		return m.key(msg)
 	case tea.MouseClickMsg:
-		return m, m.click(msg)
+		return m.click(msg)
 	case tea.MouseWheelMsg:
 		switch msg.Button {
 		case tea.MouseWheelUp:
@@ -190,7 +301,7 @@ func (m *AgentBarModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.list.move(1, len(m.items), m.bodyHeight())
 		}
 	}
-	return m, nil
+	return nil
 }
 
 // setUpdate takes a new reading: the rows are rebuilt, the ages of the rows
@@ -198,9 +309,10 @@ func (m *AgentBarModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // rather than on the line that agent used to be drawn at.
 func (m *AgentBarModel) setUpdate(u AgentBarUpdate) {
 	selected, hadSelection := m.selected()
+	watched := m.have
 	m.update, m.have = u, true
 	m.arrived = m.arrived || u.View.Count(team.GroupTeammates)+u.View.Count(team.GroupSubagents) > 0
-	m.stampStates(u)
+	m.stampStates(u, watched)
 	m.rebuild()
 	if hadSelection {
 		for i, it := range m.items {
@@ -227,18 +339,32 @@ func (m *AgentBarModel) leaving() bool {
 }
 
 // stampStates keeps, for every row, the time it was first seen in the state it
-// is in now. A row that changed state is stamped again, and rows that are gone
+// is in now, and what the rail has to draw a movement for: a row it watched
+// arrive, and a row it watched take a new state. The rows of the first reading
+// were there before the rail drew anything, so watched is false for them: a
+// rail that opens on a running team opens on it, it does not play it back.
+// A row that changed state is stamped again, and rows that are gone
 // are forgotten, so the map holds the agents of the workspace and no more.
-func (m *AgentBarModel) stampStates(u AgentBarUpdate) {
+func (m *AgentBarModel) stampStates(u AgentBarUpdate, watched bool) {
 	now := m.now()
 	next := make(map[string]stateSince, len(u.View.Rows))
 	for _, r := range u.View.Rows {
 		key := rowKey(r)
-		if was, ok := m.since[key]; ok && was.state == r.State {
+		was, known := m.since[key]
+		switch {
+		case known && was.state == r.State:
 			next[key] = was
-			continue
+		case known:
+			// The same agent in a new state: the age starts again and the row is
+			// drawn changing.
+			next[key] = stateSince{state: r.State, at: now, born: was.born, changed: now}
+		default:
+			born := time.Time{}
+			if watched {
+				born = now
+			}
+			next[key] = stateSince{state: r.State, at: now, born: born}
 		}
-		next[key] = stateSince{state: r.State, at: now}
 	}
 	m.since = next
 }
@@ -263,14 +389,29 @@ func (m *AgentBarModel) rebuild() {
 		if len(rows) == 0 {
 			continue
 		}
-		m.items = append(m.items, barItem{group: g, header: true})
-		if m.folded[g] {
-			continue
-		}
-		for _, r := range rows {
+		m.items = append(m.items, barItem{group: g, header: true, count: len(rows)})
+		for _, r := range rows[:m.shown(g, len(rows))] {
 			m.items = append(m.items, barItem{group: g, row: r})
 		}
 	}
+}
+
+// shown is how many rows of a section are drawn: all of them, none of an open
+// section that was closed, and a share of them while the section is moving, so
+// a fold takes the rows away a few at a time instead of in one jump.
+func (m *AgentBarModel) shown(g team.Group, rows int) int {
+	f, moving := m.folds[g]
+	step := m.step(f.at)
+	if !moving || step < 0 {
+		if m.folded[g] {
+			return 0
+		}
+		return rows
+	}
+	if f.opening {
+		return rows * (step + 1) / AgentBarSteps
+	}
+	return rows * (AgentBarSteps - 1 - step) / AgentBarSteps
 }
 
 // matchRow reports whether a row carries every term of the filter, in its name,
@@ -377,6 +518,7 @@ func (m *AgentBarModel) fold() {
 	}
 	g := m.items[m.list.cursor].group
 	m.folded[g] = !m.folded[g]
+	m.folds[g] = foldAnim{at: m.now(), opening: !m.folded[g]}
 	m.rebuild()
 	// The heading of the section the user folded is where the cursor belongs:
 	// the rows under it are gone.
@@ -499,7 +641,7 @@ func (m *AgentBarModel) body() []string {
 	for i, it := range m.items[m.list.offset:end] {
 		selected := m.list.offset+i == m.list.cursor
 		if it.header {
-			lines = append(lines, m.headingLine(it.group, selected))
+			lines = append(lines, m.headingLine(it, selected))
 			continue
 		}
 		lines = append(lines, m.rowLine(it.row, selected))
@@ -509,8 +651,9 @@ func (m *AgentBarModel) body() []string {
 
 // headingLine draws a section: the fold marker, the name and how many agents
 // it holds.
-func (m *AgentBarModel) headingLine(g team.Group, selected bool) string {
+func (m *AgentBarModel) headingLine(it barItem, selected bool) string {
 	s := m.opts.Styles
+	g := it.group
 	open, shut := "▾", "▸"
 	if s.Theme.Icons.Name == "ascii" {
 		open, shut = "v", ">"
@@ -519,12 +662,9 @@ func (m *AgentBarModel) headingLine(g team.Group, selected bool) string {
 	if m.folded[g] {
 		marker = shut
 	}
-	n := 0
-	for _, it := range m.items {
-		if it.group == g && !it.header {
-			n++
-		}
-	}
+	// What the section holds, which is not what it is drawing while it opens or
+	// closes, and the whole section when a filter is hiding part of it.
+	n := it.count
 	if m.folded[g] {
 		n = m.update.View.Count(g)
 	}
@@ -561,6 +701,15 @@ func (m *AgentBarModel) rowLine(r team.Row, selected bool) string {
 	if r.Active {
 		nameStyle = s.Accent2
 	}
+	// A row the rail watched arrive is drawn coming up through the colors it
+	// settles in, and one that has just taken a new state has that state
+	// picked out for as long as the change is worth noticing.
+	if step := m.step(m.since[rowKey(r)].born); step >= 0 {
+		nameStyle = arrivingStyle(s, step, nameStyle)
+	}
+	if m.step(m.since[rowKey(r)].changed) >= 0 {
+		style = s.Accent
+	}
 	// The marker, the state glyph with a space on each side, a space before
 	// the age and one after it: what is left is the name.
 	width := max(m.width-6-ansi.StringWidth(age), 4)
@@ -573,13 +722,37 @@ func (m *AgentBarModel) rowLine(r team.Row, selected bool) string {
 	return s.line(m.width, bg, segs...)
 }
 
-// state is the style and the glyph of a row's state.
+// arrivingStyle is the color a row that just arrived is drawn in on one frame
+// of its arrival: it comes up out of the border color, through the muted one,
+// into the color it keeps.
+func arrivingStyle(s Styles, step int, settled lipgloss.Style) lipgloss.Style {
+	switch step {
+	case 0:
+		return s.Border
+	case 1:
+		return s.Muted
+	}
+	return settled
+}
+
+// spinner is the frame a working agent turns on now.
+func (m *AgentBarModel) spinner() string {
+	frames := spinnerFrames
+	if m.opts.Styles.Theme.Icons.Name == "ascii" {
+		frames = asciiSpinner
+	}
+	return frames[m.frame%len(frames)]
+}
+
+// state is the style and the glyph of a row's state. An agent at work turns a
+// spinner, which is the one thing on the rail that says a reading is live
+// rather than the last one that arrived.
 func (m *AgentBarModel) state(r team.Row) (lipgloss.Style, string) {
 	s := m.opts.Styles
 	ic := s.Theme.Icons
 	switch r.State {
 	case team.StateBusy:
-		return s.Busy, ic.Busy
+		return s.Busy, m.spinner()
 	case team.StateWaiting:
 		return s.Waiting, ic.Waiting
 	case team.StateIdle:
