@@ -125,7 +125,9 @@ bindings you already know. It closes back into the workspace.
 ![Reviewing the changes in a side-by-side diff](docs/assets/review.gif)
 
 The live changes pane of the `trio` layout keeps the same list in view while the agent works, file
-by file, with the lines added and removed.
+by file, with the lines added and removed. Move through it with the arrows, `j` and `k` or the
+wheel, press Enter or double click a file to review that file alone, and `o` to review the whole
+working tree. Both open over the pane and close back into it.
 
 ![The live changes pane](docs/assets/changes.gif)
 

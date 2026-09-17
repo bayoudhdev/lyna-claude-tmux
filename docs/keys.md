@@ -169,6 +169,31 @@ modal pane scrollbars, so a scrolled pane shows one.
 `claude.fullscreen = true` starts Claude Code with the flicker-free fullscreen renderer,
 which handles the wheel itself.
 
+## Inside the live changes view
+
+The changes view reads the keys itself, in the `changes` pane of a layout as well as in the
+popup, so the pane is a list you move through and not one you can only read the top of.
+
+| Key or click | What happens |
+| --- | --- |
+| `Down`, `j`, `Ctrl+n`, wheel down | Next file |
+| `Up`, `k`, `Ctrl+p`, wheel up | Previous file |
+| `PageDown`, `Ctrl+f`, `PageUp`, `Ctrl+b` | One screen of files |
+| `g`, `Home` and `G`, `End` | First and last file |
+| Click | Select the file under the pointer |
+| `Enter`, double click | Review that file alone |
+| `o` | Review the whole working tree |
+| `q`, `Esc` | Close, in the popup only |
+
+The review opens in a popup over the pane and gives it back when it closes. In a pane of a
+layout `q` and `Esc` do nothing, so a stray key never takes the changes out of the layout;
+`Ctrl+c` closes the view everywhere. The review keys do nothing in the changes popup: tmux
+shows one popup per client, so opening a second would close the first.
+
+The list is redrawn when a file changes, not on a timer: Claude's edits arrive through the
+hook, git and top-level edits through file events, and anything neither reports is picked up
+by a reading that runs when nothing else has for fifteen seconds.
+
 ## Keys left to Claude Code
 
 No workspace binding may sit in the tmux root table on a key Claude Code uses: tmux would

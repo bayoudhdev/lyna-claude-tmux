@@ -6,7 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- Every workspace action has a binding after the prefix as well as under Alt, so a terminal that does not send Option as Meta still reaches all of them. `lyna-tmux keys` prints both columns.
+- `create` builds and starts the dev container a workspace needs when its isolation is `container`, asking first on a terminal and taking `--start-container` without one.
+- `doctor --fix` carries out the fixes lyna-tmux can apply itself, one at a time on a terminal, with `--yes` and `--dry-run` for scripts. What it cannot touch is listed instead, with the exact command or setting.
+- `setup` carries out what the settings it just saved need: the dev container, shell completions and the review plugin, with `--yes` for non-interactive use.
+- The live changes view is a list you move through: arrows, `j`, `k` and the wheel move the cursor, a click selects, `Enter` or a double click reviews that file, `o` reviews the whole working tree, and the keys work in a pane of a layout as well as in the popup.
+
+### Changed
+
+- The changes view reads the working tree when something changed instead of every three seconds. A reading still runs when nothing else has for fifteen seconds, which catches an edit that produces neither a file event nor a hook signal.
+
+### Fixed
+
+- A failed `docker build` names the image and the step that failed instead of printing the whole log.
 
 ## [1.0.0] - 2026-09-17
 
