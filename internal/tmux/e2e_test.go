@@ -140,13 +140,23 @@ func (w *workspace) calls(t *testing.T) []string {
 	return lines[:len(lines)-1]
 }
 
-// waitCall waits for invocation number n (1-based) and checks it.
+// overlayCorner is the top left corner of a popup: the configuration asks for
+// rounded lines, which no pane border uses.
+const overlayCorner = "╭"
+
+// waitCall waits for invocation number n (1-based) and checks it. The fake
+// lyna-tmux appends its line just before it exits, and the popup that ran it
+// is drawn until then; tmux hands every key and mouse event to a popup for as
+// long as it is up, so the wait ends only once it has closed.
 func (w *workspace) waitCall(t *testing.T, n int, want string) {
 	t.Helper()
 	tmuxtest.WaitFor(t, "lyna-tmux call "+strconv.Itoa(n), func() bool { return len(w.calls(t)) >= n })
 	if got := w.calls(t)[n-1]; got != want {
 		t.Fatalf("call %d = %q, want %q", n, got, want)
 	}
+	tmuxtest.WaitFor(t, "the popup that ran it to close", func() bool {
+		return !strings.Contains(w.Screen(t), overlayCorner)
+	})
 }
 
 // statusCell finds the zero-based client cell where text starts on the
