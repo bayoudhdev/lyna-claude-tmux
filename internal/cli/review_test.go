@@ -626,7 +626,12 @@ func TestReviewInTmuxPane(t *testing.T) {
 		// it must not wait.
 		waiting []string
 		// after is the screen once a shell review returned.
-		after      []string
+		after []string
+		// paneStatus reads the exit status from tmux instead of from the file
+		// the helper writes. A review that opens the editor replaces its own
+		// process with it, so no code of ours runs after it: the status is the
+		// editor's, and only tmux has it.
+		paneStatus bool
 		wantStatus string
 		check      func(t *testing.T, record string)
 	}{
@@ -638,7 +643,7 @@ func TestReviewInTmuxPane(t *testing.T) {
 		},
 		{
 			name: "a review becomes Neovim in the requested directory", args: []string{"review", "--dir", f.repo, "main..."},
-			installed: true, realNvim: true, wantStatus: "0",
+			installed: true, realNvim: true, paneStatus: true, wantStatus: "0",
 			check: func(t *testing.T, record string) {
 				t.Helper()
 				var got struct {
@@ -766,10 +771,17 @@ func TestReviewInTmuxPane(t *testing.T) {
 			if tc.wantStatus != "" {
 				var got string
 				tmuxtest.WaitFor(t, "the pane program to exit", func() bool {
-					isDead, _ := dead()
+					isDead, paneStatus := dead()
+					if !isDead {
+						return false
+					}
+					if tc.paneStatus {
+						got = paneStatus
+						return got != ""
+					}
 					data, err := os.ReadFile(status)
 					got = string(data)
-					return isDead && err == nil
+					return err == nil
 				})
 				if got != tc.wantStatus {
 					t.Fatalf("exit status %s, want %s", got, tc.wantStatus)
