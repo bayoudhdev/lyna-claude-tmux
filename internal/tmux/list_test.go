@@ -54,7 +54,7 @@ func TestFieldSep(t *testing.T) {
 func TestParsePanesEscapedReply(t *testing.T) {
 	fields := []string{
 		"%3", "$1", "api", "@2", "1", "claude", "0", "/dev/ttys004", "4242", "/work/api", "claude", "Claude",
-		"1", "1", "0", "120", "40", "claude", "waiting", "", "", "",
+		"1", "1", "0", "120", "40", "claude", "waiting", "", "", "", "", "",
 	}
 	got := parsePanes(escapedRow(fields...) + "\n")
 	if len(got) != 1 || got[0].ID != "%3" || got[0].SessionName != "api" || got[0].State != "waiting" {
@@ -84,20 +84,20 @@ func TestParseSessions(t *testing.T) {
 
 func TestParsePanes(t *testing.T) {
 	out := row("%3", "$1", "api", "@2", "1", "claude", "0", "/dev/ttys004", "4242", "/work/api", "claude", "Claude",
-		"1", "1", "0", "120", "40", "claude", "waiting", "", "", "") + "\n" +
+		"1", "1", "0", "120", "40", "claude", "waiting", "", "", "", "2", "a1=explore,b2=review") + "\n" +
 		row("%4", "$1", "api", "@2", "1", "claude", "1", "/dev/ttys005", "4243", "/work/api", "zsh", "",
-			"0", "1", "1", "80", "40", "", "", "", "", "") + "\n" +
+			"0", "1", "1", "80", "40", "", "", "", "", "", "", "") + "\n" +
 		row("%5", "$1", "api", "@3", "2", "review-api", "0", "/dev/ttys006", "4244", "/work/api", "claude", "review-api",
-			"1", "0", "0", "144", "40", "teammate", "busy", "review-api", "api-developer", "session-8f3c1d2a") + "\n"
+			"1", "0", "0", "144", "40", "teammate", "busy", "review-api", "api-developer", "session-8f3c1d2a", "0", "") + "\n"
 	got := parsePanes(out)
 	want := []Pane{
-		{ID: "%3", SessionID: "$1", SessionName: "api", WindowID: "@2", WindowIndex: 1, WindowName: "claude", PaneIndex: 0, TTY: "/dev/ttys004", PID: 4242, CurrentPath: "/work/api", CurrentCommand: "claude", Title: "Claude", Active: true, WindowActive: true, Width: 120, Height: 40, Role: "claude", State: "waiting"},
+		{ID: "%3", SessionID: "$1", SessionName: "api", WindowID: "@2", WindowIndex: 1, WindowName: "claude", PaneIndex: 0, TTY: "/dev/ttys004", PID: 4242, CurrentPath: "/work/api", CurrentCommand: "claude", Title: "Claude", Active: true, WindowActive: true, Width: 120, Height: 40, Role: "claude", State: "waiting", Subagents: "2", Running: "a1=explore,b2=review"},
 		{ID: "%4", SessionID: "$1", SessionName: "api", WindowID: "@2", WindowIndex: 1, WindowName: "claude", PaneIndex: 1, TTY: "/dev/ttys005", PID: 4243, CurrentPath: "/work/api", CurrentCommand: "zsh", WindowActive: true, Dead: true, Width: 80, Height: 40},
 		{
 			ID: "%5", SessionID: "$1", SessionName: "api", WindowID: "@3", WindowIndex: 2, WindowName: "review-api",
 			PaneIndex: 0, TTY: "/dev/ttys006", PID: 4244, CurrentPath: "/work/api", CurrentCommand: "claude",
 			Title: "review-api", Active: true, Width: 144, Height: 40, Role: "teammate", State: "busy",
-			Agent: "review-api", AgentType: "api-developer", Team: "session-8f3c1d2a",
+			Agent: "review-api", AgentType: "api-developer", Team: "session-8f3c1d2a", Subagents: "0",
 		},
 	}
 	if !reflect.DeepEqual(got, want) {
