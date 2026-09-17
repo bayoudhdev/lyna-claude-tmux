@@ -8,8 +8,8 @@ import (
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/testutil/tmuxtest"
 )
 
-// clickTimeout is longer than the 300 ms tmux waits for a second press of the
-// same button before it calls the pair a double click.
+// clickTimeout is longer than the 300 ms tmux waits for a second press before
+// it calls the pair a double click.
 const clickTimeout = 400 * time.Millisecond
 
 // TestE2EWindowMenuLayoutItems opens the window menu on a window tab that is
@@ -36,14 +36,7 @@ func TestE2EWindowMenuLayoutItems(t *testing.T) {
 		t.Run(st.layout, func(t *testing.T) {
 			w.WaitScreen(t, "2:shell", false)
 			x, y := w.statusCell(t, "2:shell")
-			// tmux reads a second press within 300 ms as a SecondClick, which
-			// goes to another key table and never opens the menu. Waiting that
-			// out is what a user does between two right clicks, and it keeps
-			// the press from being resolved against the click before it.
-			if i > 0 {
-				time.Sleep(clickTimeout)
-			}
-			w.Click(t, 2, x, y)
+			w.press(t, 2, x, y)
 			w.WaitScreen(t, windowMenu, false)
 			w.Keys(t, st.key)
 			tmuxtest.WaitFor(t, "layout call", func() bool { return len(w.calls(t)) > i })

@@ -179,6 +179,27 @@ func (w *workspace) cells(t *testing.T, s string) int {
 	return n
 }
 
+// press clicks a mouse button after waiting out the window tmux gives a press
+// to become the second click of a double click. tmux 3.4 drops a press that
+// lands inside that window whenever the button differs from the one before
+// it: no key is produced at all, so nothing the configuration binds can
+// answer it. A user pausing between two clicks is what this waits for.
+func (w *workspace) press(t *testing.T, button, x, y int) {
+	t.Helper()
+	time.Sleep(clickTimeout)
+	w.Click(t, button, x, y)
+}
+
+// chooseItem presses the key of a menu item and waits for the menu to be
+// gone. tmux hands every key and mouse event to the menu for as long as it is
+// drawn, and a menu is drawn a little longer than the item it ran takes to
+// finish, so an event sent as soon as the item took effect is swallowed.
+func (w *workspace) chooseItem(t *testing.T, key, menu string) {
+	t.Helper()
+	w.Keys(t, key)
+	w.WaitScreen(t, menu, true)
+}
+
 // menuKey returns the key of the keys-menu item whose label starts with label.
 func (w *workspace) menuKey(t *testing.T, label string) string {
 	t.Helper()
@@ -273,7 +294,7 @@ func TestE2EWorkspaceKeysMenusMouse(t *testing.T) {
 		{"keys menu runs an item", func(t *testing.T) {
 			w.Keys(t, "M-Space")
 			w.WaitScreen(t, keysMenu, false)
-			w.Keys(t, w.menuKey(t, "Split right"))
+			w.chooseItem(t, w.menuKey(t, "Split right"), keysMenu)
 			w.waitActive(t, "#{window_panes}|#{@lt_role}", "3|shell")
 		}},
 		{"prefix menu closes on escape", func(t *testing.T) {
@@ -282,42 +303,40 @@ func TestE2EWorkspaceKeysMenusMouse(t *testing.T) {
 			w.Keys(t, "Escape")
 			w.WaitScreen(t, keysMenu, true)
 		}},
-		// Mouse steps alternate buttons: tmux reads a second press of the same
-		// button within its click timeout as a SecondClick key, not MouseDown.
 		{"right click pane menu", func(t *testing.T) {
 			w.run(t, "select-pane", "-t", "=main:1.1")
-			w.Click(t, 2, 5, 3)
+			w.press(t, 2, 5, 3)
 			w.WaitScreen(t, paneMenu, false)
-			w.Keys(t, "d")
+			w.chooseItem(t, "d", paneMenu)
 			w.waitActive(t, "#{window_panes}|#{@lt_role}|#{pane_current_path}", "4|shell|"+dir)
 		}},
 		{"status split button", func(t *testing.T) {
 			before := w.active(t, "#{window_panes}")
 			x, y := w.statusCell(t, "⊞ split")
-			w.Click(t, 0, x, y)
+			w.press(t, 0, x, y)
 			n, _ := strconv.Atoi(before)
 			w.waitActive(t, "#{window_panes}", strconv.Itoa(n+1))
 		}},
 		{"Claude submenu types a slash command", func(t *testing.T) {
-			w.Click(t, 2, 9, 6)
+			w.press(t, 2, 9, 6)
 			w.WaitScreen(t, paneMenu, false)
 			w.Keys(t, "C")
 			w.WaitScreen(t, claudeMenu, false)
-			w.Keys(t, "w")
+			w.chooseItem(t, "w", claudeMenu)
 			tmuxtest.WaitFor(t, "slash command in Claude pane", func() bool {
 				return strings.Contains(w.run(t, "capture-pane", "-p", "-t", "=main:1.1"), "/workflows")
 			})
 		}},
 		{"status review button", func(t *testing.T) {
 			x, y := w.statusCell(t, "± review")
-			w.Click(t, 0, x, y)
+			w.press(t, 0, x, y)
 			w.waitCall(t, 4, dir+"|review --popup")
 		}},
 		{"Claude items disabled on a shell pane", func(t *testing.T) {
 			w.Keys(t, "M-]")
 			w.waitActive(t, "#{@lt_role}", "shell")
 			x, y := w.statusCell(t, "› shell")
-			w.Click(t, 2, x, y+1)
+			w.press(t, 2, x, y+1)
 			w.WaitScreen(t, paneMenu, false)
 			w.Keys(t, "C")
 			w.Keys(t, "Escape")
@@ -328,31 +347,31 @@ func TestE2EWorkspaceKeysMenusMouse(t *testing.T) {
 		}},
 		{"status agents button", func(t *testing.T) {
 			x, y := w.statusCell(t, "◎ ")
-			w.Click(t, 0, x, y)
+			w.press(t, 0, x, y)
 			w.waitCall(t, 5, dir+"|agents --popup")
 		}},
 		{"right click window tab opens the window menu", func(t *testing.T) {
 			x, y := w.statusCell(t, "1:")
-			w.Click(t, 2, x, y)
+			w.press(t, 2, x, y)
 			w.WaitScreen(t, windowMenu, false)
 			w.Keys(t, "Escape")
 			w.WaitScreen(t, windowMenu, true)
 		}},
 		{"window tab click selects the window", func(t *testing.T) {
 			x, y := w.statusCell(t, "2:")
-			w.Click(t, 0, x, y)
+			w.press(t, 0, x, y)
 			w.waitActive(t, "#{window_index}", "2")
 		}},
 		{"right click status left opens the session menu", func(t *testing.T) {
 			x, y := w.statusCell(t, " λ ")
-			w.Click(t, 2, x+1, y)
+			w.press(t, 2, x+1, y)
 			w.WaitScreen(t, sessionMenu, false)
 			w.Keys(t, "Escape")
 			w.WaitScreen(t, sessionMenu, true)
 		}},
 		{"status menu button opens the session menu", func(t *testing.T) {
 			x, y := w.statusCell(t, "≡")
-			w.Click(t, 0, x, y)
+			w.press(t, 0, x, y)
 			w.WaitScreen(t, sessionMenu, false)
 			w.Keys(t, "Escape")
 			w.WaitScreen(t, sessionMenu, true)
@@ -397,14 +416,14 @@ func TestE2EHostileProjectPath(t *testing.T) {
 		{"menu split keeps the directory", func(t *testing.T) {
 			w.Keys(t, "M-Space")
 			w.WaitScreen(t, keysMenu, false)
-			w.Keys(t, w.menuKey(t, "Split down"))
+			w.chooseItem(t, w.menuKey(t, "Split down"), keysMenu)
 			w.waitActive(t, "#{window_panes}", "3")
 			w.waitActive(t, "#{pane_current_path}", dir)
 		}},
 		{"pane menu popup runs in the directory", func(t *testing.T) {
-			w.Click(t, 2, 5, 3)
+			w.press(t, 2, 5, 3)
 			w.WaitScreen(t, paneMenu, false)
-			w.Keys(t, "a")
+			w.chooseItem(t, "a", paneMenu)
 			w.waitCall(t, 2, dir+"|agents --popup")
 		}},
 		{"new window keeps the directory", func(t *testing.T) {
