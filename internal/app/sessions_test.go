@@ -1,7 +1,6 @@
 package app
 
 import (
-	"context"
 	"errors"
 	"maps"
 	"net"
@@ -16,6 +15,7 @@ import (
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/session"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/testutil/tmuxtest"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/watch"
 )
 
 func sessionNames(t *testing.T, s *Server) []string {
@@ -32,18 +32,20 @@ func sessionNames(t *testing.T, s *Server) []string {
 	return names
 }
 
-// TestRenameWakesChangesViews proves a changes view blocked on the old
-// session channel wakes when the workspace is renamed, and that a failed
-// rename signals nothing.
-func TestRenameWakesChangesViews(t *testing.T) {
+// TestRenameKeepsChangesViewsWaiting pins the contract between a rename and
+// the changes views of the workspace: their channel is keyed on the session
+// id, which the rename does not touch, so a view waiting before the rename
+// is still waiting after it, and the next hook signal on that same channel
+// wakes it. The same holds when the rename is refused.
+func TestRenameKeepsChangesViewsWaiting(t *testing.T) {
 	cases := []struct {
 		name     string
 		from, to string
-		wantWake bool
+		wantErr  error
 	}{
-		{name: "renamed", from: "api", to: "backend", wantWake: true},
-		{name: "rename onto a taken name", from: "api", to: "web"},
-		{name: "missing workspace", from: "nope", to: "other"},
+		{name: "renamed", from: "api", to: "backend"},
+		{name: "rename onto a taken name", from: "api", to: "web", wantErr: tmux.ErrExists},
+		{name: "missing workspace", from: "nope", to: "other", wantErr: ErrNoWorkspace},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -52,13 +54,41 @@ func TestRenameWakesChangesViews(t *testing.T) {
 			ctx := tmuxtest.Context(t)
 			startWorkspace(t, s, "api")
 			startWorkspace(t, s, "web")
-			_ = s.Rename(ctx, tc.from, tc.to)
-			// wait-for -S latches: a signal sent before this wait still wakes it.
-			waitCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-			defer cancel()
-			_, err := s.Client.Run(waitCtx, "wait-for", tmux.ChangesChannel(tc.from))
-			if woke := err == nil; woke != tc.wantWake {
-				t.Fatalf("woke %v (err %v), want %v", woke, err, tc.wantWake)
+			pane, err := s.Client.Display(ctx, tmux.ExactSession("api"), "#{pane_id}")
+			if err != nil {
+				t.Fatal(err)
+			}
+			id, err := s.Client.Display(ctx, pane, "#{session_id}")
+			if err != nil || id == "" {
+				t.Fatalf("session id: %q, %v", id, err)
+			}
+			// The view's own signal source; wait-for latches, so whether the
+			// wait or the rename reaches tmux first changes nothing below.
+			done := make(chan error, 1)
+			signal := watch.TmuxPaneSignal(s.Client, pane)
+			go func() { done <- signal(ctx) }()
+
+			if err := s.Rename(ctx, tc.from, tc.to); !errors.Is(err, tc.wantErr) {
+				t.Fatalf("rename: err = %v, want %v", err, tc.wantErr)
+			}
+			select {
+			case err := <-done:
+				t.Fatalf("the rename woke the view (err %v)", err)
+			case <-time.After(300 * time.Millisecond):
+			}
+			if got, err := s.Client.Display(ctx, pane, "#{session_id}"); err != nil || got != id {
+				t.Fatalf("session id after the rename = %q, %v; want %q", got, err, id)
+			}
+			if _, err := s.Client.Run(ctx, "wait-for", "-S", tmux.ChangesChannel(id)); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case err := <-done:
+				if err != nil {
+					t.Fatalf("the wait ended with %v", err)
+				}
+			case <-ctx.Done():
+				t.Fatal("the signal on the session's channel did not wake the view")
 			}
 		})
 	}

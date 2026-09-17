@@ -299,64 +299,71 @@ func TestIntegrationSubagentCounterConcurrent(t *testing.T) {
 	}
 }
 
+// TestIntegrationChangesSignal proves the hook wakes a waiter on the channel
+// of the session id whatever the session is called. The hostile names are
+// the point: tmux rewrites some of them on creation and again inside a
+// format, and its parser gives several of the characters a meaning, so a
+// signal that depended on the name would miss or skip these sessions.
 func TestIntegrationChangesSignal(t *testing.T) {
 	srv := startLive(t)
 	cases := []struct {
 		name    string
 		session string
 		payload string
+		// wantState is the @lt_state the same batch sets; a subagent's edit
+		// leaves it unset.
+		wantState string
+		// wantLog is a substring of the one line the hook logs; "" means the
+		// log stays empty.
+		wantLog string
 	}{
-		{name: "plain", session: "proj", payload: `{"tool_name":"Write"}`},
+		{name: "plain", session: "proj", payload: `{"tool_name":"Write"}`, wantState: "busy"},
 		{name: "edit from subagent", session: "sub-edit", payload: `{"tool_name":"Edit","agent_id":"a1"}`},
-		{name: "space", session: "my project", payload: `{"tool_name":"Edit"}`},
-		{name: "command separator", session: "a;kill-server", payload: `{"tool_name":"Write"}`},
-		{name: "trailing separator", session: "semi;", payload: `{"tool_name":"Write"}`},
-		{name: "percent", session: "50% done", payload: `{"tool_name":"NotebookEdit"}`},
-		{name: "brace", session: "br}ace", payload: `{"tool_name":"MultiEdit"}`},
-		{name: "double quote and expansions", session: `q"uote $HOME ~ {x}`, payload: `{"tool_name":"Write"}`},
-		{name: "unreadable payload", session: "unknown-payload", payload: `{"tool_name":`},
+		{name: "space", session: "my project", payload: `{"tool_name":"Edit"}`, wantState: "busy"},
+		{name: "command separator", session: "a;kill-server", payload: `{"tool_name":"Write"}`, wantState: "busy"},
+		{name: "trailing separator", session: "semi;", payload: `{"tool_name":"Write"}`, wantState: "busy"},
+		{name: "percent", session: "50% done", payload: `{"tool_name":"NotebookEdit"}`, wantState: "busy"},
+		{name: "brace", session: "br}ace", payload: `{"tool_name":"MultiEdit"}`, wantState: "busy"},
+		{name: "single quote", session: "it's", payload: `{"tool_name":"Write"}`, wantState: "busy"},
+		{name: "backslash", session: `back\slash`, payload: `{"tool_name":"Edit"}`, wantState: "busy"},
+		{name: "dollar", session: "$PATH", payload: `{"tool_name":"Write"}`, wantState: "busy"},
+		{name: "double quote and expansions", session: `q"uote $HOME ~ {x}`, payload: `{"tool_name":"Write"}`, wantState: "busy"},
+		{name: "unreadable payload", session: "unknown-payload", payload: `{"tool_name":`, wantState: "busy", wantLog: "hook PostToolUse: hook: decode payload:"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			pane, _, _ := srv.newSession(t, tc.session)
-			stored, err := srv.Client.Display(tmuxtest.Context(t), pane, "#{session_name}")
-			if err != nil {
-				t.Fatal(err)
-			}
+			pane, _, sessionID := srv.newSession(t, tc.session)
+			channel := tmux.ChangesChannel(sessionID)
 			ctx := tmuxtest.Context(t)
 			done := make(chan error, 1)
 			go func() {
 				// wait-for latches, so the order against the hook does not matter.
-				_, err := srv.Client.Run(ctx, "wait-for", tmux.ChangesChannel(stored))
+				_, err := srv.Client.Run(ctx, "wait-for", channel)
 				done <- err
 			}()
-			Run(ctx, Input{Event: "PostToolUse", Stdin: strings.NewReader(tc.payload), Getenv: srv.env(pane, nil)}, srv.deps())
+			deps := srv.deps()
+			deps.LogPath = filepath.Join(t.TempDir(), "log")
+			Run(ctx, Input{Event: "PostToolUse", Stdin: strings.NewReader(tc.payload), Getenv: srv.env(pane, nil)}, deps)
 			select {
 			case err := <-done:
 				if err != nil {
-					t.Fatalf("wait-for %q: %v", tmux.ChangesChannel(stored), err)
+					t.Fatalf("wait-for %q: %v", channel, err)
 				}
 			case <-ctx.Done():
-				t.Fatalf("no signal on %q", tmux.ChangesChannel(stored))
+				t.Fatalf("no signal on %q", channel)
+			}
+			if got := srv.show(t, "-p", pane, tmux.OptState); got != tc.wantState {
+				t.Fatalf("@lt_state = %q, want %q", got, tc.wantState)
+			}
+			data, _ := os.ReadFile(deps.LogPath)
+			if tc.wantLog == "" && len(data) != 0 || !strings.Contains(string(data), tc.wantLog) {
+				t.Fatalf("log %q; want %q", data, tc.wantLog)
 			}
 		})
 	}
 
-	t.Run("single quote is skipped without error", func(t *testing.T) {
-		pane, _, _ := srv.newSession(t, "it's")
-		deps := srv.deps()
-		deps.LogPath = filepath.Join(t.TempDir(), "log")
-		Run(tmuxtest.Context(t), Input{Event: "PostToolUse", Stdin: strings.NewReader(`{"tool_name":"Write"}`), Getenv: srv.env(pane, nil)}, deps)
-		if got := srv.show(t, "-p", pane, tmux.OptState); got != "busy" {
-			t.Fatalf("@lt_state = %q", got)
-		}
-		if data, _ := os.ReadFile(deps.LogPath); len(data) != 0 {
-			t.Fatalf("logged %q", data)
-		}
-	})
-
 	sessions, err := srv.Client.ListSessions(tmuxtest.Context(t))
-	if err != nil || len(sessions) < len(cases)+2 {
+	if err != nil || len(sessions) < len(cases)+1 {
 		t.Fatalf("server lost sessions: %d, %v", len(sessions), err)
 	}
 }

@@ -38,6 +38,15 @@ func TestOpenWatch(t *testing.T) {
 		}
 		return id
 	}
+	// channel is the changes channel of a workspace, read live: it is keyed on
+	// the session id, which a rename keeps.
+	channel := func(session string) string {
+		id, err := s.Client.Display(tmuxtest.Context(t), tmux.ExactSession(session), "#{session_id}")
+		if err != nil || id == "" {
+			t.Fatalf("session id of %s: %q, %v", session, id, err)
+		}
+		return tmux.ChangesChannel(id)
+	}
 	inTmux := SocketPath(h.Getenv, s.SocketName) + ",1,0"
 	dir := t.TempDir()
 
@@ -55,11 +64,15 @@ func TestOpenWatch(t *testing.T) {
 			env:  map[string]string{"TMUX": inTmux, "TMUX_PANE": pane("moving")},
 			req:  WatchRequest{Dir: dir, Session: "ignored-in-a-pane"},
 			check: func(t *testing.T, v WatchView) {
-				watchExpectWake(t, s, v.Watcher.Signal, "lt-changes-moving")
+				before := channel("moving")
+				watchExpectWake(t, s, v.Watcher.Signal, before)
 				if err := s.Rename(tmuxtest.Context(t), "moving", "moved"); err != nil {
 					t.Fatal(err)
 				}
-				watchExpectWake(t, s, v.Watcher.Signal, "lt-changes-moved")
+				if after := channel("moved"); after != before {
+					t.Fatalf("channel %q after the rename, was %q", after, before)
+				}
+				watchExpectWake(t, s, v.Watcher.Signal, before)
 			},
 		},
 		{
@@ -95,7 +108,7 @@ func TestOpenWatch(t *testing.T) {
 			env:  map[string]string{"TMUX": inTmux},
 			req:  WatchRequest{Dir: dir, Session: "api"},
 			check: func(t *testing.T, v WatchView) {
-				watchExpectWake(t, s, v.Watcher.Signal, "lt-changes-api")
+				watchExpectWake(t, s, v.Watcher.Signal, channel("api"))
 			},
 		},
 		{name: "tmux without a pane or session", env: map[string]string{"TMUX": inTmux}, req: WatchRequest{Dir: dir}, wantErr: ErrWatchNoSession},
@@ -105,7 +118,7 @@ func TestOpenWatch(t *testing.T) {
 			env:  map[string]string{"TMUX": ""},
 			req:  WatchRequest{Dir: dir, Session: "api"},
 			check: func(t *testing.T, v WatchView) {
-				watchExpectWake(t, s, v.Watcher.Signal, "lt-changes-api")
+				watchExpectWake(t, s, v.Watcher.Signal, channel("api"))
 			},
 		},
 		{name: "outside tmux without a session", env: map[string]string{"TMUX": ""}, req: WatchRequest{Dir: dir}, wantErr: ErrWatchNoSession, errHas: "pass --session"},

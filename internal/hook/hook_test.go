@@ -124,7 +124,7 @@ type errReader struct{}
 func (errReader) Read([]byte) (int, error) { return 0, errors.New("stdin broken") }
 
 func TestRun(t *testing.T) {
-	signal := []string{"run-shell", "-C", "-t", "%3", fmtChangesSignal}
+	signal := []string{"run-shell", "-C", "-t", "%3", "wait-for -S 'lt-changes-#{session_id}'"}
 	cases := []struct {
 		name     string
 		event    string

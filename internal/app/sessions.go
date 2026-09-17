@@ -45,19 +45,16 @@ func (s *Server) KillAll(ctx context.Context) error {
 }
 
 // Rename renames a workspace session. The new name must be valid and free.
-// Changes views block on the channel named after the session, so the old
-// channel is signaled in the same invocation: they wake and wait on the new
-// name. tmux stops the batch when the rename fails.
+// Changes views block on the channel of the session id, which the rename
+// leaves untouched, so nothing else needs to happen: a view waiting before
+// the rename keeps waiting and is woken by the next hook signal.
 func (s *Server) Rename(ctx context.Context, from, to string) error {
 	for _, n := range []string{from, to} {
 		if err := session.Validate(n); err != nil {
 			return err
 		}
 	}
-	_, err := s.Client.Batch(ctx,
-		tmux.Command{"rename-session", "-t", tmux.ExactSession(from), to},
-		tmux.Command{"wait-for", "-S", tmux.ChangesChannel(from)},
-	)
+	_, err := s.Client.Run(ctx, "rename-session", "-t", tmux.ExactSession(from), to)
 	if errors.Is(err, tmux.ErrExists) {
 		return fmt.Errorf("%w: %s", tmux.ErrExists, to)
 	}

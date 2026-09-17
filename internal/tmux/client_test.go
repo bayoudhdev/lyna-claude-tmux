@@ -203,16 +203,19 @@ func TestWithSocket(t *testing.T) {
 
 func TestChangesChannel(t *testing.T) {
 	cases := []struct {
-		session string
-		want    string
+		sessionID string
+		want      string
 	}{
-		{session: "api", want: "lt-changes-api"},
-		{session: "my_repo-2", want: "lt-changes-my_repo-2"},
+		{sessionID: "$0", want: "lt-changes-$0"},
+		{sessionID: "$12", want: "lt-changes-$12"},
+		// The hook hands tmux the unexpanded format; the channel must keep it
+		// verbatim for run-shell -C to expand.
+		{sessionID: "#{session_id}", want: "lt-changes-#{session_id}"},
 	}
 	for _, tc := range cases {
-		t.Run(tc.session, func(t *testing.T) {
-			if got := ChangesChannel(tc.session); got != tc.want {
-				t.Fatalf("ChangesChannel(%q) = %q, want %q", tc.session, got, tc.want)
+		t.Run(tc.sessionID, func(t *testing.T) {
+			if got := ChangesChannel(tc.sessionID); got != tc.want {
+				t.Fatalf("ChangesChannel(%q) = %q, want %q", tc.sessionID, got, tc.want)
 			}
 		})
 	}

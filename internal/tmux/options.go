@@ -52,10 +52,14 @@ func BranchOption(branch string) string {
 }
 
 // ChangesChannel is the tmux wait-for channel a hook signals after Claude
-// edits files, and the changes pane waits on. Session names are already
-// restricted to [A-Za-z0-9_-], so the channel needs no escaping.
-func ChangesChannel(session string) string {
-	return "lt-changes-" + session
+// edits files, and the changes pane waits on. It is keyed on the session id
+// ("$0", "$3", ...) rather than the session name: tmux rewrites some names on
+// creation (a "$" gains a backslash on 3.3 and 3.4) and escapes them again
+// when a format conditional expands them, so a hook and a waiter built from
+// the same name can end up on two different channels. An id is "$" plus
+// digits, survives both, and stays the same when the session is renamed.
+func ChangesChannel(sessionID string) string {
+	return "lt-changes-" + sessionID
 }
 
 // Pane roles.

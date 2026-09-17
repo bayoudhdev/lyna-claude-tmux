@@ -13,6 +13,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/testutil/tmuxtest"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
 )
 
 // countingSource reports how many refreshes ran through the branch OID.
@@ -248,7 +249,7 @@ func TestIntegrationWatcherTmuxSignal(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(r.dir, "sub", "deep", "a.txt"), []byte("2\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := srv.Client.Run(tmuxtest.Context(t), "wait-for", "-S", "lt-changes-"+session); err != nil {
+	if _, err := srv.Client.Run(tmuxtest.Context(t), "wait-for", "-S", tmux.ChangesChannel(sessionID(t, srv, tmux.ExactSession(session)))); err != nil {
 		t.Fatal(err)
 	}
 	next(t, updates, "nested edit after the tmux signal", func(u Update) bool { return hasFile(u.Changes, "sub/deep/a.txt", false) })

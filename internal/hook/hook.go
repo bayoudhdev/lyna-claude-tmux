@@ -218,12 +218,12 @@ const (
 )
 
 // fmtChangesSignal signals the changes channel of the session holding the
-// pane. The session name is only known to tmux, so the command is built by
-// run-shell -C from a format. The name goes into a single-quoted token, where
-// the tmux parser gives no character a meaning except the quote itself; a
-// session whose name holds a single quote is skipped rather than risk
-// changing how the command parses.
-var fmtChangesSignal = "#{?#{m/r:^[^']*$,#{session_name}},wait-for -S '" + tmux.ChangesChannel("#{session_name}") + "',}"
+// pane. The session id is only known to tmux, so the command is built by
+// run-shell -C from a format. The id goes into a single-quoted token, where
+// the tmux parser gives no character a meaning except the quote itself, and
+// an id is "$" plus digits, so no session needs to be guarded against or
+// skipped: every one of them is signaled, whatever its name holds.
+var fmtChangesSignal = "wait-for -S '" + tmux.ChangesChannel("#{session_id}") + "'"
 
 // Commands returns the tmux batch for an event on pane and whether the pane
 // bell rings after it. known reports that payload was decoded; without it the

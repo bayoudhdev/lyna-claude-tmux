@@ -17,7 +17,7 @@ func TestCommands(t *testing.T) {
 		return tmux.Command{"set-option", "-p", "-t", pane, "@lt_state", state}
 	}
 	tty := tmux.Command{"display-message", "-p", "-t", pane, "#{pane_tty}"}
-	signal := tmux.Command{"run-shell", "-C", "-t", pane, "#{?#{m/r:^[^']*$,#{session_name}},wait-for -S 'lt-changes-#{session_name}',}"}
+	signal := tmux.Command{"run-shell", "-C", "-t", pane, "wait-for -S 'lt-changes-#{session_id}'"}
 	branchSet := func(v string) tmux.Command { return tmux.Command{"set-option", "-t", pane, "@lt_branch", v} }
 	branchUnset := tmux.Command{"set-option", "-u", "-t", pane, "@lt_branch"}
 

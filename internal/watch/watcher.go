@@ -61,35 +61,40 @@ type Watcher struct {
 	Interval time.Duration
 }
 
-// TmuxSignal returns a Signal that waits on the session's changes channel:
-// `tmux wait-for lt-changes-<session>` returns each time a hook signals it,
-// and tmux latches a signal sent while nobody waits.
+// TmuxSignal returns a Signal that waits on the changes channel of the
+// session named session: `tmux wait-for lt-changes-<id>` returns each time a
+// hook signals it, and tmux latches a signal sent while nobody waits. The
+// name is resolved to the session id before every wait, so a workspace
+// killed and started again under the same name is followed by its new id.
 func TmuxSignal(client *tmux.Client, session string) func(ctx context.Context) error {
-	channel := tmux.ChangesChannel(session)
-	return func(ctx context.Context) error {
-		_, err := client.Run(ctx, "wait-for", channel)
-		return err
-	}
+	return waitOn(client, tmux.ExactSession(session))
 }
 
-// ErrNoSession reports a pane whose session name could not be read.
-var ErrNoSession = errors.New("watch: the pane belongs to no session")
+// ErrNoSession reports a target whose session id could not be read.
+var ErrNoSession = errors.New("watch: the target belongs to no session")
 
 // TmuxPaneSignal returns a Signal that waits on the changes channel of the
-// session pane belongs to, reading the session name before every wait. A
-// renamed session signals its old channel as part of the rename, so the wait
-// in progress returns and the next one uses the new name; a name kept from an
-// earlier wait would miss every later signal.
+// session pane belongs to, reading the session id before every wait. The id
+// does not change when the session is renamed, so a rename needs no help
+// from the waiter; reading it each time only matters when the pane moves to
+// another session.
 func TmuxPaneSignal(client *tmux.Client, pane string) func(ctx context.Context) error {
+	return waitOn(client, pane)
+}
+
+// waitOn waits on the changes channel of the session that target resolves
+// to. display-message answers an empty id for a target that does not exist
+// on tmux 3.7 instead of failing, so the empty answer is an error too.
+func waitOn(client *tmux.Client, target string) func(ctx context.Context) error {
 	return func(ctx context.Context) error {
-		session, err := client.Display(ctx, pane, "#{session_name}")
+		id, err := client.Display(ctx, target, "#{session_id}")
 		if err != nil {
 			return err
 		}
-		if session == "" {
-			return fmt.Errorf("%w: %s", ErrNoSession, pane)
+		if id == "" {
+			return fmt.Errorf("%w: %s", ErrNoSession, target)
 		}
-		_, err = client.Run(ctx, "wait-for", tmux.ChangesChannel(session))
+		_, err = client.Run(ctx, "wait-for", tmux.ChangesChannel(id))
 		return err
 	}
 }

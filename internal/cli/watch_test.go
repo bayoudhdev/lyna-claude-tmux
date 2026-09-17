@@ -163,6 +163,7 @@ func TestWatchCLI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	channel := tmux.ChangesChannel(watchSessionID(t, s, pane))
 	inPane := map[string]string{"TMUX": app.SocketPath(e.host.Getenv, e.env["LYNA_TMUX_SOCKET_NAME"]) + ",1,0", "TMUX_PANE": pane}
 
 	cases := []struct {
@@ -207,7 +208,7 @@ func TestWatchCLI(t *testing.T) {
 					t.Fatal(err)
 				}
 				t.Cleanup(func() { _ = os.Remove(filepath.Join(repo, "second-watch.txt")) })
-				if _, err := s.Client.Run(tmuxtest.Context(t), "wait-for", "-S", tmux.ChangesChannel("api")); err != nil {
+				if _, err := s.Client.Run(tmuxtest.Context(t), "wait-for", "-S", channel); err != nil {
 					t.Fatal(err)
 				}
 				term.waitScreen(t, "second-watch.txt")
@@ -410,9 +411,20 @@ func TestWatchRunPanicStopsTheWatcher(t *testing.T) {
 	}
 }
 
+// watchSessionID reads the id of the session holding pane from the live server.
+func watchSessionID(t *testing.T, s *app.Server, pane string) string {
+	t.Helper()
+	id, err := s.Client.Display(tmuxtest.Context(t), pane, "#{session_id}")
+	if err != nil || id == "" {
+		t.Fatalf("session id of pane %s: %q, %v", pane, id, err)
+	}
+	return id
+}
+
 // TestWatchFollowsRenamedWorkspace runs the signal loop of a pane's changes
 // view on an isolated server, renames the workspace with `lyna-tmux rename`
-// and checks that signals on the new name's channel refresh the view.
+// and checks that signals on the workspace's channel, keyed on a session id
+// the rename keeps, still refresh the view afterwards.
 func TestWatchFollowsRenamedWorkspace(t *testing.T) {
 	e := newCLIEnv(t)
 	e.start(t, "api", e.host.Home)
@@ -425,6 +437,7 @@ func TestWatchFollowsRenamedWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	channel := tmux.ChangesChannel(watchSessionID(t, s, pane))
 	// The view runs in that pane: its host sees the pane's TMUX and TMUX_PANE.
 	viewEnv := map[string]string{}
 	for k, v := range e.env {
@@ -451,17 +464,20 @@ func TestWatchFollowsRenamedWorkspace(t *testing.T) {
 	if code, _, stderr := e.run(t, "rename", "api", "backend"); code != 0 {
 		t.Fatalf("rename: %s", stderr)
 	}
-	// Two rounds: the rename itself signals the old channel, which may wake
-	// the loop once; only a loop waiting on the new channel sees both.
+	if got := tmux.ChangesChannel(watchSessionID(t, s, pane)); got != channel {
+		t.Fatalf("channel %q after the rename, was %q", got, channel)
+	}
+	// Two rounds: the first proves the wait outlived the rename, the second
+	// that the loop went back to waiting on the same channel.
 	for round := 1; round <= 2; round++ {
 		before := src.calls.Load()
 		deadline := time.Now().Add(watchProgramTimeout)
 		for src.calls.Load() <= before {
 			if time.Now().After(deadline) {
-				t.Fatalf("round %d: no refresh after a signal on %s", round, tmux.ChangesChannel("backend"))
+				t.Fatalf("round %d: no refresh after a signal on %s", round, channel)
 			}
 			// Signaling again is harmless: tmux latches one wake per channel.
-			if _, err := s.Client.Run(tmuxtest.Context(t), "wait-for", "-S", tmux.ChangesChannel("backend")); err != nil {
+			if _, err := s.Client.Run(tmuxtest.Context(t), "wait-for", "-S", channel); err != nil {
 				t.Fatal(err)
 			}
 			time.Sleep(20 * time.Millisecond)
