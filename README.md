@@ -230,8 +230,11 @@ isolation, extra allowed hosts, review editor, popup size, custom layouts. The f
 
 ![The setup wizard](docs/assets/setup.gif)
 
-Themes quantize to 256 or 16 colors when the terminal has no truecolor, and the icon set falls back
-to ASCII outside a UTF-8 locale.
+Thirteen themes ship with it, nine dark, three light and one that borrows the terminal's own
+palette. `lyna-tmux theme` lists them with a swatch each, `lyna-tmux theme preview [name]` draws a
+whole workspace in one so you can pick before you switch, and `lyna-tmux theme <name>` restyles
+every running workspace at once. Themes quantize to 256 or 16 colors when the terminal has no
+truecolor, and the icon set falls back to ASCII outside a UTF-8 locale.
 
 ![The color themes](docs/assets/theme.png)
 
@@ -297,6 +300,13 @@ trusted, and it asks about a new folder the first time it opens there. `lyna-tmu
 when it opens such a project, and `lyna-tmux doctor` reports it as `Project trust`. Accept the
 question Claude Code shows in the workspace, or start `claude` once in the project and accept it
 there.
+
+**Escape sequences appear in the agent prompt, and keys go to the wrong session.** You started the
+workspace from a terminal that was already running tmux, so one tmux is attached inside another.
+The outer session reads the prefix key first, and the answers your terminal sends the inner server
+arrive too late to be recognized and are typed into whatever pane has the focus, which is how
+`^[[?1;2;4c` or `^[P>|tmux 3.7c^[\` end up in the prompt. `lyna-tmux create` and `lyna-tmux attach`
+refuse there and say so; detach the outer session first, or pass `--nested` to attach anyway.
 
 **Alt keys do nothing.** Your terminal sends Option as a composed character. `lyna-tmux doctor`
 names the setting for your terminal, and [docs/keys.md](docs/keys.md) lists them all.

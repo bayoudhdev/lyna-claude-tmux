@@ -302,7 +302,32 @@ start it with `lyna-tmux sandbox devcontainer up`, then run `lyna-tmux create --
 
 ### `sandbox devcontainer init`
 
-Writes four files into `.devcontainer/` of the project (existing files are kept unless `--force` is given; nothing is written if any target exists, and any symbolic link in the path is refused, so a refused write never leaves a half-updated directory). Scripts get mode 0755, other files 0644.
+Writes into `.devcontainer/` of the directory it is given, or of the current directory. It never
+walks up to the enclosing repository: a directory that is not a repository of its own would
+otherwise get its ancestor's `.devcontainer`, a different project entirely. The absolute target is
+printed before anything is written, and a target away from the current directory has to be named
+on the command line.
+
+Existing files are kept unless `--force` is given; nothing is written if any target exists, and any symbolic link in the path is refused, so a refused write never leaves a half-updated directory. Scripts get mode 0755, the staged binary 0755, other files 0644.
+
+**Where the image gets `lyna-tmux`.** The image needs a linux binary, and until a release exists
+there is nothing to download, so `init` decides where it comes from and records that decision in
+the `Dockerfile`:
+
+1. the running executable, when this machine is linux and the binary matches the image
+   architecture;
+2. a build from the checkout, when the `go` toolchain is on `PATH` and the target is inside this
+   repository;
+3. the release that matches the running version, when that version is a released `vX.Y.Z`;
+4. otherwise `init` stops and names both ways to say it outright: `--binary <path>` stages a
+   `linux/<arch>` binary you built yourself, and `--version vX.Y.Z` pins the installer to a
+   published release. The two are mutually exclusive.
+
+A staged binary is copied into `.devcontainer/lyna-tmux`, checked against its own digest inside the
+image, installed root-owned at 0755, and added to `.devcontainer/.gitignore` so it is never
+committed. `up` and `shell` read the `Dockerfile` back first: a staged binary that is gone, or that
+no longer matches the digest, fails before `docker` runs at all, with the command that stages it
+again.
 
 **`devcontainer.json`**
 
@@ -330,7 +355,7 @@ Writes four files into `.devcontainer/` of the project (existing files are kept 
 - creates the non-root account (default `lyna`, uid and gid 1000) with `/home/<user>/.claude` at mode 0700 and `/workspace` at 0755; the name `root` is refused outright;
 - copies the firewall script to `/usr/local/bin/init-firewall.sh` and the allowlist to `/usr/local/etc/lyna-tmux/allowed-domains`, both owned by `root` (0755 and 0644), so the container user cannot widen the allowlist;
 - installs a sudoers rule allowing exactly that one command with no arguments, and validates it with `visudo -cf`;
-- installs `lyna-tmux` from its release through `scripts/install.sh`, verified against the release checksums, then drops to the non-root user and installs Claude Code with its native installer;
+- installs `lyna-tmux` either by copying the staged binary and checking its sha256, or from the release that `init` pinned through that tag's `scripts/install.sh`, verified against the release checksums; then drops to the non-root user and installs Claude Code with its native installer;
 - ends at `WORKDIR /workspace` with `CMD ["sleep", "infinity"]`.
 
 **`init-firewall.sh`** is the egress firewall described below.

@@ -112,7 +112,7 @@ Look and input model of the workspace.
 
 | Key | Type | Values | Default | Effect |
 | --- | --- | --- | --- | --- |
-| `theme` | string | `lyna`, `light`, `ansi` | `"lyna"` | Palette of the status line, pane borders, menus and popups. `ansi` uses the terminal's own palette. `lyna-tmux theme` lists them with swatches. |
+| `theme` | string | `lyna`, `slate`, `dusk`, `contrast`, `nord`, `rose`, `mono`, `solar-dark`, `earth-dark`, `light`, `solar-light`, `earth-light`, `ansi` | `"lyna"` | Palette of the status line, pane borders, menus and popups. The first nine are dark, the next three light, and `ansi` uses the terminal's own palette. `lyna-tmux theme` lists them with swatches and `lyna-tmux theme preview [name]` draws a workspace in each one. |
 | `icons` | string | `auto`, `unicode`, `nerd`, `ascii` | `"auto"` | Glyph set in the status line, borders and pickers. `auto` picks `unicode` when the effective locale (`LC_ALL`, then `LC_CTYPE`, then `LANG`) is UTF-8, and `ascii` otherwise, including under the East Asian locales (`ja`, `zh`, `ko`), where terminals draw the ambiguous width glyphs two cells wide and every segment would sit one cell further right than the layout expects. Set `icons = "unicode"` to use them anyway. `nerd` needs a patched font and is never chosen automatically. |
 | `color` | string | `auto`, `truecolor`, `256`, `16` | `"auto"` | Color depth the theme is rendered at. `auto` reads `COLORTERM=truecolor` or `24bit` as 24-bit, a `TERM` containing `256color` as 256 colors, `xterm-direct` and `tmux-direct` as 24-bit, anything else as the basic 16. |
 | `status_position` | string | `top`, `bottom` | `"bottom"` | Which edge the status line sits on. |
@@ -120,6 +120,7 @@ Look and input model of the workspace.
 | `alt_keys` | boolean | `true`, `false` | `true` | Installs the prefix-free Alt bindings. See [keys.md](keys.md). |
 | `mouse` | boolean | `true`, `false` | `true` | Turns the tmux `mouse` option on or off. With it off, clicks, menus and wheel scrolling never reach tmux. |
 | `allow_passthrough` | boolean | `true`, `false` | `false` | Lets programs in panes send escape sequences straight to your terminal. Off by default: pane output cannot drive your terminal or clipboard. |
+| `focus_events` | boolean | `true`, `false` | `false` | Tells a pane when it gains or loses focus. Off by default, as in tmux itself: a program that asks for focus events without reading them prints each one as typed text, and the agent client is one of them. Turn it on for an editor that reloads a file when its pane regains focus. |
 
 There is no `[keys]` table. Key bindings are configured by `ui.alt_keys` and
 `workspace.prefix` only; anything else under a `keys` name is rejected as an unknown key.
@@ -248,7 +249,9 @@ every key is present or shown commented out, next to what it does.
 # unknown key is an error. Check this file with `lyna-tmux config validate`.
 
 [ui]
-# Color theme: lyna (dark), light, ansi (uses the terminal's own palette).
+# Color theme. Dark: lyna, slate, dusk, contrast, nord, rose, mono, solar-dark,
+# earth-dark. Light: light, solar-light, earth-light. ansi uses the terminal's
+# own palette. Preview them with `lyna-tmux theme preview`.
 theme = "lyna"
 # Icon set: auto, unicode, nerd (needs a Nerd Font), ascii.
 icons = "auto"
@@ -264,6 +267,10 @@ mouse = true
 # Let programs in panes send escape sequences straight to your terminal.
 # Off by default: pane output cannot drive your terminal or clipboard.
 allow_passthrough = false
+# Tell a pane when it gains or loses focus. Off by default: a program that asks
+# for focus events without reading them shows them as typed text, and the agent
+# client is one of them.
+focus_events = false
 
 [workspace]
 # Default layout: solo, duo, trio, quad, review, auto (picks by terminal size), or
