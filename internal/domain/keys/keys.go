@@ -111,15 +111,37 @@ func Defaults(o Options) []Binding {
 	if prefix == "" {
 		prefix = "C-b"
 	}
+	// The prefix table carries every action the Alt keys carry, because Alt
+	// reaches tmux only on a terminal configured to send Option as Meta, and
+	// most terminals are not. Keys that tmux binds itself keep the meaning
+	// tmux gives them (x closes, z zooms, c opens a window, w chooses, o
+	// moves on) so the habit a tmux user already has keeps working, with this
+	// workspace's own prompt and help behind it.
 	out = append(out,
 		Binding{Key: prefix, Table: TablePrefix, Action: ActionSendPrefix, Group: GroupSession, Help: "Send the prefix key to the pane"},
+		Binding{Key: "o", Table: TablePrefix, Action: ActionPaneNext, Group: GroupPanes, Help: "Focus next pane"},
+		Binding{Key: ";", Table: TablePrefix, Action: ActionPanePrev, Group: GroupPanes, Help: "Focus previous pane"},
+		Binding{Key: "H", Table: TablePrefix, Action: ActionResizeLeft, Group: GroupPanes, Help: "Resize pane left"},
+		Binding{Key: "L", Table: TablePrefix, Action: ActionResizeRight, Group: GroupPanes, Help: "Resize pane right"},
+		Binding{Key: "K", Table: TablePrefix, Action: ActionResizeUp, Group: GroupPanes, Help: "Resize pane up"},
+		Binding{Key: "J", Table: TablePrefix, Action: ActionResizeDown, Group: GroupPanes, Help: "Resize pane down"},
 		Binding{Key: `\`, Table: TablePrefix, Action: ActionSplitRight, Group: GroupPanes, Help: "Split right"},
 		Binding{Key: "-", Table: TablePrefix, Action: ActionSplitDown, Group: GroupPanes, Help: "Split down"},
+		Binding{Key: "z", Table: TablePrefix, Action: ActionZoom, Group: GroupPanes, Help: "Zoom pane"},
+		Binding{Key: "x", Table: TablePrefix, Action: ActionClosePane, Group: GroupPanes, Help: "Close pane"},
+		Binding{Key: "C", Table: TablePrefix, Action: ActionFocusClaude, Group: GroupPanes, Help: "Focus Claude pane"},
+		Binding{Key: "c", Table: TablePrefix, Action: ActionNewWindow, Group: GroupWindows, Help: "New window"},
+	)
+	for i := 1; i <= 9; i++ {
+		n := strconv.Itoa(i)
+		out = append(out, Binding{Key: n, Table: TablePrefix, Action: ActionWindow, Arg: n, Group: GroupWindows, Help: "Window " + n})
+	}
+	out = append(out,
+		Binding{Key: "w", Table: TablePrefix, Action: ActionTree, Group: GroupWindows, Help: "Sessions and windows"},
 		Binding{Key: "a", Table: TablePrefix, Action: ActionAgents, Group: GroupTools, Help: "Agents"},
 		Binding{Key: "g", Table: TablePrefix, Action: ActionReview, Group: GroupTools, Help: "Review changes"},
 		Binding{Key: "S", Table: TablePrefix, Action: ActionScratch, Group: GroupTools, Help: "Scratch shell"},
 		Binding{Key: "Space", Table: TablePrefix, Action: ActionMenu, Group: GroupTools, Help: "Menu"},
-		Binding{Key: "C", Table: TablePrefix, Action: ActionFocusClaude, Group: GroupPanes, Help: "Focus Claude pane"},
 		Binding{Key: "r", Table: TablePrefix, Action: ActionReload, Group: GroupSession, Help: "Reload configuration"},
 		Binding{Key: "d", Table: TablePrefix, Action: ActionDetach, Group: GroupSession, Help: "Detach"},
 	)
