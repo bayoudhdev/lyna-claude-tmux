@@ -30,10 +30,13 @@ const (
 // directory, the minimum Claude Code release and the configured keys and
 // sandbox are filled in. dir is the working directory the report is about:
 // its project root decides the Claude Code trust check, and an empty dir, or
-// one outside a project, skips that row. A configuration that does not load
-// is a failed row and the other checks run with the defaults. The report
-// starts with the configuration and ends with the review editor.
-func DoctorRun(ctx context.Context, h Host, sys doctor.Deps, dir string) doctor.Report {
+// one outside a project, skips that row. src is the review plugin source the
+// report is about, the same one `review install` and `doctor --fix` install
+// from, so the row reports on the installation those commands would produce.
+// A configuration that does not load is a failed row and the other checks run
+// with the defaults. The report starts with the configuration and ends with
+// the review editor.
+func DoctorRun(ctx context.Context, h Host, sys doctor.Deps, dir string, src ReviewPlugin) doctor.Report {
 	cfg := config.Default()
 	row := doctor.Result{ID: doctorConfigID, Title: "Configuration"}
 	paths, pathsErr := xdg.Resolve(h.Getenv, h.Home)
@@ -78,7 +81,7 @@ func DoctorRun(ctx context.Context, h Host, sys doctor.Deps, dir string) doctor.
 	if err != nil {
 		editor = domain.EditorIsolated
 	}
-	opts := ReviewPlugin{}.statusOptions(h, paths)
+	opts := src.statusOptions(h, paths)
 	if sys.Run != nil {
 		opts.Run = doctorReviewRun(sys)
 	}

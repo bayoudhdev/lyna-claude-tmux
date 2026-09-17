@@ -170,7 +170,7 @@ func TestDoctorRun(t *testing.T) {
 				"/bin/claude --version": "2.1.100 (Claude Code)\n",
 				"/bin/nvim --version":   "NVIM v0.11.2\nBuild type: Release\n",
 			}}
-			r := DoctorRun(t.Context(), f.host(t, env), f.deps(), root)
+			r := DoctorRun(t.Context(), f.host(t, env), f.deps(), root, ReviewPlugin{})
 			if r.Summary.OK+r.Summary.Warn+r.Summary.Fail+r.Summary.Skip != len(r.Results) {
 				t.Fatalf("summary %+v for %d rows", r.Summary, len(r.Results))
 			}

@@ -464,7 +464,7 @@ The rule is enforced in three places so no path around it exists: when a workspa
 
 ## Troubleshooting
 
-`lyna-tmux doctor` reads the machine and prints the exact command or setting for every problem. It never installs or changes anything. `lyna-tmux sandbox status` runs the subset that applies to the profile and isolation level in effect, as a readiness block. Install commands below are the ones for your package manager: the report picks it from the platform (`brew` on macOS, the distribution's own on Linux, read from `/etc/os-release`), and an unrecognized Linux distribution gets both common forms.
+`lyna-tmux doctor` reads the machine and prints the exact command or setting for every problem. It changes nothing unless you pass `--fix`, which offers the fixes lyna-tmux can carry out itself one at a time (`--yes` applies them all, `--dry-run` only lists them) and leaves the rest, terminal settings and package installs among them, to you. `lyna-tmux sandbox status` runs the subset that applies to the profile and isolation level in effect, as a readiness block. Install commands below are the ones for your package manager: the report picks it from the platform (`brew` on macOS, the distribution's own on Linux, read from `/etc/os-release`), and an unrecognized Linux distribution gets both common forms.
 
 ### macOS
 

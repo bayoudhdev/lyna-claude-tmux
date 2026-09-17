@@ -265,6 +265,13 @@ and prints the command that fixes anything it finds.
 
 ![The doctor report](docs/assets/doctor.png)
 
+`lyna-tmux doctor --fix` goes one step further: it offers, one at a time, the fixes lyna-tmux can
+carry out itself, such as installing the review plugin or updating Claude Code, and answers `y`,
+`n`, `a` for all or `q` to stop. `--yes` applies them all without asking and `--dry-run` only shows
+them. Everything else stays yours to do and is listed at the end: a terminal setting, an account,
+a package manager that asks for a password. It never edits `~/.tmux.conf` or your Claude Code
+settings.
+
 ## Performance
 
 Hooks and the status line run many times per turn, so they are a single static binary that starts

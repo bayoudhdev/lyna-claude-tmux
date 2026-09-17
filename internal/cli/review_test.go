@@ -132,6 +132,9 @@ func (f *reviewFixture) run(t *testing.T, args ...string) (code int, stdout, std
 	}
 	root := NewRootWith(Streams{In: strings.NewReader(""), Out: &out, Err: &errOut}, d)
 	reviewUseSource(root, d, f.src)
+	// doctor --fix installs the same plugin, so it installs it from the same
+	// local repository and release server.
+	doctorUseSource(root, d, f.src)
 	code = run(t.Context(), root, args)
 	return code, out.String(), errOut.String()
 }
