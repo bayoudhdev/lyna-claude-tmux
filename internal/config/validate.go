@@ -156,6 +156,9 @@ func (c Config) validateWorkspace(v *validator) {
 	if w.SplitRatio < 20 || w.SplitRatio > 80 {
 		v.add("workspace.split_ratio", "must be between 20 and 80 (got %d)", w.SplitRatio)
 	}
+	if w.AgentPanes < 0 || w.AgentPanes > layout.MaxAgentPanes {
+		v.add("workspace.agent_panes", "must be between 0 and %d (got %d)", layout.MaxAgentPanes, w.AgentPanes)
+	}
 	if w.HistoryLimit < 1000 || w.HistoryLimit > 2000000 {
 		v.add("workspace.history_limit", "must be between 1000 and 2000000 (got %d)", w.HistoryLimit)
 	}

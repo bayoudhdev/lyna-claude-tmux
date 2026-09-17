@@ -11,6 +11,7 @@ import (
 	"testing"
 	"unicode"
 
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/layout"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/review"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/theme"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/fsx"
@@ -258,6 +259,10 @@ func TestValidate(t *testing.T) {
 		{"effort ultracode", func(c *Config) { c.Claude.Effort = "ultracode" }, ""},
 		{"effort bad", func(c *Config) { c.Claude.Effort = "extreme" }, "claude.effort"},
 		{"mode manual", func(c *Config) { c.Claude.PermissionMode = "manual" }, ""},
+		{"agent panes none", func(c *Config) { c.Workspace.AgentPanes = 0 }, ""},
+		{"agent panes as many as a window takes", func(c *Config) { c.Workspace.AgentPanes = layout.MaxAgentPanes }, ""},
+		{"agent panes past what a window takes", func(c *Config) { c.Workspace.AgentPanes = layout.MaxAgentPanes + 1 }, "workspace.agent_panes"},
+		{"agent panes below none", func(c *Config) { c.Workspace.AgentPanes = -1 }, "workspace.agent_panes"},
 		{"mode bypass", func(c *Config) { c.Claude.PermissionMode = "bypassPermissions" }, ""},
 		{"mode bad", func(c *Config) { c.Claude.PermissionMode = "yolo" }, "claude.permission_mode"},
 		{"statusline empty", func(c *Config) { c.Claude.Statusline = "" }, "claude.statusline"},
@@ -516,6 +521,7 @@ func TestMarshalRoundTrip(t *testing.T) {
 	full.UI.AllowPassthrough = true
 	full.Workspace.Layout = "review"
 	full.Workspace.Shell = "/bin/zsh"
+	full.Workspace.AgentPanes = 5
 	full.Claude = Claude{
 		Command: "/opt/claude", Args: []string{"--verbose", `quote"d`}, Model: "opus", Effort: "xhigh",
 		PermissionMode: "plan", Statusline: "lyna", Fullscreen: true, Teams: true, TeammateMode: "in-process", WorktreeBase: "head",

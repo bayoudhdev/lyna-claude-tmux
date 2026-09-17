@@ -36,6 +36,9 @@ focus_events = false
 layout = "auto"
 # Width of the Claude pane in percent when a layout splits it (20-80).
 split_ratio = 62
+# Teammates that share the lead's window before the next one opens as a window
+# of its own. 0 opens every teammate in a window of its own.
+agent_panes = 3
 history_limit = 100000
 # tmux prefix key. Press it twice to send it to the program in the pane.
 prefix = "C-b"

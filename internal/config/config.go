@@ -14,6 +14,7 @@ import (
 	"github.com/pelletier/go-toml/v2"
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/claudecfg"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/layout"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/review"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/fsx"
 )
@@ -49,6 +50,7 @@ type UI struct {
 type Workspace struct {
 	Layout       string `toml:"layout"`
 	SplitRatio   int    `toml:"split_ratio"`
+	AgentPanes   int    `toml:"agent_panes"`
 	HistoryLimit int    `toml:"history_limit"`
 	Prefix       string `toml:"prefix"`
 	Shell        string `toml:"shell"`
@@ -139,6 +141,7 @@ func Default() Config {
 		Workspace: Workspace{
 			Layout:       "auto",
 			SplitRatio:   62,
+			AgentPanes:   layout.DefaultAgentPanes,
 			HistoryLimit: 100000,
 			Prefix:       "C-b",
 		},
