@@ -107,6 +107,9 @@ func TestDevcontainerInit(t *testing.T) {
 		wantVersion string
 		wantErr     error
 		errHas      []string
+		// errNot is text the failure must not hold, for wording that only
+		// reads right in one of the shapes a reason is written in.
+		errNot []string
 	}{
 		{
 			name: "release of this executable when nothing can be built", config: "[sandbox]\nallowed_domains = [\"pkg.internal.example\"]\n",
@@ -224,7 +227,17 @@ func TestDevcontainerInit(t *testing.T) {
 		{
 			name: "no checkout, go on PATH, not a release", bins: []string{"go"},
 			req:     func(*testing.T, string) DevcontainerInitRequest { return DevcontainerInitRequest{Identity: dev} },
-			wantErr: ErrDevcontainerNoBinary, errHas: []string{"is not a release", "--binary", "--version vX.Y.Z", "linux/amd64", "checkout of " + devcontainer.ModulePath},
+			wantErr: ErrDevcontainerNoBinary, errHas: []string{"is not a release", "--binary", "--version vX.Y.Z", "linux/amd64", "is not inside a checkout of " + devcontainer.ModulePath},
+			// init ran where it writes, so the directory is named once.
+			errNot: []string{"neither "},
+		},
+		{
+			name: "a named target away from the working directory names both", bins: []string{"go"},
+			req: func(_ *testing.T, root string) DevcontainerInitRequest {
+				return DevcontainerInitRequest{Dir: filepath.Join(root, "services", "web"), Cwd: root, Named: true, Identity: dev}
+			},
+			wantErr: ErrDevcontainerNoBinary,
+			errHas:  []string{"neither ", " nor ", "is inside a checkout of " + devcontainer.ModulePath},
 		},
 		{
 			name:    "no go, not a release",
@@ -356,6 +369,11 @@ func TestDevcontainerInit(t *testing.T) {
 				for _, want := range tc.errHas {
 					if !strings.Contains(err.Error(), want) {
 						t.Fatalf("err = %v, want it to contain %q", err, want)
+					}
+				}
+				for _, unwanted := range tc.errNot {
+					if strings.Contains(err.Error(), unwanted) {
+						t.Fatalf("err = %v, want it not to contain %q", err, unwanted)
 					}
 				}
 				// A refused init writes nothing anywhere below the project,

@@ -172,7 +172,14 @@ func devcontainerSource(ctx context.Context, h Host, req DevcontainerInitRequest
 	} else {
 		root, ok := devcontainerCheckout(dir, req.Cwd)
 		if !ok {
-			reasons = append(reasons, "neither "+dir+" nor "+req.Cwd+" is inside a checkout of "+devcontainer.ModulePath)
+			// The two are the same directory whenever init was run where it
+			// writes, which is the common case: naming it once reads as a
+			// sentence rather than as a repetition.
+			where := dir + " is not"
+			if dir != req.Cwd {
+				where = "neither " + dir + " nor " + req.Cwd + " is"
+			}
+			reasons = append(reasons, where+" inside a checkout of "+devcontainer.ModulePath)
 		} else {
 			data, err := devcontainer.Build(ctx, goBin, root, req.Arch, devcontainer.Identity{
 				Version: req.Identity.Version, Commit: req.Identity.Commit, Date: req.Identity.Date,
