@@ -43,30 +43,43 @@ func TestSettingsTeammateMode(t *testing.T) {
 
 func TestTeammateLauncherRefusals(t *testing.T) {
 	cases := []struct {
-		name, lmux, claude string
+		name     string
+		launcher claudecfg.Launcher
+		want     error
 	}{
-		{name: "a relative binary", lmux: "bin/lmux", claude: "/usr/bin/claude"},
-		{name: "a relative agent", lmux: "/usr/bin/lmux", claude: "claude"},
-		{name: "no binary at all", lmux: "", claude: "/usr/bin/claude"},
-		{name: "a path holding a newline", lmux: "/usr/bin/lmux\nrm -rf /", claude: "/usr/bin/claude"},
-		{name: "a path holding a null byte", lmux: "/usr/bin/lmux", claude: "/usr/bin/claude\x00"},
+		{name: "a relative binary", launcher: claudecfg.Launcher{Lmux: "bin/lmux", Claude: "/usr/bin/claude"}, want: claudecfg.ErrLauncherPath},
+		{name: "a relative agent", launcher: claudecfg.Launcher{Lmux: "/usr/bin/lmux", Claude: "claude"}, want: claudecfg.ErrLauncherPath},
+		{name: "no binary at all", launcher: claudecfg.Launcher{Claude: "/usr/bin/claude"}, want: claudecfg.ErrLauncherPath},
+		{name: "a path holding a newline", launcher: claudecfg.Launcher{Lmux: "/usr/bin/lmux\nrm -rf /", Claude: "/usr/bin/claude"}, want: claudecfg.ErrLauncherPath},
+		{name: "a path holding a null byte", launcher: claudecfg.Launcher{Lmux: "/usr/bin/lmux", Claude: "/usr/bin/claude\x00"}, want: claudecfg.ErrLauncherPath},
+		{name: "an assignment that assigns nothing", launcher: launcherWithEnv("LYNA_TMUX_THEME"), want: claudecfg.ErrLauncherEnv},
+		{name: "a name no shell exports", launcher: launcherWithEnv("2THEME=dark"), want: claudecfg.ErrLauncherEnv},
+		{name: "a name holding a command", launcher: launcherWithEnv("THEME;rm -rf /=dark"), want: claudecfg.ErrLauncherEnv},
+		{name: "a value holding a line of its own", launcher: launcherWithEnv("THEME=dark\nrm -rf /"), want: claudecfg.ErrLauncherEnv},
+		{name: "no name at all", launcher: launcherWithEnv("=dark"), want: claudecfg.ErrLauncherEnv},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := claudecfg.TeammateLauncher(tc.lmux, tc.claude)
-			if !errors.Is(err, claudecfg.ErrLauncherPath) {
-				t.Fatalf("TeammateLauncher(%q, %q) = %q, %v", tc.lmux, tc.claude, got, err)
+			got, err := claudecfg.TeammateLauncher(tc.launcher)
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("TeammateLauncher(%+v) = %q, %v; want %v", tc.launcher, got, err, tc.want)
 			}
 		})
 	}
 }
 
+// launcherWithEnv is a launcher of two usable paths carrying one assignment,
+// so a refusal in a case above can only come from that assignment.
+func launcherWithEnv(assignment string) claudecfg.Launcher {
+	return claudecfg.Launcher{Lmux: "/usr/bin/lmux", Claude: "/usr/bin/claude", Env: []string{assignment}}
+}
+
 func TestLauncherFileName(t *testing.T) {
-	a, err := claudecfg.TeammateLauncher("/usr/bin/lmux", "/usr/bin/claude")
+	a, err := claudecfg.TeammateLauncher(claudecfg.Launcher{Lmux: "/usr/bin/lmux", Claude: "/usr/bin/claude"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := claudecfg.TeammateLauncher("/usr/bin/lmux", "/opt/claude/claude")
+	b, err := claudecfg.TeammateLauncher(claudecfg.Launcher{Lmux: "/usr/bin/lmux", Claude: "/opt/claude/claude"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,10 +117,12 @@ func TestTeammateLauncherRuns(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatal(err)
 	}
+	// Each recorder writes what it was called as, its arguments, and the one
+	// value the launcher exports, so both paths are read the same way.
 	record := func(name, label string) string {
 		path := filepath.Join(dir, name)
 		out := filepath.Join(dir, label+".args")
-		script := "#!/bin/sh\nprintf '%s\\n' " + label + " \"$@\" > " + shquote(out) + "\n"
+		script := "#!/bin/sh\nprintf '%s\\n' " + label + " \"$@\" \"$LYNA_TMUX_THEME\" > " + shquote(out) + "\n"
 		if err := os.WriteFile(path, []byte(script), 0o700); err != nil {
 			t.Fatal(err)
 		}
@@ -115,6 +130,7 @@ func TestTeammateLauncherRuns(t *testing.T) {
 	}
 	lmux := record("lmux", "lmux")
 	claude := record("claude", "claude")
+	env := []string{"LYNA_TMUX_THEME=night owl", "LYNA_TMUX_ICONS=nerd"}
 
 	cases := []struct {
 		name       string
@@ -123,11 +139,11 @@ func TestTeammateLauncherRuns(t *testing.T) {
 	}{
 		{
 			name: "the workspace binary takes the teammate", executable: true,
-			want: []string{"lmux", "teammate", "--claude", claude, "--", "--agent-id", "review-api@session-1", "--agent-name", "review-api"},
+			want: []string{"lmux", "teammate", "--claude", claude, "--", "--agent-id", "review-api@session-1", "--agent-name", "review-api", "night owl"},
 		},
 		{
 			name: "a workspace binary that cannot run leaves the team alone",
-			want: []string{"claude", "--agent-id", "review-api@session-1", "--agent-name", "review-api"},
+			want: []string{"claude", "--agent-id", "review-api@session-1", "--agent-name", "review-api", "night owl"},
 		},
 	}
 	for _, tc := range cases {
@@ -139,7 +155,7 @@ func TestTeammateLauncherRuns(t *testing.T) {
 			if err := os.Chmod(lmux, mode); err != nil {
 				t.Fatal(err)
 			}
-			script, err := claudecfg.TeammateLauncher(lmux, claude)
+			script, err := claudecfg.TeammateLauncher(claudecfg.Launcher{Lmux: lmux, Claude: claude, Env: env})
 			if err != nil {
 				t.Fatal(err)
 			}

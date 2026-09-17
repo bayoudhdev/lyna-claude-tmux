@@ -83,6 +83,8 @@ func TestLaunchTeammateMode(t *testing.T) {
 			s := openServer(t, e.testHost)
 			s.Config.Claude.Teams = true
 			s.Config.Claude.TeammateMode = tc.mode
+			s.Config.UI.Theme = "nord"
+			s.Config.UI.Icons = "nerd"
 			lp, err := s.prepareLaunch(e.Host, e.project, "api", LaunchOptions{})
 			if err != nil {
 				t.Fatal(err)
@@ -122,6 +124,18 @@ func TestLaunchTeammateMode(t *testing.T) {
 			for _, want := range []string{e.Exe, lp.base.ClaudePath} {
 				if !strings.Contains(string(script), want) {
 					t.Fatalf("launcher does not run %s: %s", want, script)
+				}
+			}
+			// A teammate draws the way the lead does, so the look of the
+			// workspace travels with the launcher: nothing of the lead's own
+			// environment reaches a pane the tmux server starts.
+			for _, want := range []string{
+				"export " + session.EnvTheme + "=nord\n",
+				"export " + session.EnvIcons + "=nerd\n",
+				"export " + session.EnvClaudeTmuxTruecolor + "=1\n",
+			} {
+				if !strings.Contains(string(script), want) {
+					t.Fatalf("launcher does not carry %s: %s", want, script)
 				}
 			}
 		})

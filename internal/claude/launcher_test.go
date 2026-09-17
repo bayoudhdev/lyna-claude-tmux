@@ -15,7 +15,7 @@ import (
 func TestWriteLauncher(t *testing.T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, "state", "launchers")
-	script, err := claudecfg.TeammateLauncher("/opt/lmux", "/opt/claude")
+	script, err := claudecfg.TeammateLauncher(claudecfg.Launcher{Lmux: "/opt/lmux", Claude: "/opt/claude"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func TestWriteLauncher(t *testing.T) {
 	if err != nil || again != path {
 		t.Fatalf("second WriteLauncher = %s, %v", again, err)
 	}
-	other, err := claudecfg.TeammateLauncher("/opt/lmux", "/usr/bin/claude")
+	other, err := claudecfg.TeammateLauncher(claudecfg.Launcher{Lmux: "/opt/lmux", Claude: "/usr/bin/claude"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func TestWriteLauncherRuns(t *testing.T) {
 	if err := os.WriteFile(lmux, []byte(recorder), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	script, err := claudecfg.TeammateLauncher(lmux, filepath.Join(dir, "claude"))
+	script, err := claudecfg.TeammateLauncher(claudecfg.Launcher{Lmux: lmux, Claude: filepath.Join(dir, "claude")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestWriteLauncherRuns(t *testing.T) {
 
 func TestWriteLauncherRefuses(t *testing.T) {
 	root := t.TempDir()
-	script, err := claudecfg.TeammateLauncher("/opt/lmux", "/opt/claude")
+	script, err := claudecfg.TeammateLauncher(claudecfg.Launcher{Lmux: "/opt/lmux", Claude: "/opt/claude"})
 	if err != nil {
 		t.Fatal(err)
 	}
