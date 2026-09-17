@@ -91,6 +91,39 @@
         ]
       }
     ],
+    "TeammateIdle": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lmux 2>/dev/null) || bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin TeammateIdle",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "TaskCreated": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lmux 2>/dev/null) || bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin TaskCreated",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "case \":$PATH:\" in *:[!/]*) exit 0;; esac; bin=$(command -v lmux 2>/dev/null) || bin=$(command -v lyna-tmux 2>/dev/null) || exit 0; case \"$bin\" in /*) ;; *) exit 0;; esac; exec \"$bin\" hook --plugin TaskCompleted",
+            "async": true
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [

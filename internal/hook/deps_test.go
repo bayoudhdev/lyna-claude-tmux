@@ -92,6 +92,11 @@ func TestRunBranch(t *testing.T) {
 			call := strings.Join(h.tmux.calls[0], "\x00")
 			idle := strings.Join([]string{"-S", testSocket, "-u", "set-option", "-p", "-t", "%3", "@lt_state", "idle"}, "\x00")
 			want := idle
+			if tc.event == "SessionStart" {
+				// A session starting is an agent arriving, so the batch
+				// signals the agents channel before it touches the branch.
+				want += "\x00;\x00" + strings.Join(agentsSignal, "\x00")
+			}
 			if tc.wantTail != nil {
 				want += "\x00;\x00" + strings.Join(tc.wantTail, "\x00")
 			}

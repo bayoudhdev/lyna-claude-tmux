@@ -18,6 +18,7 @@ func TestCommands(t *testing.T) {
 	}
 	tty := tmux.Command{"display-message", "-p", "-t", pane, "#{pane_tty}"}
 	signal := tmux.Command{"run-shell", "-C", "-t", pane, "wait-for -S 'lt-changes-#{session_id}'"}
+	agents := tmux.Command{"run-shell", "-C", "-t", pane, "wait-for -S 'lt-agents-#{session_id}'"}
 	branchSet := func(v string) tmux.Command { return tmux.Command{"set-option", "-t", pane, "@lt_branch", v} }
 	branchUnset := tmux.Command{"set-option", "-u", "-t", pane, "@lt_branch"}
 
@@ -31,10 +32,10 @@ func TestCommands(t *testing.T) {
 		want     []tmux.Command
 		wantRing bool
 	}{
-		{name: "session start idle", ev: hookevent.SessionStart, p: Payload{Source: "startup"}, want: []tmux.Command{set("idle")}},
-		{name: "session start with branch", ev: hookevent.SessionStart, p: Payload{Source: "resume"}, branch: strp("main"), want: []tmux.Command{set("idle"), branchSet("main")}},
-		{name: "session start outside repository clears branch", ev: hookevent.SessionStart, branch: strp(""), want: []tmux.Command{set("idle"), branchUnset}},
-		{name: "session start branch escaped for drawing", ev: hookevent.SessionStart, branch: strp("feat/#[fg=red]"), want: []tmux.Command{set("idle"), branchSet("feat/##[fg=red]")}},
+		{name: "session start idle", ev: hookevent.SessionStart, p: Payload{Source: "startup"}, want: []tmux.Command{set("idle"), agents}},
+		{name: "session start with branch", ev: hookevent.SessionStart, p: Payload{Source: "resume"}, branch: strp("main"), want: []tmux.Command{set("idle"), agents, branchSet("main")}},
+		{name: "session start outside repository clears branch", ev: hookevent.SessionStart, branch: strp(""), want: []tmux.Command{set("idle"), agents, branchUnset}},
+		{name: "session start branch escaped for drawing", ev: hookevent.SessionStart, branch: strp("feat/#[fg=red]"), want: []tmux.Command{set("idle"), agents, branchSet("feat/##[fg=red]")}},
 		{name: "compaction keeps state, refreshes branch", ev: hookevent.SessionStart, p: Payload{Source: "compact"}, branch: strp("dev"), want: []tmux.Command{branchSet("dev")}},
 		{name: "compaction without branch does nothing", ev: hookevent.SessionStart, p: Payload{Source: "compact"}, want: nil},
 		{name: "prompt busy", ev: hookevent.UserPromptSubmit, want: []tmux.Command{set("busy")}},
@@ -58,13 +59,18 @@ func TestCommands(t *testing.T) {
 		{name: "post tool use unknown payload signals", ev: hookevent.PostToolUse, unknown: true, want: []tmux.Command{set("busy"), signal}},
 		{name: "subagent write only signals", ev: hookevent.PostToolUse, p: Payload{ToolName: "Write", AgentID: "a1"}, want: []tmux.Command{signal}},
 		{name: "subagent read does nothing", ev: hookevent.PostToolUse, p: Payload{ToolName: "Grep", AgentID: "a1"}, want: nil},
-		{name: "subagent start", ev: hookevent.SubagentStart, want: []tmux.Command{{"set-option", "-p", "-t", pane, "-F", "@lt_subagents", "#{e|+:#{@lt_subagents},1}"}}},
-		{name: "subagent stop", ev: hookevent.SubagentStop, want: []tmux.Command{{"set-option", "-p", "-t", pane, "-F", "@lt_subagents", "#{?#{e|>:#{@lt_subagents},0},#{e|-:#{@lt_subagents},1},0}"}}},
+		{name: "subagent start", ev: hookevent.SubagentStart, want: []tmux.Command{{"set-option", "-p", "-t", pane, "-F", "@lt_subagents", "#{e|+:#{@lt_subagents},1}"}, agents}},
+		{name: "subagent stop", ev: hookevent.SubagentStop, want: []tmux.Command{{"set-option", "-p", "-t", pane, "-F", "@lt_subagents", "#{?#{e|>:#{@lt_subagents},0},#{e|-:#{@lt_subagents},1},0}"}, agents}},
+		{name: "a teammate out of work refreshes the sidebar", ev: hookevent.TeammateIdle, want: []tmux.Command{agents}},
+		{name: "a task created refreshes the sidebar", ev: hookevent.TaskCreated, want: []tmux.Command{agents}},
+		{name: "a task completed refreshes the sidebar", ev: hookevent.TaskCompleted, want: []tmux.Command{agents}},
+		{name: "a team event with no payload still refreshes", ev: hookevent.TeammateIdle, unknown: true, want: []tmux.Command{agents}},
 		{name: "stop idle bell branch", ev: hookevent.Stop, branch: strp("main"), want: []tmux.Command{set("idle"), branchSet("main"), tty}, wantRing: true},
 		{name: "stop branch lookup failed", ev: hookevent.Stop, bellOff: true, want: []tmux.Command{set("idle")}},
 		{name: "session end unsets", ev: hookevent.SessionEnd, p: Payload{Reason: "prompt_input_exit"}, want: []tmux.Command{
 			{"set-option", "-p", "-u", "-t", pane, "@lt_state"},
 			{"set-option", "-p", "-u", "-t", pane, "@lt_subagents"},
+			agents,
 		}},
 		{name: "unhandled event", ev: hookevent.Event("PreCompact"), want: nil},
 	}

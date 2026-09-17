@@ -225,6 +225,10 @@ const (
 // skipped: every one of them is signaled, whatever its name holds.
 var fmtChangesSignal = "wait-for -S '" + tmux.ChangesChannel("#{session_id}") + "'"
 
+// fmtAgentsSignal signals the agents channel of the session holding the pane,
+// built the same way and for the same reasons as fmtChangesSignal.
+var fmtAgentsSignal = "wait-for -S '" + tmux.AgentsChannel("#{session_id}") + "'"
+
 // Commands returns the tmux batch for an event on pane and whether the pane
 // bell rings after it. known reports that payload was decoded; without it the
 // handler relies on the matcher each event is registered with. branch is the
@@ -233,6 +237,7 @@ var fmtChangesSignal = "wait-for -S '" + tmux.ChangesChannel("#{session_id}") + 
 func Commands(ev hookevent.Event, p Payload, known bool, pane string, branch *string, bell bool) ([]tmux.Command, bool) {
 	var cmds []tmux.Command
 	state := func(s string) { cmds = append(cmds, tmux.Command{"set-option", "-p", "-t", pane, tmux.OptState, s}) }
+	agents := func() { cmds = append(cmds, tmux.Command{"run-shell", "-C", "-t", pane, fmtAgentsSignal}) }
 	ring := false
 
 	switch ev {
@@ -241,6 +246,9 @@ func Commands(ev hookevent.Event, p Payload, known bool, pane string, branch *st
 		// is still working.
 		if p.Source != "compact" {
 			state(StateIdle)
+			// A session starting in a pane is an agent the sidebar did not have
+			// a moment ago, teammates included: they start the same way.
+			agents()
 		}
 	case hookevent.UserPromptSubmit:
 		state(StateBusy)
@@ -274,8 +282,17 @@ func Commands(ev hookevent.Event, p Payload, known bool, pane string, branch *st
 		}
 	case hookevent.SubagentStart:
 		cmds = append(cmds, tmux.Command{"set-option", "-p", "-t", pane, "-F", tmux.OptSubagents, fmtSubagentsInc})
+		agents()
 	case hookevent.SubagentStop:
 		cmds = append(cmds, tmux.Command{"set-option", "-p", "-t", pane, "-F", tmux.OptSubagents, fmtSubagentsDec})
+		agents()
+	case hookevent.TeammateIdle, hookevent.TaskCreated, hookevent.TaskCompleted:
+		// The event fires in the session that leads the team, and what it
+		// reports belongs to the team rather than to this pane: a teammate out
+		// of work, a task created or finished. The sidebar reads the team for
+		// itself, so the pane it is told about is the one whose sidebar has to
+		// read it again.
+		agents()
 	case hookevent.Stop:
 		state(StateIdle)
 		ring = bell
@@ -284,6 +301,7 @@ func Commands(ev hookevent.Event, p Payload, known bool, pane string, branch *st
 			tmux.Command{"set-option", "-p", "-u", "-t", pane, tmux.OptState},
 			tmux.Command{"set-option", "-p", "-u", "-t", pane, tmux.OptSubagents},
 		)
+		agents()
 	}
 
 	if branch != nil && (ev == hookevent.SessionStart || ev == hookevent.Stop) {

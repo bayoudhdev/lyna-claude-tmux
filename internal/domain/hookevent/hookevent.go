@@ -23,6 +23,14 @@ const (
 	SubagentStop      Event = "SubagentStop"
 	Stop              Event = "Stop"
 	SessionEnd        Event = "SessionEnd"
+
+	// TeammateIdle fires in the session that leads a team when one of its
+	// teammates has finished what it was given and waits for more.
+	TeammateIdle Event = "TeammateIdle"
+	// TaskCreated and TaskCompleted fire when the shared task list of a team
+	// gains a task or one of them is finished.
+	TaskCreated   Event = "TaskCreated"
+	TaskCompleted Event = "TaskCompleted"
 )
 
 // Matchers used by registrations.
@@ -53,6 +61,9 @@ func Registrations() []Registration {
 		{Event: PostToolUse},
 		{Event: SubagentStart},
 		{Event: SubagentStop},
+		{Event: TeammateIdle},
+		{Event: TaskCreated},
+		{Event: TaskCompleted},
 		{Event: Stop},
 		{Event: SessionEnd},
 	}

@@ -69,6 +69,15 @@ func ChangesChannel(sessionID string) string {
 	return "lt-changes-" + sessionID
 }
 
+// AgentsChannel is the tmux wait-for channel a hook signals when the agents of
+// a session change: a subagent started or finished, a teammate ran out of work,
+// the shared task list moved. The agents sidebar waits on it, so it redraws on
+// the agent's own events and never on a timer. It is keyed on the session id
+// for the reasons ChangesChannel is.
+func AgentsChannel(sessionID string) string {
+	return "lt-agents-" + sessionID
+}
+
 // Pane roles.
 const (
 	RoleClaude  = "claude"

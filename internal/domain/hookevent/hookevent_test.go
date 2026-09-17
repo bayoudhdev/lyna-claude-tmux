@@ -21,6 +21,9 @@ func TestRegistrations(t *testing.T) {
 		{PreToolUse, MatchAskUser},
 		{Notification, MatchPermissionPrompt},
 		{PostToolUse, ""},
+		{TeammateIdle, ""},
+		{TaskCreated, ""},
+		{TaskCompleted, ""},
 		{Stop, ""},
 	}
 	for _, tc := range cases {
@@ -40,6 +43,9 @@ func TestParse(t *testing.T) {
 		{"SessionStart", true},
 		{"PermissionRequest", true},
 		{"SubagentStop", true},
+		{"TeammateIdle", true},
+		{"TaskCreated", true},
+		{"TaskCompleted", true},
 		{"SessionEnd", true},
 		{"sessionstart", false},
 		{"", false},
