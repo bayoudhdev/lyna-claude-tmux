@@ -26,6 +26,23 @@ func installedVersion(t *testing.T) tmux.Version {
 	return v
 }
 
+// unescapeKey undoes the escaping list-keys applies to the key column. tmux
+// prints a key that would not survive being read back as a token with a
+// backslash in front of it: ';' comes out as '\;', '#' as '\#' and 'M-\' as
+// 'M-\\'. Comparing the printed column to the key we asked for needs the
+// backslashes removed, otherwise a binding that is installed reads as missing.
+func unescapeKey(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+1 < len(s) {
+			i++
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
+}
+
 type lookSpec struct {
 	palette, icons string
 	depth          theme.Depth
@@ -123,7 +140,7 @@ func TestIntegrationConfLoads(t *testing.T) {
 					for _, line := range strings.Split(out, "\n") {
 						f := strings.Fields(line)
 						if len(f) >= 5 && f[0] == "bind-key" {
-							listed[f[2]+" "+strings.ReplaceAll(f[3], `\\`, `\`)] = strings.Join(f[4:], " ")
+							listed[f[2]+" "+unescapeKey(f[3])] = strings.Join(f[4:], " ")
 						}
 					}
 				}
