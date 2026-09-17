@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-09-17
+
 ### Added
 
 - Every workspace action has a binding after the prefix as well as under Alt, so a terminal that does not send Option as Meta still reaches all of them. `lmux keys` prints both columns.
@@ -24,6 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- A pane whose program fails stays on screen with the reason. Only the agent's pane did; a changes, review or command pane that could not start closed at once, so the layout looked as if the pane had never been asked for and the error went with it. The border of a dead pane reads `exited` with the status tmux reports. A shell pane is still yours and keeps tmux's behavior.
 - A failed `docker build` names the image and the step that failed instead of printing the whole log.
 
 ## [1.0.0] - 2026-09-17
@@ -46,5 +49,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Release archives for Linux and macOS (amd64, arm64) with shell completions and a man page, deb, rpm and apk packages, SPDX SBOMs, checksums and build provenance attestations.
 - `scripts/bench.sh` start-up benchmarks.
 
-[Unreleased]: https://github.com/bayoudhdev/lyna-claude-tmux/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/bayoudhdev/lyna-claude-tmux/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/bayoudhdev/lyna-claude-tmux/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/bayoudhdev/lyna-claude-tmux/releases/tag/v1.0.0
