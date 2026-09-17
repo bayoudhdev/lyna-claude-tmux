@@ -94,8 +94,10 @@ func TestRunBranch(t *testing.T) {
 			want := idle
 			if tc.event == "SessionStart" {
 				// A session starting is an agent arriving, so the batch
-				// signals the agents channel before it touches the branch.
+				// signals the agents channel and stores the arrangement of the
+				// window before it touches the branch.
 				want += "\x00;\x00" + strings.Join(agentsSignal, "\x00")
+				want += "\x00" + strings.Join(rememberLayout, "\x00")
 			}
 			if tc.wantTail != nil {
 				want += "\x00;\x00" + strings.Join(tc.wantTail, "\x00")

@@ -73,3 +73,73 @@ func TestAdoptTeammateEscapes(t *testing.T) {
 		})
 	}
 }
+
+func TestRememberLayout(t *testing.T) {
+	want := "set-option -w -t %4 -F @lt_wlayout " +
+		"'#{?#{m:*x*,#{P:#{?#{==:#{@lt_role},teammate},x,}}},#{@lt_wlayout},#{window_layout}}'"
+	if got := tmux.RememberLayout("%4").String(); got != want {
+		t.Fatalf("RememberLayout:\n got %s\nwant %s", got, want)
+	}
+}
+
+func TestTileAgents(t *testing.T) {
+	cases := []struct {
+		name         string
+		window, lead string
+		want         string
+	}{
+		{
+			name: "a window shared by a lead and its teammates", window: "@2", lead: "%1",
+			want: "select-layout -t @2 main-vertical ; resize-pane -t %1 -x 40%",
+		},
+		{name: "a lead named instead of identified", window: "@2", lead: "claude", want: ""},
+		{name: "no lead at all", window: "@2", want: ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tmux.TileAgents(tc.window, tc.lead).String(); got != tc.want {
+				t.Fatalf("TileAgents:\n got %s\nwant %s", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestBreakOutTeammate(t *testing.T) {
+	const remembered = "cf3a,200x50,0,0{100x50,0,0,0,99x50,101,0,1}"
+	cases := []struct {
+		name       string
+		pane       string
+		window     string
+		agent      string
+		remembered string
+		want       string
+	}{
+		{
+			name: "a teammate that gets a window of its own", pane: "%9", window: "@2",
+			agent: "review-api", remembered: remembered,
+			want: "break-pane -d -n review-api -s %9 ; select-layout -t @2 '" + remembered + "'",
+		},
+		{
+			name: "a teammate whose arguments carried no name", pane: "%9", window: "@2", remembered: remembered,
+			want: "break-pane -d -s %9 ; select-layout -t @2 '" + remembered + "'",
+		},
+		{
+			name: "a window whose arrangement nobody stored", pane: "%9", window: "@2", agent: "review-api",
+			want: "break-pane -d -n review-api -s %9",
+		},
+		{
+			name: "a name that would end the command", pane: "%9", window: "@2", agent: "a ; kill-server",
+			want: "break-pane -d -n 'a ; kill-server' -s %9",
+		},
+		{name: "a pane named instead of identified", pane: "review-api", window: "@2", want: ""},
+		{name: "a window named instead of identified", pane: "%9", window: "agents", want: ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tmux.BreakOutTeammate(tc.pane, tc.window, tc.agent, tc.remembered).String()
+			if got != tc.want {
+				t.Fatalf("BreakOutTeammate:\n got %s\nwant %s", got, tc.want)
+			}
+		})
+	}
+}

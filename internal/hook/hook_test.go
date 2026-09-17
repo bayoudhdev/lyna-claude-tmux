@@ -127,6 +127,11 @@ func (errReader) Read([]byte) (int, error) { return 0, errors.New("stdin broken"
 // change: a session starting or ending, a subagent, a teammate, a task.
 var agentsSignal = []string{"run-shell", "-C", "-t", "%3", "wait-for -S 'lt-agents-#{session_id}'"}
 
+// rememberLayout is the command the handler adds when the user hands work to
+// the agent, which stores the arrangement a teammate leaving the window puts
+// back.
+var rememberLayout = append([]string{";"}, tmux.RememberLayout("%3")[0]...)
+
 func TestRun(t *testing.T) {
 	signal := []string{"run-shell", "-C", "-t", "%3", "wait-for -S 'lt-changes-#{session_id}'"}
 	cases := []struct {
@@ -153,12 +158,12 @@ func TestRun(t *testing.T) {
 		{
 			name: "plugin outside managed pane runs", event: "UserPromptSubmit", plugin: true,
 			stdin: strings.NewReader(`{"prompt":"hi"}`),
-			want:  [][]string{argv("set-option -p -t %3 @lt_state busy")},
+			want:  [][]string{append(argv("set-option -p -t %3 @lt_state busy"), rememberLayout...)},
 		},
 		{
 			name: "managed settings hook runs inside managed pane", event: "UserPromptSubmit",
 			env: map[string]string{"LYNA_TMUX_MANAGED": "1"}, stdin: strings.NewReader(`{}`),
-			want: [][]string{argv("set-option -p -t %3 @lt_state busy")},
+			want: [][]string{append(argv("set-option -p -t %3 @lt_state busy"), rememberLayout...)},
 		},
 		{
 			name: "outside tmux", event: "Stop", env: map[string]string{"TMUX": "<unset>"},
@@ -185,7 +190,7 @@ func TestRun(t *testing.T) {
 		{
 			name: "malformed stdin still updates state", event: "UserPromptSubmit",
 			stdin:   strings.NewReader("{not json"),
-			want:    [][]string{argv("set-option -p -t %3 @lt_state busy")},
+			want:    [][]string{append(argv("set-option -p -t %3 @lt_state busy"), rememberLayout...)},
 			wantLog: []string{"hook UserPromptSubmit: hook: decode payload"},
 		},
 		{
@@ -196,7 +201,7 @@ func TestRun(t *testing.T) {
 		},
 		{
 			name: "unreadable stdin", event: "UserPromptSubmit", stdin: errReader{},
-			want:    [][]string{argv("set-option -p -t %3 @lt_state busy")},
+			want:    [][]string{append(argv("set-option -p -t %3 @lt_state busy"), rememberLayout...)},
 			wantLog: []string{"read payload: stdin broken"},
 		},
 		{
@@ -244,7 +249,7 @@ func TestRun(t *testing.T) {
 		{
 			name: "tmux missing is logged", event: "UserPromptSubmit", stdin: strings.NewReader(`{}`),
 			execErr: tmux.ErrNotInstalled,
-			want:    [][]string{argv("set-option -p -t %3 @lt_state busy")},
+			want:    [][]string{append(argv("set-option -p -t %3 @lt_state busy"), rememberLayout...)},
 			wantLog: []string{"tmux: not installed"},
 		},
 		{

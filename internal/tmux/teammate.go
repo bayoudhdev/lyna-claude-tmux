@@ -1,5 +1,11 @@
 package tmux
 
+import (
+	"strconv"
+
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/layout"
+)
+
 // Teammate is the pane Claude Code opened for a teammate, with what the
 // teammate was started as.
 type Teammate struct {
@@ -52,6 +58,60 @@ func AdoptTeammate(t Teammate) Seq {
 		seq = seq.Then(Cmd("set-option", "-p", "-u", "-t", t.Pane, name))
 	}
 	return seq.Then(Cmd("run-shell", "-C", "-t", t.Pane, AgentsSignal))
+}
+
+// fmtKeepLayout is the value RememberLayout stores: the arrangement of the
+// window, unless a teammate is in it, in which case the value already stored
+// is kept. Claude Code tiles the whole window for every teammate it opens, so
+// an arrangement read while one is there is its arrangement and not the user's;
+// the moment the last teammate is gone, the window is followed again.
+var fmtKeepLayout = "#{?#{m:*x*,#{P:#{?#{==:#{" + OptRole + "}," + RoleTeammate + "},x,}}}," +
+	"#{" + OptWinLayout + "},#{window_layout}}"
+
+// RememberLayout returns the command that keeps OptWinLayout up to date for
+// the window holding target, which is a pane id or a window id. tmux expands
+// the value itself (set-option -F), so the arrangement is read and stored in
+// one command with nothing to carry between two of them.
+func RememberLayout(target string) Seq {
+	return Cmd("set-option", "-w", "-t", target, "-F", OptWinLayout, fmtKeepLayout)
+}
+
+// TileAgents returns the commands that arrange a window shared by a lead and
+// its teammates: the lead in a column of its own, the teammates stacked in
+// what is left of the width. Claude Code has just tiled the window for itself,
+// with the lead cut down to a third; this is the same arrangement with the
+// share the workspace gives its lead.
+func TileAgents(window, lead string) Seq {
+	if !ValidPaneID(lead) {
+		return nil
+	}
+	return Cmd("select-layout", "-t", window, "main-vertical").
+		Then(Cmd("resize-pane", "-t", lead, "-x", strconv.Itoa(layout.AgentLeadRatio)+"%"))
+}
+
+// BreakOutTeammate returns the commands that move a teammate's pane into a
+// window of its own, named after the teammate, and put the window it leaves
+// back to the arrangement it had before any agent was opened in it.
+//
+// The window is not selected: a teammate opens while the user is working in
+// the lead, and a pane that moves must not move the user with it. The name is
+// prepared the way a drawn value is, since the status line draws it.
+func BreakOutTeammate(pane, window, name, remembered string) Seq {
+	if !ValidPaneID(pane) || !validWindowID(window) {
+		return nil
+	}
+	// break-pane names the pane to move with -s: its -t is the window the
+	// pane moves into, which is a window tmux creates here.
+	seq := Cmd("break-pane", "-d", "-s", pane)
+	if drawn := AgentOption(name); drawn != "" {
+		seq = Cmd("break-pane", "-d", "-n", drawn, "-s", pane)
+	}
+	// The window the pane left, named by its own id: the pane is in another
+	// window by now and no longer names this one.
+	if remembered != "" {
+		seq = seq.Then(Cmd("select-layout", "-t", window, remembered))
+	}
+	return seq
 }
 
 // AgentsSignal signals the agents channel of the session holding a pane. The

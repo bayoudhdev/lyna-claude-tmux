@@ -234,6 +234,12 @@ func Commands(ev hookevent.Event, p Payload, known bool, pane string, branch *st
 	var cmds []tmux.Command
 	state := func(s string) { cmds = append(cmds, tmux.Command{"set-option", "-p", "-t", pane, tmux.OptState, s}) }
 	agents := func() { cmds = append(cmds, tmux.Command{"run-shell", "-C", "-t", pane, tmux.AgentsSignal}) }
+	// The arrangement of the window is read when the user hands work to the
+	// agent, which is when it is the arrangement they chose. It is what a
+	// teammate leaving the window puts back, and the command carries the rule
+	// that a window holding a teammate is not read, so nothing here has to
+	// know which panes the window holds.
+	remember := func() { cmds = append(cmds, tmux.RememberLayout(pane)...) }
 	ring := false
 
 	switch ev {
@@ -245,9 +251,11 @@ func Commands(ev hookevent.Event, p Payload, known bool, pane string, branch *st
 			// A session starting in a pane is an agent the sidebar did not have
 			// a moment ago, teammates included: they start the same way.
 			agents()
+			remember()
 		}
 	case hookevent.UserPromptSubmit:
 		state(StateBusy)
+		remember()
 	case hookevent.PreToolUse:
 		if known && p.ToolName != hookevent.MatchAskUser {
 			return nil, false

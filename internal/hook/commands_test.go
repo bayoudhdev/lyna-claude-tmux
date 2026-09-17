@@ -19,6 +19,7 @@ func TestCommands(t *testing.T) {
 	tty := tmux.Command{"display-message", "-p", "-t", pane, "#{pane_tty}"}
 	signal := tmux.Command{"run-shell", "-C", "-t", pane, "wait-for -S 'lt-changes-#{session_id}'"}
 	agents := tmux.Command{"run-shell", "-C", "-t", pane, "wait-for -S 'lt-agents-#{session_id}'"}
+	remember := tmux.RememberLayout(pane)[0]
 	branchSet := func(v string) tmux.Command { return tmux.Command{"set-option", "-t", pane, "@lt_branch", v} }
 	branchUnset := tmux.Command{"set-option", "-u", "-t", pane, "@lt_branch"}
 
@@ -32,14 +33,14 @@ func TestCommands(t *testing.T) {
 		want     []tmux.Command
 		wantRing bool
 	}{
-		{name: "session start idle", ev: hookevent.SessionStart, p: Payload{Source: "startup"}, want: []tmux.Command{set("idle"), agents}},
-		{name: "session start with branch", ev: hookevent.SessionStart, p: Payload{Source: "resume"}, branch: strp("main"), want: []tmux.Command{set("idle"), agents, branchSet("main")}},
-		{name: "session start outside repository clears branch", ev: hookevent.SessionStart, branch: strp(""), want: []tmux.Command{set("idle"), agents, branchUnset}},
-		{name: "session start branch escaped for drawing", ev: hookevent.SessionStart, branch: strp("feat/#[fg=red]"), want: []tmux.Command{set("idle"), agents, branchSet("feat/##[fg=red]")}},
+		{name: "session start idle", ev: hookevent.SessionStart, p: Payload{Source: "startup"}, want: []tmux.Command{set("idle"), agents, remember}},
+		{name: "session start with branch", ev: hookevent.SessionStart, p: Payload{Source: "resume"}, branch: strp("main"), want: []tmux.Command{set("idle"), agents, remember, branchSet("main")}},
+		{name: "session start outside repository clears branch", ev: hookevent.SessionStart, branch: strp(""), want: []tmux.Command{set("idle"), agents, remember, branchUnset}},
+		{name: "session start branch escaped for drawing", ev: hookevent.SessionStart, branch: strp("feat/#[fg=red]"), want: []tmux.Command{set("idle"), agents, remember, branchSet("feat/##[fg=red]")}},
 		{name: "compaction keeps state, refreshes branch", ev: hookevent.SessionStart, p: Payload{Source: "compact"}, branch: strp("dev"), want: []tmux.Command{branchSet("dev")}},
 		{name: "compaction without branch does nothing", ev: hookevent.SessionStart, p: Payload{Source: "compact"}, want: nil},
-		{name: "prompt busy", ev: hookevent.UserPromptSubmit, want: []tmux.Command{set("busy")}},
-		{name: "prompt ignores branch", ev: hookevent.UserPromptSubmit, branch: strp("main"), want: []tmux.Command{set("busy")}},
+		{name: "prompt busy", ev: hookevent.UserPromptSubmit, want: []tmux.Command{set("busy"), remember}},
+		{name: "prompt ignores branch", ev: hookevent.UserPromptSubmit, branch: strp("main"), want: []tmux.Command{set("busy"), remember}},
 		{name: "ask user waits and rings", ev: hookevent.PreToolUse, p: Payload{ToolName: "AskUserQuestion"}, want: []tmux.Command{set("waiting"), tty}, wantRing: true},
 		{name: "ask user bell disabled", ev: hookevent.PreToolUse, p: Payload{ToolName: "AskUserQuestion"}, bellOff: true, want: []tmux.Command{set("waiting")}},
 		{name: "other pre tool use ignored", ev: hookevent.PreToolUse, p: Payload{ToolName: "Bash"}, want: nil},

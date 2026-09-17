@@ -29,6 +29,12 @@ const (
 	OptClaudeParent = "@claude_parent"
 )
 
+// OptWinLayout is a window option: the arrangement that window has while no
+// teammate is in it, which is the arrangement a teammate leaving it restores.
+// It is a window option rather than a session one because every window of a
+// workspace has an arrangement of its own.
+const OptWinLayout = "@lt_wlayout"
+
 // OptPassthrough is the tmux option that lets a program in a pane send an
 // escape sequence straight to the outer terminal. The generated configuration
 // turns it off for the server; a Claude pane turns it back on for itself,
