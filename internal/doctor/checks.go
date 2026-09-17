@@ -114,6 +114,7 @@ func checkClaude(ctx context.Context, d Deps) []Result {
 		minimum, ok := ParseVersion(d.ClaudeMinVersion)
 		if ok && v.Less(minimum) {
 			r.Status, r.Detail, r.Fix = StatusFail, fmt.Sprintf("Claude Code %s at %s is older than %s", v, path, minimum), fixUpdateClaude
+			r.Action = CommandFix("Update Claude Code", path, "update")
 			return []Result{r}
 		}
 	}
@@ -189,7 +190,10 @@ func checkOptionAsMeta(_ context.Context, d Deps) []Result {
 	}
 	r.Status = StatusWarn
 	r.Detail = "Alt key bindings need Option to send Meta in " + info.Program.Name() + "; doctor cannot read the terminal's setting"
-	r.Fix = g.Setting
+	// Every action bound to an Alt key is bound after the prefix as well, so
+	// the workspace stays usable while the terminal is set up, and a terminal
+	// nobody changes stays usable for good.
+	r.Fix = g.Setting + "\nlyna-tmux keys lists the same actions after the prefix, which need no terminal setting"
 	return []Result{r}
 }
 
@@ -244,6 +248,12 @@ func checkDocker(ctx context.Context, d Deps) []Result {
 			r.Fix = `sudo usermod -aG docker "$USER" (then log out and back in)`
 		case d.GOOS == "darwin":
 			r.Fix = "colima start (or open -a Docker)"
+			// The daemon on macOS runs in a virtual machine of its own, and
+			// starting colima needs no privileges; a Docker Desktop install
+			// has no colima, so the command is offered only when it is there.
+			if colima, lookErr := d.LookPath("colima"); lookErr == nil {
+				r.Action = CommandFix("Start the Docker virtual machine", colima, "start")
+			}
 		default:
 			r.Fix = "sudo systemctl start docker"
 		}

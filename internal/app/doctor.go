@@ -142,10 +142,13 @@ func doctorReviewResult(editor domain.EditorMode, r review.Report) doctor.Result
 		res.Status, res.Detail = doctor.StatusWarn, r.PlatformProblem
 	case r.DirProblem != "":
 		res.Status, res.Detail, res.Fix = doctor.StatusFail, r.DirProblem, "lyna-tmux review install"
+		res.Action = doctor.BuiltinFix("Install the review plugin", doctor.FixReviewInstall)
 	case !r.Installed:
 		res.Status, res.Detail, res.Fix = doctor.StatusWarn, "codediff.nvim is not installed, so the review popup cannot open", "lyna-tmux review install"
+		res.Action = doctor.BuiltinFix("Install the review plugin", doctor.FixReviewInstall)
 	case !r.PluginOK():
 		res.Status, res.Detail, res.Fix = doctor.StatusFail, strings.Join(r.PluginProblems(), "\n"), "lyna-tmux review install --force"
+		res.Action = doctor.BuiltinFix("Reinstall the review plugin at its pinned commit", doctor.FixReviewReinstall)
 	case nvim != "":
 		res.Status, res.Detail = doctor.StatusWarn, "codediff.nvim is verified, but "+nvim
 	default:
