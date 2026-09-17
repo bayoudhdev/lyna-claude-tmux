@@ -68,6 +68,13 @@
       "detail": "Alt sends Meta by default on this platform"
     },
     {
+      "id": "shift-enter",
+      "title": "Shift+Enter",
+      "status": "warn",
+      "detail": "Shift+Enter may send the prompt instead of adding a line in unknown terminal; doctor cannot press a key to find out",
+      "fix": "run /terminal-setup in Claude Code, in this terminal and not inside tmux; a terminal that already sends the key is left as it is"
+    },
+    {
       "id": "keybindings",
       "title": "Claude keybindings",
       "status": "warn",
@@ -91,7 +98,7 @@
   ],
   "summary": {
     "ok": 2,
-    "warn": 5,
+    "warn": 6,
     "fail": 5,
     "skip": 1
   }

@@ -50,6 +50,12 @@
       "fix": "Ghostty config: macos-option-as-alt = true\nlmux keys lists the same actions after the prefix, which need no terminal setting"
     },
     {
+      "id": "shift-enter",
+      "title": "Shift+Enter",
+      "status": "ok",
+      "detail": "nothing to set up in Ghostty: the terminal reports Shift+Enter as its own key and tmux passes it through"
+    },
+    {
       "id": "keybindings",
       "title": "Claude keybindings",
       "status": "ok",
@@ -69,7 +75,7 @@
     }
   ],
   "summary": {
-    "ok": 9,
+    "ok": 10,
     "warn": 1,
     "fail": 0,
     "skip": 1

@@ -197,6 +197,27 @@ func checkOptionAsMeta(_ context.Context, d Deps) []Result {
 	return []Result{r}
 }
 
+// checkShiftEnter reports whether Shift+Enter adds a line to the agent's
+// prompt instead of sending it. tmux forwards the key, since the generated
+// configuration turns extended keys on, so what is left is the terminal: some
+// report the key themselves, some need the binding Claude Code writes with
+// /terminal-setup, and Terminal cannot send it at all. Nothing is read from
+// the terminal, so the result is a step to take, never an observation, and it
+// is a note rather than a warning: the prompt is usable without it.
+func checkShiftEnter(_ context.Context, d Deps) []Result {
+	r := Result{ID: "shift-enter", Title: "Shift+Enter"}
+	info := termx.Detect(d.Getenv)
+	g := termx.ShiftEnter(info.Program)
+	if g.Works {
+		r.Status, r.Detail = StatusOK, "nothing to set up in "+info.Program.Name()+": "+g.Setting
+		return []Result{r}
+	}
+	r.Status = StatusWarn
+	r.Detail = "Shift+Enter may send the prompt instead of adding a line in " + info.Program.Name() + "; doctor cannot press a key to find out"
+	r.Fix = g.Setting
+	return []Result{r}
+}
+
 func checkNeovim(ctx context.Context, d Deps) []Result {
 	r := Result{ID: "nvim", Title: "Neovim"}
 	minimum := Version{Major: 0, Minor: 9}

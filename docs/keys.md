@@ -289,6 +289,38 @@ them.
 never a failure. If you would rather not change the terminal at all, set `ui.alt_keys =
 false` and use the prefix bindings.
 
+## Shift+Enter, per terminal
+
+`Shift+Enter` adds a line to the agent's prompt instead of sending it. tmux forwards the key
+already: the generated configuration sets `extended-keys on` and `terminal-features
+*:extkeys`, so what is left is whether the terminal sends the key at all. `lmux doctor`
+identifies the terminal the same way it does for Option as Meta and prints one of these:
+
+| Terminal | What to do |
+| --- | --- |
+| Ghostty, kitty, WezTerm, Alacritty | Nothing: the terminal reports `Shift+Enter` as its own key and tmux passes it through |
+| iTerm2, VS Code terminal | Run `/terminal-setup` in Claude Code, in the terminal itself and not inside tmux, then restart the terminal. It writes the key binding the terminal needs |
+| Terminal | It sends `Shift+Enter` as a plain `Enter` and has no setting for it. Use `Option+Enter`, which needs Option sent as Meta, or paste text that already has newlines |
+| Anything else | Run `/terminal-setup` in Claude Code, in the terminal itself and not inside tmux |
+
+`doctor` never presses a key, so this check reports the step to take, not what your terminal
+did.
+
+## Notifications
+
+The agent tells you it needs you in two ways, and both work inside a workspace.
+
+The tmux bell is ours: a hook rings it on the pane, and the status line, the window tab and
+the pane border show it until you look. It needs nothing from the terminal.
+
+A desktop notification is an escape sequence meant for the terminal outside tmux, which tmux
+only forwards when passthrough is allowed. The server keeps passthrough off, so a pane
+running your own programs cannot drive your terminal or your clipboard; the pane running the
+agent allows it, because that is where the notification comes from. Which channel the agent
+uses is decided when the workspace starts, from the terminal you started it in, since from
+inside a pane the only terminal it can see is tmux: iTerm2 gets a notification and the bell,
+kitty gets its own notification, and every other terminal gets the bell.
+
 ## Reloading the configuration
 
 The key bindings, the status line and the mouse behavior all come from one generated file,

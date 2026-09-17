@@ -173,6 +173,7 @@ func Run(ctx context.Context, d Deps) []Result {
 		checkTruecolor,
 		checkClipboard,
 		checkOptionAsMeta,
+		checkShiftEnter,
 		checkKeybindings,
 		checkDocker,
 		checkNeovim,
