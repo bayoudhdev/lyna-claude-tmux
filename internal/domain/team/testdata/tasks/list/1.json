@@ -1,0 +1,10 @@
+{
+  "id": "1",
+  "subject": "Map how the project uses git today",
+  "description": "Read the workflows and the scripts, and write down every place a branch is created.",
+  "activeForm": "Mapping the git usage",
+  "owner": "explore-git",
+  "status": "completed",
+  "blocks": ["3"],
+  "blockedBy": []
+}

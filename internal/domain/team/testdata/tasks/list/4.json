@@ -1,0 +1,12 @@
+{
+  "id": "4",
+  "subject": "Write the release note",
+  "description": "One paragraph for the changelog.",
+  "owner": "docs",
+  "status": "pending",
+  "blocks": [],
+  "blockedBy": ["2", "9"],
+  "metadata": {
+    "source": "team-lead"
+  }
+}

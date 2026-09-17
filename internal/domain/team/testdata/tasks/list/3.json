@@ -1,0 +1,8 @@
+{
+  "id": "3",
+  "subject": "Bring the failing suite back to green",
+  "description": "The suite fails on the three cases the last change added.",
+  "status": "pending",
+  "blocks": [],
+  "blockedBy": ["1"]
+}
