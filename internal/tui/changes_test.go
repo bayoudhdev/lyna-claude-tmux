@@ -3,6 +3,7 @@ package tui
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -58,7 +59,10 @@ func TestChangesFrames(t *testing.T) {
 	states := []struct {
 		name  string
 		popup bool
-		msgs  []tea.Msg
+		// open gives the view somewhere to open a review into, which the
+		// footer offers.
+		open bool
+		msgs []tea.Msg
 	}{
 		{name: "loading"},
 		{name: "clean", msgs: []tea.Msg{changesUpdate(watch.Changes{Branch: watch.Branch{Head: "main"}}, nil)}},
@@ -74,15 +78,22 @@ func TestChangesFrames(t *testing.T) {
 		{name: "error", msgs: []tea.Msg{changesUpdate(watch.Changes{}, errors.New("git status: exit status 128: fatal: index file corrupt"))}},
 		{name: "not-repository", msgs: []tea.Msg{changesUpdate(watch.Changes{}, notRepo)}},
 		{name: "stopped", msgs: []tea.Msg{changesUpdate(sampleChanges(), nil), changesClosedMsg{}}},
+		{name: "selected", open: true, msgs: []tea.Msg{changesUpdate(sampleChanges(), nil), press("j"), press("j")}},
+		{name: "note", open: true, msgs: []tea.Msg{changesUpdate(sampleChanges(), nil), ChangesNote("review: no server running")}},
 	}
 	for _, size := range sizes {
 		for _, st := range states {
 			t.Run(st.name+"-"+size.name, func(t *testing.T) {
 				t.Parallel()
-				m := NewChanges(ChangesOptions{
+				opts := ChangesOptions{
 					Styles: goldenStyles(t), Popup: st.popup, Dir: testHome + "/src/api", Home: testHome,
-					Width: size.width, Height: size.height,
-				})
+					Width: size.width, Height: size.height, Now: clock,
+				}
+				if st.open {
+					opts.Open = func(string) tea.Cmd { return nil }
+					opts.OpenReview = func() tea.Cmd { return nil }
+				}
+				m := NewChanges(opts)
 				apply(m, st.msgs...)
 				assertFrame(t, "changes/"+st.name+"-"+size.name, m, size.width, size.height, size.ansi)
 			})
@@ -140,34 +151,145 @@ func TestChangesScroll(t *testing.T) {
 	}
 	// Height 12 leaves 10 file rows, so the last offset is 20.
 	cases := []struct {
-		name string
-		msgs []tea.Msg
-		want int
+		name         string
+		msgs         []tea.Msg
+		cursor, want int
 	}{
-		{name: "down", msgs: keys("j", "down"), want: 2},
-		{name: "up stops at zero", msgs: keys("k"), want: 0},
-		{name: "page", msgs: keys("pgdown"), want: 10},
-		{name: "end stops at the last page", msgs: keys("G"), want: 20},
-		{name: "top", msgs: keys("G", "g"), want: 0},
-		{name: "wheel", msgs: []tea.Msg{tea.MouseWheelMsg{Button: tea.MouseWheelDown}, tea.MouseWheelMsg{Button: tea.MouseWheelDown}}, want: 6},
-		{name: "wheel up", msgs: []tea.Msg{tea.MouseWheelMsg{Button: tea.MouseWheelDown}, tea.MouseWheelMsg{Button: tea.MouseWheelUp}}, want: 0},
-		{name: "taller window clamps", msgs: []tea.Msg{press("G"), resize(80, 30)}, want: 2},
-		{name: "fewer files clamp", msgs: []tea.Msg{press("G"), changesUpdate(watch.Changes{Files: many.Files[:12]}, nil)}, want: 2},
+		{name: "down", msgs: keys("j", "down"), cursor: 2},
+		{name: "up stops at zero", msgs: keys("k")},
+		{name: "page scrolls once the cursor leaves the view", msgs: keys("pgdown"), cursor: 10, want: 1},
+		{name: "end stops at the last file", msgs: keys("G"), cursor: 29, want: 20},
+		{name: "top", msgs: keys("G", "g")},
+		{name: "wheel", msgs: []tea.Msg{tea.MouseWheelMsg{Button: tea.MouseWheelDown}, tea.MouseWheelMsg{Button: tea.MouseWheelDown}}, cursor: 2},
+		{name: "wheel up", msgs: []tea.Msg{tea.MouseWheelMsg{Button: tea.MouseWheelDown}, tea.MouseWheelMsg{Button: tea.MouseWheelUp}}},
+		{name: "click selects the row under the pointer", msgs: []tea.Msg{clickAt(3)}, cursor: 2},
+		// Row 10 of a 12 row frame is the footer: the body ends above it,
+		// although the list has files left to show there.
+		{name: "click on the footer is ignored", msgs: []tea.Msg{clickAt(3), clickAt(11)}, cursor: 2},
+		{name: "click past the frame is ignored", msgs: []tea.Msg{clickAt(3), clickAt(60)}, cursor: 2},
+		{name: "click on the header is ignored", msgs: []tea.Msg{clickAt(3), clickAt(0)}, cursor: 2},
+		{name: "right click is ignored", msgs: []tea.Msg{clickAt(3), tea.MouseClickMsg{Button: tea.MouseRight, Y: 5}}, cursor: 2},
+		{name: "click follows the offset", msgs: []tea.Msg{press("G"), clickAt(1)}, cursor: 20, want: 20},
+		{name: "taller window keeps the cursor", msgs: []tea.Msg{press("G"), resize(80, 30)}, cursor: 29, want: 2},
+		{name: "fewer files clamp", msgs: []tea.Msg{press("G"), changesUpdate(watch.Changes{Files: many.Files[:12]}, nil)}, cursor: 11, want: 2},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			m := NewChanges(ChangesOptions{Styles: goldenStyles(t), Width: 80, Height: 12})
+			m := NewChanges(ChangesOptions{Styles: goldenStyles(t), Width: 80, Height: 12, Now: clock})
 			apply(m, changesUpdate(many, nil))
 			apply(m, tc.msgs...)
-			if m.offset != tc.want {
-				t.Errorf("offset = %d, want %d", m.offset, tc.want)
+			if m.list.offset != tc.want || m.list.cursor != tc.cursor {
+				t.Errorf("cursor %d offset %d, want cursor %d offset %d", m.list.cursor, m.list.offset, tc.cursor, tc.want)
 			}
 			first := strings.Split(ansi.Strip(m.View().Content), "\n")[1]
 			if want := fmt.Sprintf("f%02d", tc.want); !strings.Contains(first, want) && len(m.update.Changes.Files) == 30 {
 				t.Errorf("first row %q, want %s", first, want)
 			}
 		})
+	}
+}
+
+// clickAt is a left click on a row of the frame.
+func clickAt(y int) tea.MouseClickMsg { return tea.MouseClickMsg{Button: tea.MouseLeft, Y: y} }
+
+func TestChangesOpen(t *testing.T) {
+	t.Parallel()
+	files := sampleChanges()
+	cases := []struct {
+		name string
+		// noOpeners leaves Open and OpenReview nil, the way a view with
+		// nothing to open into runs.
+		noOpeners bool
+		msgs      []tea.Msg
+		wantOpen  []string
+		wantAll   int
+	}{
+		{name: "enter opens the file under the cursor", msgs: keys("enter"), wantOpen: []string{"api/handler.go"}},
+		{name: "enter after moving", msgs: keys("j", "j", "enter"), wantOpen: []string{"docs/guide.md"}},
+		{name: "a rename opens under the path it has now", msgs: keys("G", "enter"), wantOpen: []string{"web/src/components/very/deep/directory/structure/Component.test.tsx"}},
+		{name: "o opens the whole review", msgs: keys("o"), wantAll: 1},
+		{name: "double click opens the row", msgs: []tea.Msg{clickAt(2), clickAt(2)}, wantOpen: []string{"api/handler_test.go"}},
+		{name: "one click only selects", msgs: []tea.Msg{clickAt(2)}},
+		{name: "two clicks on different rows only select", msgs: []tea.Msg{clickAt(2), clickAt(3)}},
+		{name: "without openers the keys do nothing", noOpeners: true, msgs: keys("enter", "o")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var opened []string
+			all := 0
+			opts := ChangesOptions{Styles: goldenStyles(t), Width: 80, Height: 20, Now: clock}
+			if !tc.noOpeners {
+				opts.Open = func(path string) tea.Cmd {
+					opened = append(opened, path)
+					return nil
+				}
+				opts.OpenReview = func() tea.Cmd {
+					all++
+					return nil
+				}
+			}
+			m := NewChanges(opts)
+			apply(m, changesUpdate(files, nil))
+			r := drive(t, m, nil, tc.msgs...)
+			if r.quit {
+				t.Error("opening a review quit the view")
+			}
+			if !slices.Equal(opened, tc.wantOpen) {
+				t.Errorf("opened %q, want %q", opened, tc.wantOpen)
+			}
+			if all != tc.wantAll {
+				t.Errorf("opened the whole review %d times, want %d", all, tc.wantAll)
+			}
+		})
+	}
+}
+
+func TestChangesOpenWithoutFiles(t *testing.T) {
+	t.Parallel()
+	opened := 0
+	opts := ChangesOptions{
+		Styles: goldenStyles(t), Width: 80, Height: 20, Now: clock,
+		Open: func(string) tea.Cmd {
+			opened++
+			return nil
+		},
+	}
+	cases := []struct {
+		name string
+		msgs []tea.Msg
+	}{
+		{name: "before the first reading", msgs: keys("enter")},
+		{name: "a clean working tree", msgs: []tea.Msg{changesUpdate(watch.Changes{Branch: watch.Branch{Head: "main"}}, nil), press("enter")}},
+		{name: "a failed reading", msgs: []tea.Msg{changesUpdate(sampleChanges(), nil), changesUpdate(watch.Changes{}, errors.New("git status: exit status 128")), press("enter")}},
+		{name: "a click on an empty row", msgs: []tea.Msg{clickAt(1), clickAt(1)}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := NewChanges(opts)
+			apply(m, tc.msgs...)
+			if opened != 0 {
+				t.Fatalf("opened a review %d times with nothing to open", opened)
+			}
+		})
+	}
+}
+
+func TestChangesNote(t *testing.T) {
+	t.Parallel()
+	m := NewChanges(ChangesOptions{Styles: goldenStyles(t), Width: 80, Height: 20})
+	apply(m, changesUpdate(sampleChanges(), nil), ChangesNote("review: no server running\x1b]0;x\x07"))
+	frame := ansi.Strip(m.View().Content)
+	if !strings.Contains(frame, "review: no server running") {
+		t.Errorf("frame lacks the note:\n%s", frame)
+	}
+	if strings.Contains(m.View().Content, "\x1b]") || strings.Contains(m.View().Content, "\x07") {
+		t.Error("the note carries control sequences")
+	}
+	apply(m, press("j"))
+	if strings.Contains(ansi.Strip(m.View().Content), "no server running") {
+		t.Error("a key press left the note on screen")
 	}
 }
 

@@ -1,5 +1,5 @@
  ± changes  ⎇ feature/agents ↑2 ↓1      8 files  +1084 -518
- M  api/handler.go                                    +12 -3
+▌M  api/handler.go                                    +12 -3
   M api/handler_test.go                               +40 -0
  RM docs/old guide.md → docs/guide.md                  +1 -1
  AD go.sum                                             +0 -0

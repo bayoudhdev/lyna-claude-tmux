@@ -162,7 +162,7 @@ func NewAgents(opts AgentsOptions) *AgentsModel {
 		opts:    opts,
 		ctx:     ctxOr(opts.Context),
 		now:     nowOr(opts.Now),
-		nav:     newNavKeys(),
+		nav:     newNavKeys(opts.Styles.Theme.Icons.Name == "ascii"),
 		width:   w,
 		height:  h,
 		removed: map[string]bool{},

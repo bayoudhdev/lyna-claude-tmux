@@ -223,10 +223,17 @@ type navKeys struct {
 	Up, Down, PageUp, PageDown, Top, Bottom key.Binding
 }
 
-func newNavKeys() navKeys {
+// newNavKeys builds the movement keys for an icon set. The help of the
+// vertical keys names the arrow they are drawn with, which the ascii icon set
+// has no glyph for: there the letter stands alone.
+func newNavKeys(ascii bool) navKeys {
+	up, down := "↑/k", "↓/j"
+	if ascii {
+		up, down = "k", "j"
+	}
 	return navKeys{
-		Up:       key.NewBinding(key.WithKeys("up", "k", "ctrl+p"), key.WithHelp("↑/k", "up")),
-		Down:     key.NewBinding(key.WithKeys("down", "j", "ctrl+n"), key.WithHelp("↓/j", "down")),
+		Up:       key.NewBinding(key.WithKeys("up", "k", "ctrl+p"), key.WithHelp(up, "up")),
+		Down:     key.NewBinding(key.WithKeys("down", "j", "ctrl+n"), key.WithHelp(down, "down")),
 		PageUp:   key.NewBinding(key.WithKeys("pgup", "ctrl+b"), key.WithHelp("pgup", "page up")),
 		PageDown: key.NewBinding(key.WithKeys("pgdown", "ctrl+f"), key.WithHelp("pgdn", "page down")),
 		Top:      key.NewBinding(key.WithKeys("home", "g"), key.WithHelp("g", "top")),
