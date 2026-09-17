@@ -81,12 +81,19 @@ func RememberLayout(target string) Seq {
 // what is left of the width. Claude Code has just tiled the window for itself,
 // with the lead cut down to a third; this is the same arrangement with the
 // share the workspace gives its lead.
-func TileAgents(window, lead string) Seq {
+// A window that carries the agents rail is arranged around it: main-vertical
+// gives the leftmost pane the column of its own, which is the rail, so the
+// rail is put back to its own width and the lead stacks with the teammates in
+// what it leaves.
+func TileAgents(window, lead, rail string) Seq {
 	if !ValidPaneID(lead) {
 		return nil
 	}
-	return Cmd("select-layout", "-t", window, "main-vertical").
-		Then(Cmd("resize-pane", "-t", lead, "-x", strconv.Itoa(layout.AgentLeadRatio)+"%"))
+	seq := Cmd("select-layout", "-t", window, "main-vertical")
+	if ValidPaneID(rail) {
+		return seq.Then(Cmd("resize-pane", "-t", rail, "-x", strconv.Itoa(layout.RailWidth)))
+	}
+	return seq.Then(Cmd("resize-pane", "-t", lead, "-x", strconv.Itoa(layout.AgentLeadRatio)+"%"))
 }
 
 // BreakOutTeammate returns the commands that move a teammate's pane into a

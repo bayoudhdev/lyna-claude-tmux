@@ -84,12 +84,20 @@ func TestRememberLayout(t *testing.T) {
 
 func TestTileAgents(t *testing.T) {
 	cases := []struct {
-		name         string
-		window, lead string
-		want         string
+		name               string
+		window, lead, rail string
+		want               string
 	}{
 		{
 			name: "a window shared by a lead and its teammates", window: "@2", lead: "%1",
+			want: "select-layout -t @2 main-vertical ; resize-pane -t %1 -x 40%",
+		},
+		{
+			name: "a window that carries the rail", window: "@2", lead: "%1", rail: "%9",
+			want: "select-layout -t @2 main-vertical ; resize-pane -t %9 -x 28",
+		},
+		{
+			name: "a rail named instead of identified", window: "@2", lead: "%1", rail: "agents",
 			want: "select-layout -t @2 main-vertical ; resize-pane -t %1 -x 40%",
 		},
 		{name: "a lead named instead of identified", window: "@2", lead: "claude", want: ""},
@@ -97,7 +105,7 @@ func TestTileAgents(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := tmux.TileAgents(tc.window, tc.lead).String(); got != tc.want {
+			if got := tmux.TileAgents(tc.window, tc.lead, tc.rail).String(); got != tc.want {
 				t.Fatalf("TileAgents:\n got %s\nwant %s", got, tc.want)
 			}
 		})

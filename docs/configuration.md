@@ -103,7 +103,7 @@ ERROR  /home/you/.config/lyna-tmux/config.toml: invalid config: line 3: ui.theme
 
 $ lmux config validate
 ERROR  /home/you/.config/lyna-tmux/config.toml: invalid config:
-workspace.layout: must be one of solo, duo, trio, quad, review, auto or a [layouts.<name>] table (got "nope");
+workspace.layout: must be one of solo, duo, trio, quad, review, team, auto or a [layouts.<name>] table (got "nope");
 workspace.split_ratio: must be between 20 and 80 (got 95).
 ```
 
@@ -280,7 +280,7 @@ allow_passthrough = false
 focus_events = false
 
 [workspace]
-# Default layout: solo, duo, trio, quad, review, auto (picks by terminal size), or
+# Default layout: solo, duo, trio, quad, review, team, auto (picks by terminal size), or
 # the name of a [layouts.<name>] table below.
 layout = "auto"
 # Width of the Claude pane in percent when a layout splits it (20-80).

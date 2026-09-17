@@ -242,3 +242,70 @@ func TestWsSocketPath(t *testing.T) {
 		t.Fatalf("launch socket %q", lp.base.SocketPath)
 	}
 }
+
+// TestLaunchPaneProcs checks what the panes of a layout are started with: the
+// views of the workspace are our own binary, told which workspace they belong
+// to, and a shell pane is started with nothing at all.
+func TestLaunchPaneProcs(t *testing.T) {
+	e := newCreateEnv(t)
+	s := openServer(t, e.testHost)
+	lp, err := s.prepareLaunch(e.Host, e.project, "api", LaunchOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan := layout.Plan{Name: "probe", Panes: []layout.Pane{
+		{Role: layout.RoleClaude},
+		{Role: layout.RoleAgents, Split: layout.SplitRight, Size: 20},
+		{Role: layout.RoleChanges, Split: layout.SplitDown, Size: 50, Parent: 1},
+		{Role: layout.RoleReview, Split: layout.SplitDown, Size: 50, Parent: 2},
+		{Role: layout.RoleShell, Split: layout.SplitDown, Size: 50, Parent: 3},
+		{Role: layout.RoleCommand, Split: layout.SplitDown, Size: 50, Parent: 4, Command: "htop"},
+	}}
+	if err := plan.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	procs, err := lp.paneProcs(e.Host, plan, e.project, "api")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		pane      int
+		wantArgv  []string
+		wantShell string
+	}{
+		{pane: 1, wantArgv: []string{e.Exe, "agents", "--rail", "--session", "api"}},
+		{pane: 2, wantArgv: []string{e.Exe, "watch", "--session", "api", "--dir", e.project}},
+		{pane: 3, wantArgv: []string{e.Exe, "review", "--dir", e.project}},
+		{pane: 4},
+		{pane: 5, wantShell: "htop"},
+	}
+	for _, tc := range cases {
+		t.Run(string(plan.Panes[tc.pane].Role), func(t *testing.T) {
+			got := procs[tc.pane]
+			if !slices.Equal(got.Argv, tc.wantArgv) {
+				t.Fatalf("pane %d runs %q, want %q", tc.pane, got.Argv, tc.wantArgv)
+			}
+			if got.Shell != tc.wantShell {
+				t.Fatalf("pane %d runs the shell command %q, want %q", tc.pane, got.Shell, tc.wantShell)
+			}
+		})
+	}
+	// The agent is the one pane a plan starts with an environment of its own.
+	if len(procs[0].Env) == 0 || len(procs[1].Env) != 0 {
+		t.Fatalf("the rail was started with %q", procs[1].Env)
+	}
+}
+
+// TestLaunchPaneProcsUnknownRole refuses a plan no layout can build.
+func TestLaunchPaneProcsUnknownRole(t *testing.T) {
+	e := newCreateEnv(t)
+	s := openServer(t, e.testHost)
+	lp, err := s.prepareLaunch(e.Host, e.project, "api", LaunchOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan := layout.Plan{Name: "probe", Panes: []layout.Pane{{Role: "telemetry"}}}
+	if _, err := lp.paneProcs(e.Host, plan, e.project, "api"); err == nil {
+		t.Fatal("a pane with no role of ours was given a process")
+	}
+}

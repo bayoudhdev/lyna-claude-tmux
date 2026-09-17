@@ -43,6 +43,9 @@ func TestBuiltin(t *testing.T) {
 		opts     Options
 		wantName string
 		want     []Pane
+		// wantFocus is the pane the window opens on, the first one unless the
+		// layout says otherwise.
+		wantFocus int
 	}{
 		{
 			name: "solo", layout: Solo, opts: Options{SplitRatio: 62}, wantName: Solo,
@@ -87,6 +90,22 @@ func TestBuiltin(t *testing.T) {
 			want: []Pane{{Role: RoleClaude}, {Role: RoleReview, Split: SplitRight, Size: 50}},
 		},
 		{
+			name: "team on a measured client", layout: Team, opts: Options{Width: 200}, wantName: Team,
+			want: []Pane{
+				{Role: RoleAgents},
+				{Role: RoleClaude, Split: SplitRight, Size: 86},
+			},
+			wantFocus: 1,
+		},
+		{
+			name: "team without a measured client", layout: Team, wantName: Team,
+			want: []Pane{
+				{Role: RoleAgents},
+				{Role: RoleClaude, Split: SplitRight, Size: 86},
+			},
+			wantFocus: 1,
+		},
+		{
 			name: "auto resolves by size", layout: Auto, opts: Options{SplitRatio: 62, Width: 80, Height: 24}, wantName: Solo,
 			want: []Pane{{Role: RoleClaude}},
 		},
@@ -103,8 +122,8 @@ func TestBuiltin(t *testing.T) {
 			if !reflect.DeepEqual(got.Panes, tc.want) {
 				t.Errorf("Panes = %+v\nwant %+v", got.Panes, tc.want)
 			}
-			if got.Focus != 0 {
-				t.Errorf("Focus = %d, want 0", got.Focus)
+			if got.Focus != tc.wantFocus {
+				t.Errorf("Focus = %d, want %d", got.Focus, tc.wantFocus)
 			}
 		})
 	}

@@ -31,7 +31,7 @@ allow_passthrough = false
 focus_events = false
 
 [workspace]
-# Default layout: solo, duo, trio, quad, review, auto (picks by terminal size), or
+# Default layout: solo, duo, trio, quad, review, team, auto (picks by terminal size), or
 # the name of a [layouts.<name>] table below.
 layout = "auto"
 # Width of the Claude pane in percent when a layout splits it (20-80).

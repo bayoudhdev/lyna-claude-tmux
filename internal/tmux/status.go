@@ -161,7 +161,8 @@ func (l Look) BorderFormat() string {
 		cond("#{==:"+role+","+RoleTeammate+"}", teammate,
 			cond("#{==:"+role+",review}", text(i.Review+" review"),
 				cond("#{==:"+role+","+RoleChanges+"}", text(i.Changes+" changes"),
-					cond("#{==:"+role+","+RoleScratch+"}", text(i.Shell+" scratch"), text(i.Shell+" shell"))))))
+					cond("#{==:"+role+","+RoleAgents+"}", text(i.Agents+" agents"),
+						cond("#{==:"+role+","+RoleScratch+"}", text(i.Shell+" scratch"), text(i.Shell+" shell")))))))
 	state := "#{" + OptState + "}"
 	stateText := cond("#{==:"+state+",waiting}", style("fg="+l.c(p.Waiting), "bold")+text(" "+i.Waiting+" needs you"),
 		cond("#{==:"+state+",busy}", style("fg="+l.c(p.Busy))+text(" "+i.Busy+" working"),

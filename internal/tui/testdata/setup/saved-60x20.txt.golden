@@ -4,7 +4,7 @@
    ui.theme: lyna -> light
    ui.icons: auto -> ascii
    ui.color: auto -> 256
-   workspace.layout: auto -> review
+   workspace.layout: auto -> team
    ui.alt_keys: true -> false
 
 

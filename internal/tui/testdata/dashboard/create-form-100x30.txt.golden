@@ -11,13 +11,13 @@
       trio
       quad
       review
+      team
       auto
 
     Sandbox
       standard  sandboxed Bash, credentials denied
       strict    adds a network allowlist, no escape hatch
       off       no sandbox (a red shield)
-
 
 
 

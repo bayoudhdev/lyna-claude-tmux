@@ -116,4 +116,7 @@ const (
 	RoleTeammate = "teammate"
 	RoleChanges  = "changes"
 	RoleScratch  = "scratch"
+	// RoleAgents is the rail: the pane that draws every agent of the workspace.
+	// It is the one pane of ours that is never an agent itself.
+	RoleAgents = "agents"
 )

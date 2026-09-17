@@ -252,6 +252,8 @@ func (lp launchPlan) paneProcs(h Host, plan layout.Plan, root, name string) ([]t
 			procs[i] = tmux.PaneProcess{Argv: []string{h.Exe, "watch", "--session", name, "--dir", root}}
 		case layout.RoleReview:
 			procs[i] = tmux.PaneProcess{Argv: []string{h.Exe, "review", "--dir", root}}
+		case layout.RoleAgents:
+			procs[i] = tmux.PaneProcess{Argv: []string{h.Exe, "agents", "--rail", "--session", name}}
 		case layout.RoleCommand:
 			procs[i] = tmux.PaneProcess{Shell: pane.Command}
 		default:

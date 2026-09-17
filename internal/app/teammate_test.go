@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -141,7 +142,9 @@ func TestTeammatePlacesItsPane(t *testing.T) {
 		opening bool
 		// elsewhere is a window of the user's own elsewhere in the workspace,
 		// which the window the teammate opened in is not read from.
-		elsewhere     bool
+		elsewhere bool
+		// rail opens the agents rail in the window the teammate opened in.
+		rail          bool
 		wantHere      bool
 		wantLeadWidth string
 	}{
@@ -157,6 +160,10 @@ func TestTeammatePlacesItsPane(t *testing.T) {
 			name: "a shell of the user's in another window", width: 240, height: 60, panes: 3,
 			elsewhere: true, wantHere: true, wantLeadWidth: "96",
 		},
+		{
+			name: "a teammate in a window that carries the rail", width: 240, height: 60, panes: 3,
+			rail: true, wantHere: true, wantLeadWidth: "211",
+		},
 		{name: "one teammate more than the window shares", width: 240, height: 60, panes: 0},
 		{name: "a window too narrow to read two agents in", width: 100, height: 60, panes: 3},
 		{name: "a window too short to read two agents in", width: 240, height: 13, panes: 3},
@@ -167,8 +174,20 @@ func TestTeammatePlacesItsPane(t *testing.T) {
 			h := newTestHost(t)
 			s := openServer(t, h)
 			scene := openTeammateScene(t, h, s, tc.width, tc.height)
+			rail := ""
 			if tc.opening {
 				if _, err := s.Client.Run(ctx, "split-window", "-d", "-t", scene.pane, "-l", "50%", "sleep 3600"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.rail {
+				out, err := s.Client.Run(ctx, "split-window", "-b", "-h", "-d", "-t", scene.lead,
+					"-l", strconv.Itoa(layout.RailWidth), "-P", "-F", "#{pane_id}", "sleep 3600")
+				if err != nil {
+					t.Fatal(err)
+				}
+				rail = strings.TrimSpace(out)
+				if _, err := s.Client.Run(ctx, "set-option", "-p", "-t", rail, tmux.OptRole, tmux.RoleAgents); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -208,6 +227,17 @@ func TestTeammatePlacesItsPane(t *testing.T) {
 				}
 				if width != tc.wantLeadWidth {
 					t.Fatalf("lead width %s, want %s of a %d cell window", width, tc.wantLeadWidth, tc.width)
+				}
+				if rail != "" {
+					// The rail keeps the column it had: the agents were tiled
+					// beside it, not over it.
+					got, err := s.Client.Display(ctx, rail, "#{pane_width}")
+					if err != nil {
+						t.Fatal(err)
+					}
+					if got != strconv.Itoa(layout.RailWidth) {
+						t.Fatalf("the rail is %s cells wide, want %d", got, layout.RailWidth)
+					}
 				}
 				return
 			}

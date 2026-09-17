@@ -360,6 +360,16 @@ func TestIntegrationStatusFormats(t *testing.T) {
 			target: shell, format: look.BorderFormat(),
 			want: []string{"◎ teammate"},
 		},
+		{
+			name: "the rail says what it is and carries no state",
+			setup: []tmux.Command{
+				{"set-option", "-p", "-t", shell, tmux.OptRole, tmux.RoleAgents},
+				{"set-option", "-p", "-t", shell, tmux.OptState, "busy"},
+			},
+			target: shell, format: look.BorderFormat(),
+			want:    []string{"◎ agents"},
+			notWant: []string{"teammate", "claude", "shell"},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

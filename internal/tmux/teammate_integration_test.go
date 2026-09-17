@@ -104,7 +104,7 @@ func TestIntegrationTeammateLayout(t *testing.T) {
 	}
 
 	// Kept beside the lead: the lead takes the share the workspace gives it.
-	if _, err := srv.Client.Batch(ctx, tmux.TileAgents(window, lead)...); err != nil {
+	if _, err := srv.Client.Batch(ctx, tmux.TileAgents(window, lead, "")...); err != nil {
 		t.Fatal(err)
 	}
 	width, err := srv.Client.Display(ctx, lead, "#{pane_width}")

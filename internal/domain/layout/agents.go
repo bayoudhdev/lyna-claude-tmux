@@ -32,7 +32,28 @@ const (
 	// MaxAgentPanes bounds the configuration value, since past it no client is
 	// wide enough for the panes it asks for.
 	MaxAgentPanes = 8
+	// RailWidth is the width the agents rail is opened at, in cells. It holds a
+	// state glyph, a name long enough to tell two agents apart and how long the
+	// agent has been doing what it is doing.
+	RailWidth = 28
+	// MinRailWidth is the narrowest rail a window is given one at, and
+	// MinRailShare the smallest share of a window the lead is left with.
+	MinRailWidth = 20
+	MinRailShare = 10
 )
+
+// TeamLeadShare is the lead's share of a window that carries the rail, in
+// percent: what is left of the window once the rail has its cells. A width
+// nobody measured takes the share a window of the size a team is worked in
+// would have given.
+func TeamLeadShare(width int) int {
+	if width <= 0 {
+		return 100 - RailWidth*100/AutoTrioWidth
+	}
+	// The rail is rounded up, so it is never a cell narrower than it asked for.
+	rail := (RailWidth*100 + width - 1) / width
+	return min(max(100-rail, MinRailShare), 100-MinRailShare)
+}
 
 // AgentWindow is the window a teammate has just been opened in, described as
 // it is once that pane exists.
@@ -49,6 +70,11 @@ type AgentWindow struct {
 	// window hold beside the lead. Zero opens every one of them in a window
 	// of its own.
 	Max int
+	// Rail is the width of the agents rail in the window, its border left out,
+	// or zero in a window that carries none. The rail is a pane of ours rather
+	// than one of the user's: it keeps a column, and the agents share what it
+	// leaves instead of giving up the window to it.
+	Rail int
 }
 
 // PlaceAgent decides where a teammate's pane goes.
@@ -69,8 +95,13 @@ func PlaceAgent(w AgentWindow) Placement {
 	}
 	// The teammates share the column the lead leaves, one border between the
 	// two columns and one between every two of them.
-	column := w.Width - w.Width*AgentLeadRatio/100 - 1
-	each := (w.Height - (w.Teammates - 1)) / w.Teammates
+	column, stacked := w.Width-w.Width*AgentLeadRatio/100-1, w.Teammates
+	if w.Rail > 0 {
+		// The rail takes the first column of such a window, so the lead stacks
+		// with the teammates in what is left rather than keeping a column.
+		column, stacked = w.Width-w.Rail-1, w.Teammates+1
+	}
+	each := (w.Height - (stacked - 1)) / stacked
 	if column < MinAgentWidth || each < MinAgentHeight {
 		return PlaceWindow
 	}

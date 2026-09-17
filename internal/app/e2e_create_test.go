@@ -124,12 +124,26 @@ func TestE2ECreateLayouts(t *testing.T) {
 		width     int
 		height    int
 		wantRoles []string
+		// wantFocus is the pane the workspace opens on, which is the pane the
+		// agent runs in; it is the first pane in every layout but the one that
+		// carries the rail.
+		wantFocus int
+		// wantExe is the command line a view of the layout is started with,
+		// as the workspace binary records it.
+		wantExe string
 	}{
 		{name: "solo", layout: layout.Solo, wantRoles: []string{"claude"}},
 		{name: "duo", layout: layout.Duo, wantRoles: []string{"claude", "shell"}},
 		{name: "trio", layout: layout.Trio, wantRoles: []string{"claude", "shell", "changes"}},
 		{name: "quad", layout: layout.Quad, wantRoles: []string{"claude", "claude", "claude", "claude"}},
 		{name: "review", layout: layout.Review, wantRoles: []string{"claude", "review"}},
+		{
+			// The rail is a number of cells, so the client the workspace is
+			// opened for is the one it is measured against.
+			name: "team", layout: layout.Team, width: e2eCols, height: e2eRows,
+			wantRoles: []string{"agents", "claude"}, wantFocus: 1,
+			wantExe: "agents|--rail|--session|api|",
+		},
 		{
 			name: "auto on a terminal with room for three", layout: layout.Auto,
 			width: layout.AutoTrioWidth, height: layout.AutoTrioHeight,
@@ -147,13 +161,11 @@ func TestE2ECreateLayouts(t *testing.T) {
 				}
 			}
 			ids := w.panes(t, "#{pane_id}")
-			// The pane after the first, which is the first again in a layout
-			// of one: one pane is a cycle of one, and the keys must leave the
-			// user on it rather than fail.
-			next := 0
-			if len(ids) > 1 {
-				next = 1
-			}
+			// The pane after the one the workspace opened on, which is that
+			// pane again in a layout of one: one pane is a cycle of one, and
+			// the keys must leave the user on it rather than fail.
+			focus := tc.wantFocus
+			next := (focus + 1) % len(ids)
 
 			steps := []struct {
 				name string
@@ -162,6 +174,21 @@ func TestE2ECreateLayouts(t *testing.T) {
 				{"the layout has its panes", func(t *testing.T) {
 					if got := w.panes(t, "#{@lt_role}"); strings.Join(got, ",") != strings.Join(tc.wantRoles, ",") {
 						t.Fatalf("roles %q, want %q", got, tc.wantRoles)
+					}
+					for i, role := range tc.wantRoles {
+						// The rail is the one pane whose width is a number of
+						// cells rather than a share of the window.
+						if role != string(layout.RoleAgents) {
+							continue
+						}
+						if got := w.panes(t, "#{pane_width}")[i]; got != strconv.Itoa(layout.RailWidth) {
+							t.Fatalf("the rail is %s cells wide, want %d", got, layout.RailWidth)
+						}
+					}
+					if tc.wantExe != "" {
+						if got := w.env.exeCalls(t, 1); got[0] != tc.wantExe {
+							t.Fatalf("the view was started as %q, want %q", got[0], tc.wantExe)
+						}
 					}
 					w.alive(t)
 				}},
@@ -172,19 +199,19 @@ func TestE2ECreateLayouts(t *testing.T) {
 					w.WaitScreen(t, fakeclaude.ReadyLine, false)
 				}},
 				{"the agent has the focus", func(t *testing.T) {
-					w.waitActive(t, "#{pane_id}|#{@lt_role}|#{pane_dead}", ids[0]+"|claude|0")
+					w.waitActive(t, "#{pane_id}|#{@lt_role}|#{pane_dead}", ids[focus]+"|claude|0")
 				}},
 				{"the Alt keys move the focus", func(t *testing.T) {
 					w.Keys(t, "M-]")
 					w.waitActive(t, "#{pane_id}", ids[next])
 					w.Keys(t, "M-[")
-					w.waitActive(t, "#{pane_id}", ids[0])
+					w.waitActive(t, "#{pane_id}", ids[focus])
 				}},
 				{"the prefix moves the focus", func(t *testing.T) {
 					w.Keys(t, "C-b", "o")
 					w.waitActive(t, "#{pane_id}", ids[next])
 					w.Keys(t, "C-b", ";")
-					w.waitActive(t, "#{pane_id}", ids[0])
+					w.waitActive(t, "#{pane_id}", ids[focus])
 				}},
 				{"the Alt keys split and close", func(t *testing.T) {
 					w.splitAndClose(t, len(ids), []string{`M-\`}, []string{"M-x"})

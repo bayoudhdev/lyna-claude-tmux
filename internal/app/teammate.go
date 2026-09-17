@@ -174,7 +174,7 @@ func placeTeammatePane(ctx context.Context, client *tmux.Client, p teammatePlace
 	if err != nil {
 		return err
 	}
-	lead, w := "", p.size
+	lead, rail, w := "", "", p.size
 	for _, pane := range panes {
 		if pane.WindowID != p.window {
 			continue
@@ -186,6 +186,12 @@ func placeTeammatePane(ctx context.Context, client *tmux.Client, p teammatePlace
 			if lead == "" {
 				lead = pane.ID
 			}
+		case tmux.RoleAgents:
+			// The rail is ours: it keeps its column and the agents share what
+			// it leaves, rather than the window being the user's because of it.
+			if rail == "" {
+				rail, w.Rail = pane.ID, pane.Width
+			}
 		case "":
 			// A pane with no role of ours is one Claude Code has just opened
 			// for another teammate, which has not taken it over yet. It is not
@@ -196,7 +202,7 @@ func placeTeammatePane(ctx context.Context, client *tmux.Client, p teammatePlace
 		}
 	}
 	if layout.PlaceAgent(w) == layout.PlaceHere {
-		_, err = client.Batch(ctx, tmux.TileAgents(p.window, lead)...)
+		_, err = client.Batch(ctx, tmux.TileAgents(p.window, lead, rail)...)
 		return err
 	}
 	_, err = client.Batch(ctx, tmux.BreakOutTeammate(p.pane, p.window, p.agent, p.remembered)...)
