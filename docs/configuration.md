@@ -474,10 +474,30 @@ Per launch only, with no configuration key at all:
 | everything after `--` | passed straight to `claude`, after `claude.args` |
 | `--pane`, `-s`/`--session` | target a pane or workspace for `layout`, `split` and `task` |
 
-In plugin mode, where `lyna-tmux` runs inside a tmux server you started yourself, the
-`@claude_session_prefix`, `@claude_popup_width` and `@claude_popup_height` options set on
-that server win over `popup.session_prefix`, `popup.width` and `popup.height`. Nothing else
-is read from tmux options.
+In plugin mode, where `lyna-tmux` runs inside a tmux server you started yourself, these
+options set on that server are read, so a configuration written for the plugin this project
+derives from keeps working unchanged:
+
+| tmux option | What it does here |
+| --- | --- |
+| `@claude_launch_key` | prefix key that opens the Claude popup of the current directory |
+| `@claude_list_key` | prefix key that opens the agents picker |
+| `@claude_forward_bell` | forwards a bell from a popup session to the window it was started from |
+| `@claude_session_prefix` | name prefix of popup sessions, over `popup.session_prefix` |
+| `@claude_command` | the command a popup runs, in place of `claude.command` |
+| `@claude_args` | its arguments, in place of `claude.args` |
+| `@claude_popup_width`, `@claude_popup_height` | popup size, over `popup.width` and `popup.height` |
+
+Nothing else is read from tmux options. `@claude_fzf_options` has no effect: the picker is
+built into `lyna-tmux` and needs no external program to filter with.
+
+`@claude_command` follows the rule `claude.command` does: a command name looked up on
+`PATH`, or an absolute path, and nothing else. `@claude_args` is written the way it would be
+for a shell, `--append-system-prompt "be brief"`, and is split into arguments without
+running one, so a `$`, a backquote or a `*` stays the text you typed. Both replace their
+configuration counterpart rather than adding to it, so what a popup runs is what the tmux
+options say. These two are read for popups only: `lyna-tmux create` takes its command and
+its arguments from the configuration file.
 
 ## When a change takes effect
 
