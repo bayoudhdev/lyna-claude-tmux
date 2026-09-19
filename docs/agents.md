@@ -22,6 +22,11 @@ To run every workspace as a team, set `claude.teams = true` in the configuration
 `lmux create` as usual. Ask the lead for teammates the way you would anywhere else; nothing here
 starts them behind your back.
 
+Agent teams are an experimental feature of Claude Code, and whether a build of it offers them to
+your account is Claude Code's to decide. A workspace opened with `lmux team` is a normal workspace
+when they are off: the rail, the spawn form, the transcripts and the task list all work, and the
+teammate panes described below appear as soon as Claude Code opens teammates.
+
 ## Where a teammate opens
 
 Claude Code decides to open a teammate; `claude.teammate_mode` decides where it lands.
