@@ -3,6 +3,7 @@ package review
 import (
 	"context"
 	"errors"
+	"io"
 	"io/fs"
 	"maps"
 	"net/http"
@@ -35,6 +36,9 @@ type installFixture struct {
 	dir     string
 	hits    atomic.Int64
 	started chan struct{}
+	// cancel stops the download of the case that cancels one, called from the
+	// body of the response so the order it happens in is the test's own.
+	cancel context.CancelFunc
 }
 
 func pluginTree(version, marker string) map[string]string {
@@ -128,6 +132,37 @@ func (f *installFixture) options(commit int, darwinAsset string) InstallOptions 
 		Environ:       f.repo.env,
 		MaxAssetBytes: 2048,
 	}
+}
+
+// cancelAtEOF cancels the fixture's download the moment the body of the
+// response ends, which puts the reading of an asset and the cancelation of
+// the request it belongs to in the one order a test can rely on.
+type cancelAtEOF struct {
+	base    http.RoundTripper
+	fixture *installFixture
+}
+
+func (c cancelAtEOF) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := c.base.RoundTrip(req)
+	if err != nil {
+		return resp, err
+	}
+	resp.Body = bodyCancel{ReadCloser: resp.Body, cancel: c.fixture.cancel}
+	return resp, nil
+}
+
+// bodyCancel is a response body that cancels once it is read to the end.
+type bodyCancel struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (b bodyCancel) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	if errors.Is(err, io.EOF) && b.cancel != nil {
+		b.cancel()
+	}
+	return n, err
 }
 
 func TestInstall(t *testing.T) {
@@ -326,6 +361,27 @@ func TestInstall(t *testing.T) {
 					<-f.started
 					cancel()
 				}()
+				return ctx
+			},
+			wantErr: context.Canceled,
+		},
+		{
+			// A server that stops writing when it sees the request canceled
+			// leaves the client with a body that ends cleanly on the bytes it
+			// already had, so the download reads as complete and the file is
+			// whatever arrived. The cancelation is what has to be reported.
+			name:   "the body ends where the download was canceled",
+			before: installGood,
+			edit: func(_ *testing.T, f *installFixture, o *InstallOptions) {
+				*o = f.options(1, "tampered.dylib")
+				o.Force = true
+				client := *f.srv.Client()
+				client.Transport = cancelAtEOF{base: client.Transport, fixture: f}
+				o.HTTPClient = &client
+			},
+			ctx: func(t *testing.T, f *installFixture) context.Context {
+				ctx, cancel := context.WithCancel(testContext(t, 30*time.Second))
+				f.cancel = cancel
 				return ctx
 			},
 			wantErr: context.Canceled,

@@ -372,6 +372,13 @@ func download(ctx context.Context, opts InstallOptions, rawURL, path, want strin
 	if err != nil {
 		return fmt.Errorf("review: download %s: %w", rawURL, err)
 	}
+	// A body cut short by the cancelation of the request can still end as a
+	// clean end of file, which leaves the bytes read so far to be checked
+	// against the pin and reported as a file that does not match it. What
+	// happened is that the download was canceled, and that is what is said.
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("review: download %s: %w", rawURL, err)
+	}
 	if n > opts.MaxAssetBytes {
 		return fmt.Errorf("review: download %s: more than %d bytes: %w", rawURL, opts.MaxAssetBytes, fsx.ErrTooLarge)
 	}
