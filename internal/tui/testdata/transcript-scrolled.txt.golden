@@ -1,0 +1,8 @@
+ ✻ transcript review-api                                                              3 lines below
+› the rail shows no tokens for the review agent, find out why
+● Reading the pane options first.
+  ▸ Read /work/api/internal/tmux/options.go
+  └ 24 lines
+  ▸ Bash go test ./internal/tmux/
+  └ exit status 1: list_test.go:41: pane 3 carries no transcript
+ 7 entries  4m ago                                                       ↓/j down  G bottom  q close
