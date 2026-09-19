@@ -197,16 +197,18 @@ func describeProject(x tmux.Session) string {
 // plan builds the window layout for a request. The rail is asked for by the
 // configuration rather than by the layout, so a workspace that always carries
 // one gets it whichever layout it opens, and the layout that carries it
-// already keeps the one it has.
+// already keeps the one it has. Every rail of the workspace opens at the
+// configured width, the one a custom layout places included.
 func (s *Server) plan(req CreateRequest, name string) (layout.Plan, error) {
 	p, err := s.layoutPlan(req, name)
 	if err != nil {
 		return layout.Plan{}, err
 	}
+	p.RailWidth = s.Config.UI.SidebarWidth
 	if s.Config.UI.AgentsSidebar != config.SidebarAlways {
 		return p, nil
 	}
-	p = layout.WithRail(p, req.Width)
+	p = layout.WithRail(p, req.Width, s.Config.UI.SidebarWidth)
 	return p, p.Validate()
 }
 
@@ -237,6 +239,7 @@ func (s *Server) layoutPlan(req CreateRequest, name string) (layout.Plan, error)
 		Session:    name,
 		Width:      req.Width,
 		Height:     req.Height,
+		RailWidth:  s.Config.UI.SidebarWidth,
 	})
 }
 

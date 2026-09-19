@@ -32,8 +32,10 @@ focus_events = false
 # When the agents rail is on screen: auto opens it with the first agent that
 # joins the workspace and takes it away with the last one, always opens it with
 # the workspace and keeps it, key opens it only when you ask for it (Alt+A),
-# off never opens it by itself.
+# off never opens it and binds no key to it.
 agents_sidebar = "auto"
+# Width of the agents rail in cells (20-60), however it opens.
+sidebar_width = 28
 
 [workspace]
 # Default layout: solo, duo, trio, quad, review, team, auto (picks by terminal size), or

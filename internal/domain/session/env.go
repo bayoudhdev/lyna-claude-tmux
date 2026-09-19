@@ -12,6 +12,13 @@ const (
 	EnvSession = "LYNA_TMUX_SESSION"
 	// EnvSandbox is the sandbox profile the pane was launched with.
 	EnvSandbox = "LYNA_TMUX_SANDBOX"
+	// EnvClient carries the tmux client environment, the value of TMUX, of the
+	// pane a teammate opened in. The launcher exports it and starts lyna-tmux
+	// with TMUX cleared: a terminal library reads TMUX while the process is
+	// starting and asks that server what colors it supports, which would be a
+	// command sent to a server lyna-tmux did not create, before any code here
+	// can refuse it. The agent that follows is executed with TMUX put back.
+	EnvClient = "LYNA_TMUX_CLIENT"
 	// EnvBell is claude.bell: "0" keeps hooks from ringing the terminal bell.
 	EnvBell = "LYNA_TMUX_BELL"
 	// EnvTheme names the palette (ui.theme) the status line draws with.

@@ -205,7 +205,7 @@ func checkKeybindings(_ context.Context, d Deps) []Result {
 		r.Fix = "run /keybindings in Claude Code to open and repair the file"
 		return []Result{r}
 	}
-	workspace := keys.Defaults(keys.Options{AltKeys: d.AltKeys, Prefix: d.Prefix})
+	workspace := keys.Defaults(keys.Options{AltKeys: d.AltKeys, Prefix: d.Prefix, NoAgentsRail: d.NoAgentsRail})
 	collisions := Collisions(bindings, workspace, d.Prefix)
 	if len(collisions) == 0 {
 		r.Status, r.Detail = StatusOK, fmt.Sprintf("%d custom bindings in %s, none taken by tmux", len(bindings), path)

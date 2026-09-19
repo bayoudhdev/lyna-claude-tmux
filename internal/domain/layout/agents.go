@@ -32,37 +32,54 @@ const (
 	// MaxAgentPanes bounds the configuration value, since past it no client is
 	// wide enough for the panes it asks for.
 	MaxAgentPanes = 8
-	// RailWidth is the width the agents rail is opened at, in cells. It holds a
-	// state glyph, a name long enough to tell two agents apart and how long the
-	// agent has been doing what it is doing.
+	// RailWidth is the width the agents rail is opened at when the workspace
+	// sets none (ui.sidebar_width), in cells. It holds a state glyph, a name
+	// long enough to tell two agents apart and how long the agent has been
+	// doing what it is doing.
 	RailWidth = 28
-	// MinRailWidth is the narrowest rail a window is given one at, and
-	// MinRailShare the smallest share of a window the lead is left with.
+	// MinRailWidth and MaxRailWidth bound the width a rail is opened at. Below
+	// the first a name is cut to a few letters; past the second the rail takes
+	// a column the agents it lists would be read better in.
 	MinRailWidth = 20
+	MaxRailWidth = 60
+	// MinRailShare is the smallest share of a window the lead is left with.
 	MinRailShare = 10
 )
 
-// TeamLeadShare is the lead's share of a window that carries the rail, in
-// percent: what is left of the window once the rail has its cells. A width
-// nobody measured takes the share a window of the size a team is worked in
-// would have given.
-func TeamLeadShare(width int) int {
+// RailCells is the width a rail is opened at: the configured width, held to
+// the bounds a rail is drawn at, and RailWidth where no width reached the
+// caller.
+func RailCells(width int) int {
 	if width <= 0 {
-		return 100 - RailWidth*100/AutoTrioWidth
+		return RailWidth
 	}
-	// The rail is rounded up, so it is never a cell narrower than it asked for.
-	rail := (RailWidth*100 + width - 1) / width
-	return min(max(100-rail, MinRailShare), 100-MinRailShare)
+	return min(max(width, MinRailWidth), MaxRailWidth)
 }
 
-// WithRail puts the agents rail in front of a plan: the rail becomes the
-// window and the first pane of the plan splits it, so the rail is the leftmost
-// pane and the one main-vertical then keeps a column of its own for.
+// TeamLeadShare is the lead's share of a window that carries a rail of rail
+// cells, in percent: what is left of the window once the rail has its cells.
+// A width nobody measured takes the share a window of the size a team is
+// worked in would have given.
+func TeamLeadShare(width, rail int) int {
+	rail = RailCells(rail)
+	if width <= 0 {
+		return 100 - rail*100/AutoTrioWidth
+	}
+	// The rail is rounded up, so it is never a cell narrower than it asked for.
+	share := (rail*100 + width - 1) / width
+	return min(max(100-share, MinRailShare), 100-MinRailShare)
+}
+
+// WithRail puts an agents rail of rail cells in front of a plan: the rail
+// becomes the window and the first pane of the plan splits it, so the rail is
+// the leftmost pane and the one main-vertical then keeps a column of its own
+// for. The plan records the width, so the window is built with the rail the
+// lead's share was measured for.
 //
 // A plan that already carries a rail is returned unchanged, and so is one with
 // no room left for a pane: the rail is worth a pane of its own, never the pane
 // of something else.
-func WithRail(p Plan, width int) Plan {
+func WithRail(p Plan, width, rail int) Plan {
 	if len(p.Panes) == 0 || len(p.Panes) >= MaxPanes {
 		return p
 	}
@@ -77,7 +94,7 @@ func WithRail(p Plan, width int) Plan {
 		if i == 0 {
 			// The pane that was the window becomes the split of the rail, with
 			// what the rail leaves of the width.
-			pane.Split, pane.Size, pane.Parent = SplitRight, TeamLeadShare(width), 0
+			pane.Split, pane.Size, pane.Parent = SplitRight, TeamLeadShare(width, rail), 0
 		} else {
 			pane.Parent++
 		}
@@ -85,6 +102,7 @@ func WithRail(p Plan, width int) Plan {
 	}
 	p.Panes = panes
 	p.Focus++
+	p.RailWidth = RailCells(rail)
 	return p
 }
 

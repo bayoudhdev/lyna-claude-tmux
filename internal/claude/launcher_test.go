@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/claudecfg"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/session"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/fsx"
 )
 
@@ -81,6 +82,69 @@ func TestWriteLauncherRuns(t *testing.T) {
 	want := []string{"teammate", "--claude", filepath.Join(dir, "claude"), "--", "--agent-name", "review-api"}
 	if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
 		t.Fatalf("arguments %q, want %q", got, want)
+	}
+}
+
+// TestWriteLauncherHidesTheServer runs the launcher in a pane that names a tmux
+// server and reads what each branch of it is given: lyna-tmux starts with no
+// TMUX and the server in a variable of its own, so nothing it loads can reach a
+// server it did not create, while an agent started without lyna-tmux keeps the
+// environment the pane has.
+func TestWriteLauncherHidesTheServer(t *testing.T) {
+	const client = "/private/tmp/tmux-501/claude-swarm-4711,7,1"
+	cases := []struct {
+		name string
+		// lmux is executable, which is the branch that hands the pane over.
+		lmux                  bool
+		wantTmux, wantCarrier string
+	}{
+		{name: "lyna-tmux takes the pane over", lmux: true, wantTmux: "", wantCarrier: client},
+		{name: "an agent started without lyna-tmux", wantTmux: client},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			out := filepath.Join(dir, "env")
+			recorder := "#!/bin/sh\nprintf '%s\\n%s\\n' \"$TMUX\" \"$" + session.EnvClient + "\" > '" + out + "'\n"
+			lmux, agent := filepath.Join(dir, "lmux"), filepath.Join(dir, "claude")
+			mode := os.FileMode(0o700)
+			if !tc.lmux {
+				mode = 0o600
+			}
+			if err := os.WriteFile(lmux, []byte(recorder), mode); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(agent, []byte(recorder), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			script, err := claudecfg.TeammateLauncher(claudecfg.Launcher{Lmux: lmux, Claude: agent})
+			if err != nil {
+				t.Fatal(err)
+			}
+			path, err := WriteLauncher(filepath.Join(dir, "launchers"), script)
+			if err != nil {
+				t.Fatalf("WriteLauncher: %v", err)
+			}
+			cmd := exec.Command(path, "--agent-name", "review-api")
+			cmd.Env = append(os.Environ(), "TMUX="+client)
+			if got, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("run %s: %v %s", path, err, got)
+			}
+			data, err := os.ReadFile(out)
+			if err != nil {
+				t.Fatal(err)
+			}
+			lines := strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
+			if len(lines) != 2 {
+				t.Fatalf("recorded %q, want the two variables", data)
+			}
+			if lines[0] != tc.wantTmux {
+				t.Fatalf("TMUX = %q, want %q", lines[0], tc.wantTmux)
+			}
+			if lines[1] != tc.wantCarrier {
+				t.Fatalf("%s = %q, want %q", session.EnvClient, lines[1], tc.wantCarrier)
+			}
+		})
 	}
 }
 

@@ -74,6 +74,11 @@ type Options struct {
 	AltKeys bool
 	// Prefix is the tmux prefix key, for example C-b.
 	Prefix string
+	// NoAgentsRail leaves the agents rail out of both key tables, for a
+	// workspace configured never to open the rail on its own: the key and the
+	// menu entry go with it. The rail itself stays reachable, in a layout that
+	// holds an agents pane and by running the command.
+	NoAgentsRail bool
 }
 
 // Defaults returns the workspace bindings. Root bindings use Alt so they
@@ -148,6 +153,12 @@ func Defaults(o Options) []Binding {
 		Binding{Key: "r", Table: TablePrefix, Action: ActionReload, Group: GroupSession, Help: "Reload configuration"},
 		Binding{Key: "d", Table: TablePrefix, Action: ActionDetach, Group: GroupSession, Help: "Detach"},
 	)
+	// The rail key is dropped from both tables at once: a workspace that never
+	// opens the rail by itself offers no key for it either, and the menu, which
+	// is built from these bindings, loses the entry with the key.
+	if o.NoAgentsRail {
+		out = slices.DeleteFunc(out, func(b Binding) bool { return b.Action == ActionAgentsRail })
+	}
 	return out
 }
 

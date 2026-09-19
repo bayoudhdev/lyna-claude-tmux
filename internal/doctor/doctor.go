@@ -131,6 +131,9 @@ type Deps struct {
 	ClaudeMinVersion string
 	// AltKeys mirrors ui.alt_keys: the root-table Alt bindings are installed.
 	AltKeys bool
+	// NoAgentsRail mirrors ui.agents_sidebar set to off: no key opens the
+	// agents rail, so no key is reported for it and none can collide.
+	NoAgentsRail bool
 	// Prefix is the tmux prefix key (workspace.prefix), "C-b" when empty.
 	Prefix string
 	// SandboxProfile mirrors sandbox.profile; "off" skips sandbox prerequisites.

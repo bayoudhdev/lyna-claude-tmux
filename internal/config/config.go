@@ -45,6 +45,9 @@ type UI struct {
 	AllowPassthrough bool   `toml:"allow_passthrough"`
 	FocusEvents      bool   `toml:"focus_events"`
 	AgentsSidebar    string `toml:"agents_sidebar"`
+	// SidebarWidth is the width of the agents rail in cells, wherever it
+	// opens: with the workspace, with the first agent, or on the key.
+	SidebarWidth int `toml:"sidebar_width"`
 }
 
 // Workspace controls sessions and panes.
@@ -143,6 +146,7 @@ func Default() Config {
 			AltKeys:        true,
 			Mouse:          true,
 			AgentsSidebar:  SidebarAuto,
+			SidebarWidth:   layout.RailWidth,
 		},
 		Workspace: Workspace{
 			Layout:       "auto",
@@ -299,6 +303,12 @@ const (
 	SidebarAlways = "always"
 	// SidebarKey opens it only when the key asks for it.
 	SidebarKey = "key"
-	// SidebarOff never opens it; the key still does.
+	// SidebarOff never opens it and installs no key for it.
 	SidebarOff = "off"
 )
+
+// RailKey reports whether the workspace binds a key to the agents rail. Every
+// choice but off does: off is the choice of someone who does not want the
+// rail, so the key and the menu entry go with it. The rail is still reachable
+// from a layout that holds an agents pane and from the command itself.
+func (u UI) RailKey() bool { return u.AgentsSidebar != SidebarOff }

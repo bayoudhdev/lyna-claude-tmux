@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/session"
 )
 
 // Teammate modes: where Claude Code opens the teammates of a team.
@@ -107,7 +109,10 @@ func TeammateLauncher(l Launcher) (string, error) {
 		"# If lmux cannot run, the agent starts anyway and the team is unaffected.\n" +
 		exports.String() +
 		"if [ -x " + lmux + " ]; then\n" +
-		"\texec " + lmux + " teammate --claude " + claude + " -- \"$@\"\n" +
+		"\t# lyna-tmux is handed the pane's server in a variable of its own and\n" +
+		"\t# starts with no TMUX, so nothing it loads can ask a server it did not\n" +
+		"\t# create about itself. The agent below is executed with TMUX put back.\n" +
+		"\t" + session.EnvClient + "=\"$TMUX\" TMUX= exec " + lmux + " teammate --claude " + claude + " -- \"$@\"\n" +
 		"fi\n" +
 		"exec " + claude + " \"$@\"\n", nil
 }

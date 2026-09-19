@@ -2,9 +2,12 @@ package team
 
 import (
 	"cmp"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/transcript"
 )
 
 // Group is one section of the agents view, numbered in the order the sections
@@ -93,6 +96,16 @@ type Row struct {
 	Subagents int
 	// Active marks the pane the user is on.
 	Active bool
+	// AgentID is the identifier Claude Code gave a subagent, which is what
+	// names its transcript; empty on the row of an agent in a pane of its own.
+	AgentID string
+	// Transcript is the file the agent's session is written to, which is what
+	// its usage is read from; empty when no hook has named one.
+	Transcript string
+	// Usage is what the transcript says the agent has spent. The view is built
+	// from the panes alone, so it is zero until a reader of the transcripts
+	// fills it in.
+	Usage transcript.Tally
 }
 
 // Target reports the pane a row can be jumped to.
@@ -139,6 +152,9 @@ type Pane struct {
 	// Active marks the pane the client is on, Dead a pane whose process
 	// stopped and whose exit status is still on screen.
 	Active, Dead bool
+	// Transcript is the file the session of the pane's agent is written to,
+	// as the hooks named it.
+	Transcript string
 }
 
 // Subagent is one subagent an agent of the workspace is running.
@@ -257,6 +273,7 @@ func subagentRows(p Pane) []Row {
 			Group: GroupSubagents, Name: name, Type: s.Type, State: StateBusy,
 			Pane: p.ID, Window: p.Window, WindowName: p.WindowName, Session: p.Session,
 			Team: p.Team, Since: p.Since,
+			AgentID: s.ID, Transcript: SubagentTranscript(p.Transcript, s.ID),
 		})
 	}
 	return rows
@@ -268,7 +285,30 @@ func paneRow(p Pane, g Group, name string) Row {
 		Group: g, Name: name, Type: p.AgentType, State: paneState(p),
 		Pane: p.ID, Window: p.Window, WindowName: p.WindowName, Session: p.Session,
 		Team: p.Team, Since: p.Since, Subagents: p.Subagents, Active: p.Active,
+		Transcript: p.Transcript,
 	}
+}
+
+// transcriptExt is the extension of every transcript Claude Code writes.
+const transcriptExt = ".jsonl"
+
+// SubagentTranscript is the transcript Claude Code writes the work of a
+// subagent to: in a directory beside the transcript of the session that
+// started it, named after that session, as agent-<id>.jsonl under subagents.
+//
+// A subagent has no pane and no hook names its file, so the file is found by
+// the rule alone. The identifier is one a running entry keeps, whose
+// characters cannot leave that directory; one that is not, and a parent that
+// is not a transcript, name no file at all.
+func SubagentTranscript(parent, id string) string {
+	if id == "" || runningPart(id) != id {
+		return ""
+	}
+	session, ok := strings.CutSuffix(filepath.Base(parent), transcriptExt)
+	if !ok || session == "" || !filepath.IsAbs(parent) {
+		return ""
+	}
+	return filepath.Join(filepath.Dir(parent), session, "subagents", "agent-"+id+transcriptExt)
 }
 
 // paneState reads the state of a pane: a pane whose process stopped shows what

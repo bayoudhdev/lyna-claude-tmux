@@ -46,6 +46,9 @@ func TestBuiltin(t *testing.T) {
 		// wantFocus is the pane the window opens on, the first one unless the
 		// layout says otherwise.
 		wantFocus int
+		// wantRail is the width the plan gives its rail, zero for a layout
+		// that carries none.
+		wantRail int
 	}{
 		{
 			name: "solo", layout: Solo, opts: Options{SplitRatio: 62}, wantName: Solo,
@@ -95,7 +98,7 @@ func TestBuiltin(t *testing.T) {
 				{Role: RoleAgents},
 				{Role: RoleClaude, Split: SplitRight, Size: 86},
 			},
-			wantFocus: 1,
+			wantFocus: 1, wantRail: RailWidth,
 		},
 		{
 			name: "team without a measured client", layout: Team, wantName: Team,
@@ -103,7 +106,30 @@ func TestBuiltin(t *testing.T) {
 				{Role: RoleAgents},
 				{Role: RoleClaude, Split: SplitRight, Size: 86},
 			},
-			wantFocus: 1,
+			wantFocus: 1, wantRail: RailWidth,
+		},
+		{
+			// Sixty cells of two hundred are thirty percent: the lead keeps
+			// what the wider rail leaves, and the plan carries the width.
+			name: "team with a wide rail", layout: Team, opts: Options{Width: 200, RailWidth: 60}, wantName: Team,
+			want: []Pane{
+				{Role: RoleAgents},
+				{Role: RoleClaude, Split: SplitRight, Size: 70},
+			},
+			wantFocus: 1, wantRail: 60,
+		},
+		{
+			name: "team with a narrow rail and no measured client", layout: Team, opts: Options{RailWidth: 20}, wantName: Team,
+			want: []Pane{
+				{Role: RoleAgents},
+				{Role: RoleClaude, Split: SplitRight, Size: 90},
+			},
+			wantFocus: 1, wantRail: 20,
+		},
+		{
+			name: "a rail width means nothing to a layout without a rail", layout: Duo,
+			opts: Options{SplitRatio: 62, RailWidth: 60}, wantName: Duo,
+			want: []Pane{{Role: RoleClaude}, {Role: RoleShell, Split: SplitRight, Size: 38}},
 		},
 		{
 			name: "auto resolves by size", layout: Auto, opts: Options{SplitRatio: 62, Width: 80, Height: 24}, wantName: Solo,
@@ -124,6 +150,9 @@ func TestBuiltin(t *testing.T) {
 			}
 			if got.Focus != tc.wantFocus {
 				t.Errorf("Focus = %d, want %d", got.Focus, tc.wantFocus)
+			}
+			if got.RailWidth != tc.wantRail {
+				t.Errorf("RailWidth = %d, want %d", got.RailWidth, tc.wantRail)
 			}
 		})
 	}

@@ -110,6 +110,9 @@ func (c Config) Validate() error {
 	v.choice("ui.color", c.UI.Color)
 	v.choice("ui.status_position", c.UI.StatusPosition)
 	v.choice("ui.agents_sidebar", c.UI.AgentsSidebar)
+	if w := c.UI.SidebarWidth; w < layout.MinRailWidth || w > layout.MaxRailWidth {
+		v.add("ui.sidebar_width", "must be between %d and %d cells (got %d)", layout.MinRailWidth, layout.MaxRailWidth, w)
+	}
 
 	c.validateWorkspace(v)
 	c.validateClaude(v)

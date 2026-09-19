@@ -64,6 +64,10 @@ type Plan struct {
 	Panes []Pane
 	// Focus is the index of the pane selected after creation.
 	Focus int
+	// RailWidth is the width in cells the agents rail of the plan is given,
+	// read through RailCells, so zero is the default width. A rail holds a set
+	// of columns rather than a share of the window, so its size is not a split.
+	RailWidth int
 }
 
 // Built-in layout names.
@@ -93,6 +97,9 @@ type Options struct {
 	Session string
 	// Width and Height are the client size in cells, used by auto.
 	Width, Height int
+	// RailWidth is ui.sidebar_width, the width of the agents rail of the
+	// layouts that carry one.
+	RailWidth int
 }
 
 // Size thresholds for auto, in terminal cells.
@@ -168,7 +175,7 @@ func Builtin(name string, o Options) (Plan, error) {
 		// The rail is the window, and the lead splits it: the rail is then the
 		// leftmost pane of the window, which is the one the agent area is
 		// tiled beside rather than over.
-		p = WithRail(Plan{Panes: []Pane{{Role: RoleClaude}}}, o.Width)
+		p = WithRail(Plan{Panes: []Pane{{Role: RoleClaude}}}, o.Width, o.RailWidth)
 	default:
 		return Plan{}, fmt.Errorf("%w %q", ErrUnknown, name)
 	}

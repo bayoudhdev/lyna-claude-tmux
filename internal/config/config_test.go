@@ -21,6 +21,10 @@ func TestDefaultIsValid(t *testing.T) {
 	if err := Default().Validate(); err != nil {
 		t.Fatal(err)
 	}
+	// The rail opens at the width it had before the width was a setting.
+	if got := Default().UI.SidebarWidth; got != layout.RailWidth {
+		t.Fatalf("ui.sidebar_width defaults to %d, want %d", got, layout.RailWidth)
+	}
 }
 
 func TestTemplateDecodesToDefault(t *testing.T) {
@@ -115,6 +119,7 @@ func TestDecodeOverridesDefaults(t *testing.T) {
 [ui]
 theme = "light"
 alt_keys = false
+sidebar_width = 44
 
 [claude]
 model = "claude-opus-5[1m]"
@@ -131,6 +136,7 @@ allowed_domains = ["registry.npmjs.org", "*.example.com"]
 	want := Default()
 	want.UI.Theme = "light"
 	want.UI.AltKeys = false
+	want.UI.SidebarWidth = 44
 	want.Claude.Model = "claude-opus-5[1m]"
 	want.Claude.Effort = "ultracode"
 	want.Claude.AddDirs = []string{"~/shared", "/opt/lib"}
@@ -216,6 +222,12 @@ func TestValidate(t *testing.T) {
 		{"color", func(c *Config) { c.UI.Color = "8" }, "ui.color"},
 		{"status position", func(c *Config) { c.UI.StatusPosition = "left" }, "ui.status_position"},
 		{"empty theme", func(c *Config) { c.UI.Theme = "" }, "ui.theme"},
+		{"sidebar a cell narrower than the narrowest", func(c *Config) { c.UI.SidebarWidth = 19 }, "ui.sidebar_width"},
+		{"sidebar the narrowest", func(c *Config) { c.UI.SidebarWidth = 20 }, ""},
+		{"sidebar the widest", func(c *Config) { c.UI.SidebarWidth = 60 }, ""},
+		{"sidebar a cell wider than the widest", func(c *Config) { c.UI.SidebarWidth = 61 }, "ui.sidebar_width"},
+		{"sidebar with no width", func(c *Config) { c.UI.SidebarWidth = 0 }, "ui.sidebar_width"},
+		{"sidebar below nothing", func(c *Config) { c.UI.SidebarWidth = -28 }, "ui.sidebar_width"},
 		{"review user editor", func(c *Config) { c.Review.Editor = "user" }, ""},
 		{"review editor", func(c *Config) { c.Review.Editor = "vim" }, "review.editor"},
 		{"review empty editor", func(c *Config) { c.Review.Editor = "" }, "review.editor"},
@@ -519,6 +531,7 @@ func TestMarshalRoundTrip(t *testing.T) {
 	full := Default()
 	full.UI.Theme = "light"
 	full.UI.AllowPassthrough = true
+	full.UI.SidebarWidth = 36
 	full.Workspace.Layout = "review"
 	full.Workspace.Shell = "/bin/zsh"
 	full.Workspace.AgentPanes = 5
@@ -650,4 +663,33 @@ func FuzzDecode(f *testing.F) {
 			t.Fatalf("round trip changed config:\n%+v\n%+v", cfg, again)
 		}
 	})
+}
+
+// TestRailKey covers every value of ui.agents_sidebar: only off is the choice
+// of a user who wants no rail at all, and it is the only one that takes the
+// rail key with it.
+func TestRailKey(t *testing.T) {
+	cases := []struct {
+		name    string
+		sidebar string
+		want    bool
+	}{
+		{name: "auto opens it with the first agent", sidebar: SidebarAuto, want: true},
+		{name: "always opens it with the workspace", sidebar: SidebarAlways, want: true},
+		{name: "key is the key alone", sidebar: SidebarKey, want: true},
+		{name: "off is no rail at all", sidebar: SidebarOff},
+		{name: "the default", sidebar: Default().UI.AgentsSidebar, want: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := (UI{AgentsSidebar: tc.sidebar}).RailKey(); got != tc.want {
+				t.Fatalf("RailKey of %q = %v, want %v", tc.sidebar, got, tc.want)
+			}
+		})
+	}
+	// Every accepted value is covered, so a fifth one cannot be added without
+	// deciding what it does to the key.
+	if got, want := len(Choices("ui.agents_sidebar")), 4; got != want {
+		t.Fatalf("ui.agents_sidebar accepts %d values, want %d", got, want)
+	}
 }

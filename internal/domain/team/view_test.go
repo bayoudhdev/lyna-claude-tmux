@@ -269,3 +269,77 @@ func TestGroups(t *testing.T) {
 		t.Fatalf("a section this release does not draw is %q", got)
 	}
 }
+
+// TestBuildTranscripts reads back the file every row's usage comes from: an
+// agent's own, named by its pane, and a subagent's, found beside the one of
+// the agent that started it.
+func TestBuildTranscripts(t *testing.T) {
+	const lead = "/home/u/.claude/projects/-work-api/5f0c2a1e.jsonl"
+	const mate = "/home/u/.claude/projects/-work-api/9b1e.jsonl"
+	v := team.Build(team.Input{
+		Session: "api",
+		Panes: []team.Pane{
+			{
+				ID: "%1", Session: "api", Role: team.RoleClaude, Transcript: lead,
+				Running: []team.Subagent{{ID: "a1", Type: "Explore"}},
+			},
+			{ID: "%2", Session: "api", Role: team.RoleTeammate, Agent: "review-api", Transcript: mate},
+			{
+				ID: "%3", Session: "api", Role: team.RoleTeammate, Agent: "build-api",
+				Running: []team.Subagent{{ID: "b2", Type: "Plan"}},
+			},
+			{ID: "%9", Session: "web", Role: team.RoleClaude, Transcript: "/home/u/.claude/projects/-work-web/77.jsonl"},
+		},
+		Config: team.Config{Members: []team.Member{{Name: "write-docs", Backend: team.BackendInProcess}}},
+	})
+	want := map[string]struct{ id, transcript string }{
+		"api":        {transcript: lead},
+		"Explore":    {id: "a1", transcript: "/home/u/.claude/projects/-work-api/5f0c2a1e/subagents/agent-a1.jsonl"},
+		"review-api": {transcript: mate},
+		// A subagent of an agent no hook has named a transcript for has none
+		// either: it is found beside that one.
+		"build-api":  {},
+		"Plan":       {id: "b2"},
+		"web":        {transcript: "/home/u/.claude/projects/-work-web/77.jsonl"},
+		"write-docs": {},
+	}
+	if len(v.Rows) != len(want) {
+		t.Fatalf("rows %v", rowLines(v.Rows))
+	}
+	for _, r := range v.Rows {
+		w, ok := want[r.Name]
+		if !ok || r.AgentID != w.id || r.Transcript != w.transcript {
+			t.Fatalf("%s: agent %q transcript %q, want %+v", r.Name, r.AgentID, r.Transcript, w)
+		}
+		if r.Usage.Sum.Total() != 0 || !r.Usage.LastAt.IsZero() {
+			t.Fatalf("%s: the view filled a usage in: %+v", r.Name, r.Usage)
+		}
+	}
+}
+
+func TestSubagentTranscript(t *testing.T) {
+	const parent = "/home/u/.claude/projects/-work-api/5f0c2a1e-7b3d-4c8e-9a10-2b3c4d5e6f70.jsonl"
+	cases := []struct {
+		name, parent, id, want string
+	}{
+		{name: "a subagent of a session", parent: parent, id: "a3f2e1d0c9b8a7f6e", want: "/home/u/.claude/projects/-work-api/5f0c2a1e-7b3d-4c8e-9a10-2b3c4d5e6f70/subagents/agent-a3f2e1d0c9b8a7f6e.jsonl"},
+		{name: "an identifier with a dash and an underscore", parent: parent, id: "ag-1_x", want: "/home/u/.claude/projects/-work-api/5f0c2a1e-7b3d-4c8e-9a10-2b3c4d5e6f70/subagents/agent-ag-1_x.jsonl"},
+		{name: "a parent under a directory with spaces", parent: "/home/u/My Projects/s.jsonl", id: "a1", want: "/home/u/My Projects/s/subagents/agent-a1.jsonl"},
+		{name: "no parent", id: "a1"},
+		{name: "a parent that is not a transcript", parent: "/home/u/.claude/projects/-work-api/s.json", id: "a1"},
+		{name: "a parent that is an extension alone", parent: "/home/u/.claude/projects/.jsonl", id: "a1"},
+		{name: "a relative parent", parent: "projects/s.jsonl", id: "a1"},
+		{name: "no identifier", parent: parent},
+		{name: "an identifier that climbs", parent: parent, id: "../../x"},
+		{name: "an identifier with a slash", parent: parent, id: "a/b"},
+		{name: "an identifier with a dot", parent: parent, id: "a.b"},
+		{name: "an identifier longer than an entry keeps", parent: parent, id: strings.Repeat("a", team.MaxRunningPart+1)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := team.SubagentTranscript(tc.parent, tc.id); got != tc.want {
+				t.Fatalf("SubagentTranscript(%q, %q) = %q, want %q", tc.parent, tc.id, got, tc.want)
+			}
+		})
+	}
+}
