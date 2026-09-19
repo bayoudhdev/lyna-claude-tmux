@@ -26,6 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The configuration reference documented neither `claude.teammate_mode` nor `workspace.agent_panes`, and the template it printed was no longer the file `lmux config init` writes. Tests now hold the reference to the configuration: a row for every key the file takes, every accepted value named, and the template byte for byte.
 - A window that still holds the rail or another teammate is arranged for the agents that stay when one of them moves to a window of its own. It was given back the arrangement it had with no agent in it, which no longer fits its panes, so the window kept the agent's own layout and the teammate was reported as unplaced although its pane had moved.
 - The teammate launcher hands lyna-tmux the pane's server in a variable of its own and starts it with `TMUX` cleared, putting it back for the agent. A terminal library reads `TMUX` while the process starts and asks that server what colors it supports, which on a team Claude Code opened on a server of its own was a command sent to a server lyna-tmux did not create.
+- `lmux review` reports a download stopped part way as the cancelation it was, instead of as a file whose checksum does not match the pinned release. A server that stops writing when it sees the request canceled ends the body cleanly, so the bytes that did arrive were read as the whole file.
 
 ## [1.0.1] - 2026-09-17
 
