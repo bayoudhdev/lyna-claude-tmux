@@ -15,6 +15,7 @@ import (
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/team"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/testutil/tmuxtest"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
 )
 
 type run struct {
@@ -728,6 +729,19 @@ func (s teamServer) run(t *testing.T, args ...string) string {
 	return strings.TrimSpace(out)
 }
 
+// borderStylePerPane reports whether the server keeps pane-border-style on
+// the pane it was set on. tmux made the border styles pane options in 3.7;
+// before that the option belongs to the window, so a window drawn by Claude
+// Code ends up in the color of the last teammate opened into it.
+func borderStylePerPane(t *testing.T, s teamServer) bool {
+	t.Helper()
+	v, err := tmux.ParseVersion(s.run(t, "-V"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return v.AtLeast(3, 7)
+}
+
 // teamLead is a lead run in-process in a pane of a real server, with every
 // path it is given holding a character the shell would read.
 type teamLead struct {
@@ -897,6 +911,7 @@ func TestOpenTeamOnTmux(t *testing.T) {
 			cfg := readTeam(t, l.config)
 			checkLead(t, cfg, l.dir)
 			started := teammatesStarted(t, l.record, len(spawns))
+			perPane := borderStylePerPane(t, s)
 			wantEnv := map[string]string{"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1", "CLAUDE_CONFIG_DIR": l.config}
 			for i, sp := range spawns {
 				color := palette[i+1]
@@ -916,9 +931,13 @@ func TestOpenTeamOnTmux(t *testing.T) {
 				if !ok || m.Name != sp.Name || m.AgentType != sp.AgentType || m.Color != color || m.Dir != l.dir {
 					t.Fatalf("team member for %s: %+v, %v", sp.Pane, m, ok)
 				}
+				border := "fg=" + tmuxColors[color]
+				if !perPane {
+					border = "fg=" + tmuxColors[palette[len(spawns)%len(palette)]]
+				}
 				for option, want := range map[string]string{
 					"pane-border-format": BorderFormat(color), "window-style": "bg=default,fg=" + tmuxColors[color],
-					"pane-border-style": "fg=" + tmuxColors[color], "remain-on-exit": "failed",
+					"pane-border-style": border, "remain-on-exit": "failed",
 				} {
 					if got := s.run(t, "show-options", "-p", "-v", "-t", sp.Pane, option); got != want {
 						t.Fatalf("%s %s = %q, want %q", sp.Pane, option, got, want)
