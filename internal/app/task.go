@@ -6,9 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
-	"unicode"
 
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/claudecfg"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/layout"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/session"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
@@ -155,7 +154,7 @@ func (s *Server) OpenTask(ctx context.Context, h Host, req TaskRequest) (WindowR
 	if err := layout.ValidateWorktree(req.Name); err != nil {
 		return WindowResult{}, err
 	}
-	if err := taskCheckPrompt(req.Prompt); err != nil {
+	if err := claudecfg.ValidatePrompt(req.Prompt); err != nil {
 		return WindowResult{}, err
 	}
 	spot, err := s.wsLocate(ctx, h, req.Target)
@@ -168,22 +167,4 @@ func (s *Server) OpenTask(ctx context.Context, h Host, req TaskRequest) (WindowR
 		o.ExtraArgs = []string{req.Prompt}
 	}
 	return s.wsOpenWindow(ctx, h, spot, req.Name, plan, o)
-}
-
-// ErrPrompt reports a prompt claude would not read as a prompt.
-var ErrPrompt = errors.New("invalid prompt")
-
-// taskCheckPrompt refuses prompts claude parses as something else: a leading
-// '-' makes an option, and a single word may name a claude subcommand (such
-// as update or install), which would run instead of a session.
-func taskCheckPrompt(p string) error {
-	switch {
-	case p == "":
-		return nil
-	case strings.HasPrefix(p, "-"):
-		return fmt.Errorf("%w: it must not start with '-', which claude reads as an option", ErrPrompt)
-	case !strings.ContainsFunc(p, unicode.IsSpace):
-		return fmt.Errorf("%w: %q is one word, which claude may run as a subcommand; write the prompt as a sentence", ErrPrompt, p)
-	}
-	return nil
 }
