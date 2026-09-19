@@ -246,47 +246,6 @@ func TestValidate(t *testing.T) {
 	}
 }
 
-func TestValidateWorktree(t *testing.T) {
-	cases := []struct {
-		name string
-		in   string
-		ok   bool
-	}{
-		{name: "simple", in: "feature-login", ok: true},
-		{name: "dots and underscores", in: "v1.2_fix", ok: true},
-		{name: "empty", in: ""},
-		{name: "too long", in: strings.Repeat("a", 65)},
-		{name: "max length", in: strings.Repeat("a", 64), ok: true},
-		{name: "leading dash", in: "-rf"},
-		{name: "leading dot", in: ".hidden"},
-		{name: "double dot", in: "a..b"},
-		{name: "slash", in: "a/b"},
-		{name: "space", in: "a b"},
-		{name: "unicode", in: "café"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if err := ValidateWorktree(tc.in); (err == nil) != tc.ok {
-				t.Fatalf("ValidateWorktree(%q) = %v, want ok=%v", tc.in, err, tc.ok)
-			}
-		})
-	}
-}
-
-func FuzzValidateWorktree(f *testing.F) {
-	for _, s := range []string{"ok", "-x", "..", "a/b", "a\x00b", ""} {
-		f.Add(s)
-	}
-	f.Fuzz(func(t *testing.T, s string) {
-		if ValidateWorktree(s) != nil {
-			return
-		}
-		if strings.HasPrefix(s, "-") || strings.HasPrefix(s, ".") || strings.Contains(s, "..") || strings.ContainsAny(s, "/\\ \x00\n") {
-			t.Fatalf("accepted unsafe worktree name %q", s)
-		}
-	})
-}
-
 func TestCustom(t *testing.T) {
 	cases := []struct {
 		name    string

@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/vcs"
 )
 
 // Role is what runs in a pane.
@@ -212,7 +214,7 @@ func (p Plan) Validate() error {
 			if pane.Role != RoleClaude {
 				return fmt.Errorf("%s: only claude panes run in a worktree", where)
 			}
-			if err := ValidateWorktree(pane.Worktree); err != nil {
+			if err := vcs.ValidateWorktreeName(pane.Worktree); err != nil {
 				return fmt.Errorf("%s: %w", where, err)
 			}
 		}
@@ -237,28 +239,6 @@ func (p Plan) Validate() error {
 	}
 	if p.Focus < 0 || p.Focus >= len(p.Panes) {
 		return fmt.Errorf("layout %q: focus %d is not a pane", p.Name, p.Focus)
-	}
-	return nil
-}
-
-// ValidateWorktree checks a worktree name: 1-64 characters of letters,
-// digits, '.', '_' and '-', not starting with '-' or '.', and no "..".
-func ValidateWorktree(name string) error {
-	if name == "" || len(name) > 64 {
-		return fmt.Errorf("worktree name must be 1 to 64 characters, got %q", name)
-	}
-	if name[0] == '-' || name[0] == '.' {
-		return fmt.Errorf("worktree name %q must not start with '-' or '.'", name)
-	}
-	for i := range len(name) {
-		c := name[i]
-		ok := c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '.' || c == '_' || c == '-'
-		if !ok {
-			return fmt.Errorf("worktree name %q contains %q (allowed: letters, digits, '.', '_', '-')", name, c)
-		}
-		if c == '.' && i+1 < len(name) && name[i+1] == '.' {
-			return fmt.Errorf("worktree name %q must not contain \"..\"", name)
-		}
 	}
 	return nil
 }

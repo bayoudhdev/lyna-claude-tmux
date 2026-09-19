@@ -11,7 +11,7 @@ import (
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/agentdef"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/claudecfg"
-	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/layout"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/vcs"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/sanitize"
 )
 
@@ -252,7 +252,7 @@ func (m *SpawnModel) checkName(name string) error {
 	name = strings.TrimSpace(name)
 	switch {
 	case name != "":
-		return layout.ValidateWorktree(name)
+		return vcs.ValidateWorktreeName(name)
 	case m.spawnAsksTheLead():
 		return nil
 	case m.values.Worktree:

@@ -123,3 +123,28 @@ func ParseWorktrees(data []byte) ([]Worktree, error) {
 	end()
 	return list, nil
 }
+
+// ValidateWorktreeName checks the name a workspace gives a worktree: 1 to 64
+// characters of letters, digits, '.', '_' and '-', not starting with '-' or
+// '.', and no "..". The name becomes a directory and a branch, so anything a
+// path or a command line would read as something else is refused rather than
+// cleaned.
+func ValidateWorktreeName(name string) error {
+	if name == "" || len(name) > 64 {
+		return fmt.Errorf("worktree name must be 1 to 64 characters, got %q", name)
+	}
+	if name[0] == '-' || name[0] == '.' {
+		return fmt.Errorf("worktree name %q must not start with '-' or '.'", name)
+	}
+	for i := range len(name) {
+		c := name[i]
+		ok := c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '.' || c == '_' || c == '-'
+		if !ok {
+			return fmt.Errorf("worktree name %q contains %q (allowed: letters, digits, '.', '_', '-')", name, c)
+		}
+		if c == '.' && i+1 < len(name) && name[i+1] == '.' {
+			return fmt.Errorf("worktree name %q must not contain \"..\"", name)
+		}
+	}
+	return nil
+}
