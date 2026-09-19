@@ -1,4 +1,4 @@
-package watch
+package git
 
 import (
 	"context"
@@ -106,7 +106,7 @@ func TestRunnerChangesFake(t *testing.T) {
 			},
 			errText: "exit status 129: usage: git diff",
 		},
-		{name: "git missing", err: ErrGitNotFound, wantErr: ErrGitNotFound},
+		{name: "git missing", err: ErrNotInstalled, wantErr: ErrNotInstalled},
 		{name: "timeout", block: true, timeout: time.Millisecond, wantErr: context.DeadlineExceeded},
 		{name: "output cap", err: ErrOutputTooLarge, wantErr: ErrOutputTooLarge},
 		{
@@ -271,7 +271,7 @@ func TestOSExecutor(t *testing.T) {
 	}{
 		{name: "endless output is capped and stopped", bin: yes, limit: 64, wantErr: ErrOutputTooLarge, wantOut: strings.Repeat("y\n", 32)},
 		{name: "exit code is reported", bin: falseBin, limit: 64, wantCode: 1},
-		{name: "missing binary", bin: filepath.Join(t.TempDir(), "git"), limit: 64, wantErr: ErrGitNotFound},
+		{name: "missing binary", bin: filepath.Join(t.TempDir(), "git"), limit: 64, wantErr: ErrNotInstalled},
 		{
 			name: "canceled context", bin: yes, limit: 1 << 40,
 			ctx: func() context.Context {

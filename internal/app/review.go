@@ -14,11 +14,11 @@ import (
 
 	domain "github.com/bayoudhdev/lyna-claude-tmux/internal/domain/review"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/theme"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/git"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/review"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/sanitize"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tui"
-	"github.com/bayoudhdev/lyna-claude-tmux/internal/watch"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/xdg"
 )
 
@@ -236,12 +236,12 @@ func reviewCheckRepository(ctx context.Context, h Host, dir string) error {
 	if !info.IsDir() {
 		return fmt.Errorf("review directory %s is not a directory", sanitize.Line(dir))
 	}
-	runner := watch.Runner{Environ: func() []string { return h.Environ }}
+	runner := git.Runner{Environ: func() []string { return h.Environ }}
 	_, err = runner.Repo(ctx, dir)
 	switch {
-	case errors.Is(err, watch.ErrNotRepository):
+	case errors.Is(err, git.ErrNotRepository):
 		return fmt.Errorf("%w: %s (a review shows git changes; run it inside a repository)", ErrReviewNotRepository, sanitize.Line(dir))
-	case errors.Is(err, watch.ErrGitNotFound):
+	case errors.Is(err, git.ErrNotInstalled):
 		return fmt.Errorf("git is required for a review: %w", err)
 	}
 	return err

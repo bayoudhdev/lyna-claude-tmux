@@ -1,4 +1,4 @@
-// Package vcs is the git a workspace reads, parsed and modelled: the status of
+// Package vcs is the git a workspace reads, parsed and modeled: the status of
 // a working tree and the files changed in it, the worktrees of a project and
 // its branches. Nothing here runs a command or touches a file: bytes in,
 // values out.

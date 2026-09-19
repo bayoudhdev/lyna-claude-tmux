@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/vcs"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/git"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/sanitize"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/watch"
 )
@@ -297,7 +298,7 @@ func (m *ChangesModel) body() []string {
 		return []string{"", s.Muted.Render(center("reading git status", m.width, s.Ellipsis))}
 	case m.update.Err != nil:
 		msg := sanitize.Line(m.update.Err.Error())
-		if errors.Is(m.update.Err, watch.ErrNotRepository) {
+		if errors.Is(m.update.Err, git.ErrNotRepository) {
 			msg = "not a git repository: " + shortPath(sanitize.Line(m.opts.Dir), m.opts.Home)
 		}
 		return []string{"", " " + s.Danger.Render(truncate(msg, m.width-2, s.Ellipsis))}

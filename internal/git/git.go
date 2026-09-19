@@ -1,4 +1,8 @@
-package watch
+// Package git runs the git commands of a workspace: one adapter, argv only,
+// with a timeout, a cap on what it reads back and an environment that cannot
+// point a command at another repository. Everything it reads is parsed by
+// internal/domain/vcs.
+package git
 
 import (
 	"bytes"
@@ -23,12 +27,12 @@ const (
 )
 
 var (
-	// ErrGitNotFound reports that the git binary is not installed.
-	ErrGitNotFound = errors.New("watch: git not installed")
+	// ErrNotInstalled reports that the git binary is not installed.
+	ErrNotInstalled = errors.New("git: not installed")
 	// ErrNotRepository reports a directory outside any git working tree.
-	ErrNotRepository = errors.New("watch: not a git repository")
+	ErrNotRepository = errors.New("git: not a git repository")
 	// ErrOutputTooLarge reports git output over the runner's cap.
-	ErrOutputTooLarge = errors.New("watch: git output too large")
+	ErrOutputTooLarge = errors.New("git: output too large")
 )
 
 // Result is the captured outcome of one git invocation.
@@ -134,6 +138,28 @@ func (r Runner) Changes(ctx context.Context, dir string) (vcs.Changes, error) {
 	return vcs.Build(st, un, sg), nil
 }
 
+// Worktrees lists the worktrees of the repository containing dir, the one it
+// is in included. It needs git 2.36 or newer, which is where `worktree list`
+// learned to separate its records with NUL: a path holding a newline is
+// otherwise read as two worktrees.
+func (r Runner) Worktrees(ctx context.Context, dir string) ([]vcs.Worktree, error) {
+	out, err := r.git(ctx, dir, "worktree", "list", "--porcelain", "-z")
+	if err != nil {
+		return nil, err
+	}
+	return vcs.ParseWorktrees(out)
+}
+
+// Branches lists the branches of the repository containing dir, in the order
+// git keeps its refs, with what each one owes its upstream.
+func (r Runner) Branches(ctx context.Context, dir string) ([]vcs.LocalBranch, error) {
+	out, err := r.git(ctx, dir, "for-each-ref", "--format="+vcs.BranchFormat, "refs/heads/")
+	if err != nil {
+		return nil, err
+	}
+	return vcs.ParseBranches(out)
+}
+
 // git runs one command. Global options make the run side-effect free and safe
 // in an untrusted repository: no pager, no optional index lock (so refreshes
 // never trigger another file event), no fsmonitor hook program, and an
@@ -237,7 +263,7 @@ func (osExecutor) Exec(ctx context.Context, bin string, args, env []string, limi
 			return res, nil
 		}
 		if errors.Is(err, exec.ErrNotFound) || errors.Is(err, os.ErrNotExist) {
-			return res, ErrGitNotFound
+			return res, ErrNotInstalled
 		}
 		return res, err
 	}

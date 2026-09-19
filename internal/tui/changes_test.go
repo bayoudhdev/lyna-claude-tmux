@@ -13,6 +13,7 @@ import (
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/theme"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/vcs"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/git"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/watch"
 )
 
@@ -52,7 +53,7 @@ func apply(m tea.Model, msgs ...tea.Msg) {
 
 func TestChangesFrames(t *testing.T) {
 	t.Parallel()
-	notRepo := fmt.Errorf("git rev-parse: %w", watch.ErrNotRepository)
+	notRepo := fmt.Errorf("git rev-parse: %w", git.ErrNotRepository)
 	manyFiles := sampleChanges()
 	for i := range 40 {
 		manyFiles.Files = append(manyFiles.Files, vcs.File{Kind: vcs.KindChanged, Path: "gen/file" + strconv.Itoa(i) + ".go", Index: '.', Worktree: 'M', Added: i})
@@ -340,7 +341,7 @@ func TestChangesSanitizesUntrustedText(t *testing.T) {
 	if !strings.Contains(ansi.Strip(frame), "evilbranch") {
 		t.Errorf("branch name not kept as text:\n%s", ansi.Strip(frame))
 	}
-	apply(m, changesUpdate(vcs.Changes{}, fmt.Errorf("git: %w: \x1b]52;c;eA==\x07", watch.ErrNotRepository)))
+	apply(m, changesUpdate(vcs.Changes{}, fmt.Errorf("git: %w: \x1b]52;c;eA==\x07", git.ErrNotRepository)))
 	if frame := m.View().Content; strings.Contains(frame, "\x1b]") || strings.Contains(frame, "\x07") {
 		t.Error("error frame carries control sequences")
 	}

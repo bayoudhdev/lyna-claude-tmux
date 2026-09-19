@@ -12,6 +12,7 @@ import (
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/config"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/session"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/git"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/sanitize"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tui"
@@ -123,7 +124,7 @@ func OpenWatch(ctx context.Context, h Host, req WatchRequest) (WatchView, error)
 		}
 	}
 
-	source := watch.Runner{Environ: func() []string { return h.Environ }}
+	source := git.Runner{Environ: func() []string { return h.Environ }}
 	var (
 		cfg    config.Config
 		signal func(context.Context) error

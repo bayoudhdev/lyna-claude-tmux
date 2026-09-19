@@ -18,6 +18,7 @@ import (
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/app"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/config"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/vcs"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/git"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/testutil/tmuxtest"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tui"
@@ -120,8 +121,8 @@ type watchFakeSource struct {
 	calls atomic.Int64
 }
 
-func (s *watchFakeSource) Repo(context.Context, string) (watch.Repo, error) {
-	return watch.Repo{}, watch.ErrNotRepository
+func (s *watchFakeSource) Repo(context.Context, string) (git.Repo, error) {
+	return git.Repo{}, git.ErrNotRepository
 }
 
 func (s *watchFakeSource) Changes(context.Context, string) (vcs.Changes, error) {
