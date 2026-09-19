@@ -7,7 +7,7 @@ This file binds every contributor: humans, coding agents and subagents. Read it 
 `lyna-tmux` is a Go CLI that turns tmux into a ready-made Claude Code workspace: styled split layouts, agent picker, per-launch Claude settings (sandbox, hooks, statusline) and a dedicated tmux server that never reads or writes the user's own tmux or Claude settings.
 
 - Module: `github.com/bayoudhdev/lyna-claude-tmux`, binary `lmux`, entry `cmd/lmux`.
-- Layers: `internal/cli` (flags, thin) -> `internal/app` (use cases) -> `internal/domain/*` (pure logic) and adapters (`internal/tmux`, `internal/claude`, `internal/hook`, `internal/statusline`, `internal/watch`, `internal/tui`, `internal/config`, `internal/fsx`, `internal/xdg`, `internal/procx`, `internal/termx`, `internal/sanitize`).
+- Layers: `internal/cli` (flags, thin) -> `internal/app` (use cases) -> `internal/domain/*` (pure logic) and adapters (`internal/tmux`, `internal/claude`, `internal/git`, `internal/hook`, `internal/statusline`, `internal/watch`, `internal/tui`, `internal/config`, `internal/fsx`, `internal/xdg`, `internal/procx`, `internal/termx`, `internal/sanitize`).
 - Domain packages import no adapters. Hook and statusline code paths import no TUI packages (start-up cost).
 
 ## Testing policy (mandatory, no exceptions)

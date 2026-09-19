@@ -18,7 +18,7 @@ LDFLAGS := -s -w \
 # Packages held to the coverage floor (AGENTS.md, testing policy item 8).
 COVER_MIN ?= 85
 COVER_PKGS ?= ./internal/domain/... ./internal/tmux ./internal/sanitize ./internal/hook ./internal/config \
-	./internal/doctor ./internal/termx ./internal/devcontainer
+	./internal/doctor ./internal/termx ./internal/devcontainer ./internal/git
 FUZZTIME ?= 10s
 
 .PHONY: build install test test-short golden fuzz cover bench lint fmt check tidy-check clean help
