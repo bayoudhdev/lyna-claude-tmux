@@ -100,6 +100,9 @@ func NewRootWith(s Streams, d Deps) *cobra.Command {
 		glueCommands(d),
 		reviewCommands(d),
 		agentCommands(d),
+		steerCommands(d),
+		taskCommands(d),
+		transcriptCommands(d),
 		workspaceCommands(d),
 		infraCommands(d),
 	} {

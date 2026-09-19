@@ -46,8 +46,9 @@ func teammateCommand(d Deps) *cobra.Command {
 			defaults := config.Default()
 			req := app.TeammateRequest{
 				ClaudePath: claudePath, Args: rest, Now: d.Now,
-				AgentPanes: defaults.Workspace.AgentPanes,
-				Sidebar:    defaults.UI.AgentsSidebar,
+				AgentPanes:   defaults.Workspace.AgentPanes,
+				Sidebar:      defaults.UI.AgentsSidebar,
+				SidebarWidth: defaults.UI.SidebarWidth,
 			}
 			// The configuration decides how many teammates share the lead's
 			// window and whether the workspace opens the agents rail with the
@@ -58,6 +59,7 @@ func teammateCommand(d Deps) *cobra.Command {
 				if cfg, _, err := config.Load(paths.ConfigFile()); err == nil {
 					req.AgentPanes = cfg.Workspace.AgentPanes
 					req.Sidebar = cfg.UI.AgentsSidebar
+					req.SidebarWidth = cfg.UI.SidebarWidth
 				}
 			}
 			run, err := app.Teammate(cmd.Context(), h, req)
