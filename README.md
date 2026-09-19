@@ -154,6 +154,8 @@ exits, and the workspace underneath is untouched.
 | `duo` | Claude and a shell |
 | `trio` | Claude, a shell and a live changes pane |
 | `quad` | four Claude agents, each in its own git worktree |
+| `review` | Claude and the side-by-side diff |
+| `team` | the agents rail, the lead and room for its teammates |
 | `auto` | picks one from the size of the terminal |
 
 `lmux layout <name>` opens one in a new window, `lmux split right` adds a pane to the
@@ -161,11 +163,10 @@ current one, and custom layouts go in the configuration file, pane by pane.
 
 ![The built-in layouts, one window each](docs/assets/layouts.gif)
 
-## Tasks, worktrees and teams
+## Tasks, worktrees and resuming
 
 ```bash
 lmux task rate-limit "add a token bucket to the API gateway"  # a window in its own worktree
-lmux team ~/src/acme-api                                      # agent teams, one pane each
 lmux resume                                                   # pick a past conversation
 ```
 
@@ -174,11 +175,37 @@ again by the same name selects the window it already has.
 
 ![A task in its own git worktree](docs/assets/task.gif)
 
-`lmux team` launches Claude Code with agent teams enabled and the teammate mode set to tmux,
-so every teammate Claude starts opens as a pane on the workspace server instead of a hidden
-subprocess.
-
 `lmux resume` picks a past conversation and continues it in the workspace.
+
+## Agent teams
+
+`lmux team` opens a workspace with agent teams turned on, in a layout built for one: the agents
+rail on the left, the lead beside it, and the room its teammates open into.
+
+Every teammate the lead starts becomes a pane of the workspace. It carries its own name on the
+border, the state its hooks report, and a place chosen by the workspace rather than by whatever
+opened it: beside the lead while the window is the lead's alone and the panes stay readable, in a
+window of its own after that. If anything at all goes wrong taking a pane over, the agent runs
+where it was opened and the team is unaffected; `lmux doctor` then says which teammate fell back
+and why.
+
+The rail lists every agent the workspace can see: the lead, its teammates, the subagents they run,
+and the agents of the other workspaces on the server. `enter` focuses one, `z` zooms it, `w` gives
+it a window of its own, `/` filters, and `s` starts a new agent. It opens with the first teammate
+and closes with the last, or on `Alt+A`.
+
+The team is steered from there rather than by typing at the lead: `m` sends a message to one agent
+after showing the exact text it will type, `x` stops a teammate through its lead or, once you have
+typed its name out, by closing its pane, `r` reads what an agent is writing, subagents included,
+and `t` shows the shared task list with what each task is waiting on. The footer counts the list
+and what the agents have spent between them. Each is a command of its own as well:
+`lmux message`, `lmux stop`, `lmux transcript` and `lmux tasks`.
+
+`lmux spawn`, the same form as `s`, asks for an agent: which definition it runs, on which model and
+effort, in the project directory or a git worktree of its own. It either asks the lead, typing the
+exact sentence it just showed you, or opens a session of its own in a new window.
+
+[docs/agents.md](docs/agents.md) has the whole picture, every key and every setting.
 
 ## The dashboard
 

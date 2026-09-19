@@ -45,7 +45,7 @@ Alt is Option on macOS. Enable Option as Meta in your terminal first; see
 | Key | Action | Detail |
 | --- | --- | --- |
 | `Alt+a` | Agents | Agents picker, in a popup sized by `popup.width` and `popup.height` |
-| `Alt+A` | Agents rail | Opens the agents rail of the window, 28 cells on its left, or closes the one that is there |
+| `Alt+A` | Agents rail | Opens the agents rail of the window, `ui.sidebar_width` cells (28 by default) on its left, or closes the one that is there. Not installed at all when `ui.agents_sidebar = "off"` |
 | `Alt+g` | Review changes | Review popup, always 95 percent by 95 percent |
 | `Alt+s` | Scratch shell | Throwaway shell popup, 80 percent by 70 percent, in the current pane's directory |
 | `Alt+Space` | Menu | The key menu, centered: every installed Alt binding except this one and the window numbers, each with its key and runnable from the menu |
@@ -68,7 +68,7 @@ prefix you configured; the table below assumes the default.
 | Key | Action |
 | --- | --- |
 | `a` | Agents |
-| `A` | Agents rail |
+| `A` | Agents rail, not installed when `ui.agents_sidebar = "off"` |
 | `g` | Review changes |
 | `S` | Scratch shell |
 | `Space` | Menu |
@@ -85,6 +85,10 @@ Where a prefix binding has an Alt counterpart it runs the same action; `Send the
 to the pane`, `Reload configuration` and `Detach` exist only here. A prefix binding can never
 collide with Claude Code, because the prefix already consumed the keystroke.
 
+`ui.agents_sidebar = "off"` leaves the agents rail out of both tables: no `Alt+A`, no
+prefix `A`, no menu entry for it, and nothing in the generated configuration that opens it.
+The rail is still drawn by an `agents` pane in a layout and by `lmux agents --rail`.
+
 ## Turning the Alt bindings off
 
 ```toml
@@ -98,7 +102,8 @@ What changes:
   Code uses and any you bound yourself, reaches the program in the pane untouched.
 - The prefix table is unchanged: all eleven bindings above stay, so splits, the agents
   picker, the agents rail, the review popup, the scratch shell, the menu, reload and detach
-  remain reachable.
+  remain reachable. With `ui.agents_sidebar = "off"` there are ten of them, the rail key
+  being the one that is never installed.
 - The menu has nothing left to list, so it falls back to three entries: Agents, Review
   changes and Scratch shell.
 - Mouse behavior is unchanged. It is controlled by `ui.mouse`, not by `ui.alt_keys`.
@@ -196,6 +201,35 @@ shows one popup per client, so opening a second would close the first.
 The list is redrawn when a file changes, not on a timer: Claude's edits arrive through the
 hook, git and top-level edits through file events, and anything neither reports is picked up
 by a reading that runs when nothing else has for fifteen seconds.
+
+## Inside the agents rail
+
+The rail reads its own keys, in the `agents` pane of a layout as well as in the popup, so the
+list of agents is one you act on and not one you only read.
+
+| Key or click | What happens |
+| --- | --- |
+| `Down`, `j`, `Up`, `k`, wheel | Move the cursor |
+| Click | Select the row under the pointer |
+| `Enter`, double click | Focus that agent's pane |
+| `z` | Zoom that pane, and back |
+| `w` | Move that agent to a window of its own |
+| `s` | Start an agent, which is `lmux spawn` |
+| `m` | Message that agent, which is `lmux message` |
+| `x` | Stop that teammate, which is `lmux stop` |
+| `r` | Read what that agent is writing, which is `lmux transcript` |
+| `t` | Show the shared task list, which is `lmux tasks` |
+| `space` | Fold or unfold the section |
+| `/` | Filter the rows |
+| `q`, `Esc` | Close, in the popup only |
+
+Each of the last five opens a popup over the rail's own pane, so the rail keeps its column
+and takes it back when the popup closes. A rail that is itself a popup opens none of them:
+tmux shows one popup per client, and a second would replace the first.
+
+A key on a row it does not apply to says why under the rows. A subagent is messaged and
+stopped through the agent that runs it, the lead of the workspace is not stopped from the
+rail, and an agent of another workspace is steered from that workspace, where its panes are.
 
 ## Keys left to Claude Code
 

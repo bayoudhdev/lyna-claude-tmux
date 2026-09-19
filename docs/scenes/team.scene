@@ -1,0 +1,46 @@
+# A real team: the lead is asked for two teammates, and each one opens as a
+# pane of the workspace, named and listed on the rail.
+#
+# This is the one scene that talks to the agent, because a team only exists
+# once a lead has opened one. The prompt is short on purpose and the teammates
+# are asked to report rather than to change anything in the project.
+title lmux team
+size 140 38
+pre lmux kill --all
+pre rm -rf .devcontainer
+run lmux team .
+wait 8
+frame 1.6
+type Open two teammates: name the first api-review, ask it to describe internal/gateway, and name the second docs-pass, ask it to describe the README. Do not change any file.
+enter
+wait 25
+frame 2.4
+film 4 1.4
+wait 20
+frame 3
+# The rail is open by now, with a row per teammate. Focusing it gives the keys
+# below to the rail rather than to the lead.
+keys M-[
+wait 1.2
+frame 1.4
+# The shared task list of the team, and back to the rail.
+keys t
+wait 3
+frame 2.6
+keys q
+wait 1.4
+# The transcript of a teammate: what it was asked, what it answered, and the
+# tools it called. The rows are the lead section, the lead, the teammates
+# section and then the teammates, so three moves land on the first of them.
+keys Down
+wait 0.5
+keys Down
+wait 0.5
+keys Down
+wait 0.8
+keys r
+wait 3.5
+frame 2.6
+keys q
+wait 1.4
+frame 2

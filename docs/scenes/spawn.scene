@@ -1,0 +1,30 @@
+# Starting an agent from the workspace: the form the rail opens on s, with the
+# agent definitions this project offers. The form is walked and then left
+# without starting anything, so the picture shows the questions it asks.
+title s on the rail starts an agent
+size 120 34
+pre lmux kill --all
+pre rm -rf .devcontainer
+run lmux create . --layout duo
+wait 6
+keys M-A
+wait 2.5
+keys M-[
+wait 1
+frame 1.2
+keys s
+wait 2.5
+frame 2.4
+# Target, then the agent definition and the model.
+keys Down
+wait 0.7
+frame 1.4
+keys Enter
+wait 1.2
+frame 2.2
+keys Down
+wait 0.7
+frame 1.8
+keys Escape
+wait 1.5
+frame 2
