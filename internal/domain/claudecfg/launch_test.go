@@ -107,6 +107,11 @@ func TestBuildLaunchArgv(t *testing.T) {
 			want: []string{"/home/dev/.local/bin/claude", "--settings=/home/dev/.local/state/lyna-tmux/settings/0123456789abcdef.json", "--name=api-server", "--worktree=task.2", "-c"},
 		},
 		{
+			name: "an agent definition runs the session",
+			edit: func(l *Launch) { l.Agent = "api-developer"; l.Worktree = "review.1" },
+			want: []string{"/home/dev/.local/bin/claude", "--settings=/home/dev/.local/state/lyna-tmux/settings/0123456789abcdef.json", "--name=api-server", "--agent=api-developer", "--worktree=review.1"},
+		},
+		{
 			name: "manual permission mode passes through",
 			edit: func(l *Launch) { l.PermissionMode = "manual"; l.Effort = "low" },
 			want: []string{"/home/dev/.local/bin/claude", "--settings=/home/dev/.local/state/lyna-tmux/settings/0123456789abcdef.json", "--name=api-server", "--effort=low", "--permission-mode=manual"},
@@ -210,6 +215,9 @@ func TestBuildLaunchErrors(t *testing.T) {
 		{name: "bad permission mode", edit: func(l *Launch) { l.PermissionMode = "yolo" }, want: "permission mode must be one of"},
 		{name: "bypass refused on standard", edit: func(l *Launch) { l.PermissionMode = "bypassPermissions" }, want: "bypassPermissions requires"},
 		{name: "empty sandbox resolution", edit: func(l *Launch) { l.Sandbox = sandbox.Resolution{} }, want: "no valid profile"},
+		{name: "agent with a path in it", edit: func(l *Launch) { l.Agent = "../other" }, want: "agent must be"},
+		{name: "agent leading dash", edit: func(l *Launch) { l.Agent = "-x" }, want: "agent must be"},
+		{name: "agent with a space", edit: func(l *Launch) { l.Agent = "api developer" }, want: "agent must be"},
 		{name: "worktree leading dash", edit: func(l *Launch) { l.Worktree = "-x" }, want: "worktree name"},
 		{name: "worktree dot dot", edit: func(l *Launch) { l.Worktree = ".." }, want: "worktree name"},
 		{name: "worktree slash", edit: func(l *Launch) { l.Worktree = "a/b" }, want: "worktree name"},

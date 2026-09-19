@@ -28,6 +28,9 @@ var (
 	modelPattern = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/@\[\]-]{0,127}$`) })
 	// Worktree names become a directory under .claude/worktrees and a branch name.
 	worktreePattern = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`^[A-Za-z0-9._][A-Za-z0-9._-]{0,63}$`) })
+	// An agent name is the name a definition gives itself, which Claude Code
+	// resolves as a plain name: never a path and never an option.
+	agentPattern = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`) })
 )
 
 // Launch describes one claude process in a managed pane.
@@ -44,9 +47,12 @@ type Launch struct {
 	Model          string
 	Effort         string
 	PermissionMode string
-	AddDirs        []string
-	MCPConfigs     []string
-	PluginDirs     []string
+	// Agent is the agent definition the session runs as, empty for a session
+	// that runs as none, which is every session the user opens themselves.
+	Agent      string
+	AddDirs    []string
+	MCPConfigs []string
+	PluginDirs []string
 	// Worktree starts Claude in <repo>/.claude/worktrees/<name> when set.
 	Worktree   string
 	Fullscreen bool
@@ -91,6 +97,9 @@ func BuildLaunch(l Launch) (Command, error) {
 	}
 	if l.PermissionMode != "" {
 		argv = append(argv, "--permission-mode="+l.PermissionMode)
+	}
+	if l.Agent != "" {
+		argv = append(argv, "--agent="+l.Agent)
 	}
 	for _, group := range []struct {
 		flag  string
@@ -173,6 +182,9 @@ func (l Launch) validate() error {
 	}
 	if err := sandbox.CheckBypass(l.Sandbox.Profile, l.Sandbox.Isolation, l.PermissionMode); err != nil {
 		add("%v", err)
+	}
+	if l.Agent != "" && !agentPattern().MatchString(l.Agent) {
+		add("agent must be the name of an agent definition, letters, digits, '.', '_' and '-', up to 64 characters (got %q)", l.Agent)
 	}
 	if l.Worktree != "" && (!worktreePattern().MatchString(l.Worktree) || l.Worktree == "." || l.Worktree == "..") {
 		add("worktree name uses letters, digits, '.', '_' and '-', up to 64 characters, not starting with '-' (got %q)", l.Worktree)
