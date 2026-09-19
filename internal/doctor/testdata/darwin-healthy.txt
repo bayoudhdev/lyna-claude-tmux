@@ -1,6 +1,7 @@
 ok    tmux                tmux 3.7c at /opt/homebrew/bin/tmux
 ok    Claude Code         Claude Code 2.1.273 at /Users/u/.local/bin/claude
 skip  Project trust       no project directory
+ok    Agent teams         claude.teams is on; the last teammate, at 2026-09-15 12:30 UTC: review-api opened in workspace api
 ok    git                 git 2.50.1 at /usr/bin/git
 ok    Sandbox (Seatbelt)  sandbox-exec at /usr/bin/sandbox-exec
 ok    Truecolor           24-bit color in Ghostty
@@ -13,4 +14,4 @@ ok    Claude keybindings  no /Users/u/.claude/keybindings.json, so Claude Code u
 ok    Docker              Docker server 28.4.0, client at /opt/homebrew/bin/docker
 ok    Neovim              Neovim 0.11.4 at /opt/homebrew/bin/nvim
 
-10 ok, 1 warn, 0 fail, 1 skipped
+11 ok, 1 warn, 0 fail, 1 skipped

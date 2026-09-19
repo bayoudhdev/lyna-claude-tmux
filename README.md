@@ -262,8 +262,8 @@ The Claude Code plugin ships the same hooks for sessions you start yourself:
 
 ## Checking the machine
 
-`lmux doctor` checks tmux, Claude Code, git, the sandbox, the terminal and the review editor,
-and prints the command that fixes anything it finds.
+`lmux doctor` checks tmux, Claude Code, how agent teams open, git, the sandbox, the terminal and
+the review editor, and prints the command that fixes anything it finds.
 
 ![The doctor report](docs/assets/doctor.png)
 

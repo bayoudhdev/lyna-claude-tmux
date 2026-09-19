@@ -15,6 +15,7 @@ import (
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/doctor"
 	domain "github.com/bayoudhdev/lyna-claude-tmux/internal/domain/review"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/review"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/xdg"
 )
 
 // doctorFake is a machine for DoctorRun: programs found through the host's
@@ -22,6 +23,7 @@ import (
 type doctorFake struct {
 	bins    map[string]string
 	outputs map[string]string
+	files   map[string]string
 	mu      sync.Mutex
 	ran     []string
 }
@@ -46,8 +48,13 @@ func (f *doctorFake) deps() doctor.Deps {
 		// The host's lookup and environment must replace these.
 		LookPath: func(string) (string, error) { return "/sys/should-not-be-used", nil },
 		Getenv:   func(string) string { return "sys-should-not-be-used" },
-		ReadFile: func(string, int64) ([]byte, error) { return nil, fs.ErrNotExist },
-		Exists:   func(string) bool { return false },
+		ReadFile: func(path string, _ int64) ([]byte, error) {
+			if content, ok := f.files[path]; ok {
+				return []byte(content), nil
+			}
+			return nil, fs.ErrNotExist
+		},
+		Exists: func(string) bool { return false },
 		Run: func(ctx context.Context, argv []string) (string, error) {
 			if _, ok := ctx.Deadline(); !ok {
 				return "", errors.New("command run without a deadline")
@@ -79,6 +86,7 @@ func TestDoctorRun(t *testing.T) {
 	cases := []struct {
 		name   string
 		config string
+		log    string
 		noHome bool
 		bins   map[string]string
 		check  func(t *testing.T, r doctor.Report, f *doctorFake)
@@ -120,6 +128,26 @@ func TestDoctorRun(t *testing.T) {
 			},
 		},
 		{
+			name:   "the team settings and the diagnostic log reach the checks",
+			config: "[claude]\nteams = true\n",
+			log:    "2026-09-15T12:30:00Z teammate: review-api opened in workspace api\n",
+			check: func(t *testing.T, r doctor.Report, _ *doctorFake) {
+				c := doctorRow(t, r, "teams")
+				if c.Status != doctor.StatusOK || !strings.Contains(c.Detail, "claude.teams is on") || !strings.Contains(c.Detail, "review-api") {
+					t.Fatalf("teams row %+v", c)
+				}
+			},
+		},
+		{
+			name:   "a teammate mode of the agent's own reaches the checks",
+			config: "[claude]\nteammate_mode = \"in-process\"\n",
+			check: func(t *testing.T, r doctor.Report, _ *doctorFake) {
+				if c := doctorRow(t, r, "teams"); c.Status != doctor.StatusSkip || !strings.Contains(c.Detail, `"in-process"`) {
+					t.Fatalf("teams row %+v", c)
+				}
+			},
+		},
+		{
 			name:   "an invalid configuration is a failed row, not a crash",
 			config: "[ui]\ntheme = \"nope\"\n",
 			check: func(t *testing.T, r doctor.Report, _ *doctorFake) {
@@ -150,6 +178,9 @@ func TestDoctorRun(t *testing.T) {
 				if c := doctorRow(t, r, doctorReviewID); c.Status != doctor.StatusSkip {
 					t.Fatalf("review row %+v", c)
 				}
+				if c := doctorRow(t, r, "teams"); c.Status != doctor.StatusSkip || !strings.Contains(c.Detail, "log is unknown") {
+					t.Fatalf("teams row %+v", c)
+				}
 			},
 		},
 	}
@@ -170,6 +201,13 @@ func TestDoctorRun(t *testing.T) {
 				"/bin/claude --version": "2.1.100 (Claude Code)\n",
 				"/bin/nvim --version":   "NVIM v0.11.2\nBuild type: Release\n",
 			}}
+			if tc.log != "" {
+				paths, err := xdg.Resolve(func(k string) string { return env[k] }, root)
+				if err != nil {
+					t.Fatal(err)
+				}
+				f.files = map[string]string{paths.LogFile(): tc.log}
+			}
 			r := DoctorRun(t.Context(), f.host(t, env), f.deps(), root, ReviewPlugin{})
 			if r.Summary.OK+r.Summary.Warn+r.Summary.Fail+r.Summary.Skip != len(r.Results) {
 				t.Fatalf("summary %+v for %d rows", r.Summary, len(r.Results))

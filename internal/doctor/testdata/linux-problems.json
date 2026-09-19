@@ -21,6 +21,13 @@
       "detail": "no project directory"
     },
     {
+      "id": "teams",
+      "title": "Agent teams",
+      "status": "warn",
+      "detail": "claude.teams is off, so only a workspace opened with lmux team runs a team; the workspace could not take teammates over, at 2026-09-15 12:32 UTC: write-docs opens the way the agent opens it: the team runs on the agent's own server (/tmp/claude-swarm-4242)\n/home/u/.local/state/lyna-tmux/lyna-tmux.log lists every teammate that opened",
+      "fix": "fix what the reason above names; the next teammate to open is reported here"
+    },
+    {
       "id": "git",
       "title": "git",
       "status": "ok",
@@ -98,7 +105,7 @@
   ],
   "summary": {
     "ok": 2,
-    "warn": 6,
+    "warn": 7,
     "fail": 5,
     "skip": 1
   }
