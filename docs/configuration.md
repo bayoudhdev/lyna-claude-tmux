@@ -143,8 +143,9 @@ Sessions and panes.
 
 | Key | Type | Values | Default | Effect |
 | --- | --- | --- | --- | --- |
-| `layout` | string | `solo`, `duo`, `trio`, `quad`, `review`, `auto`, or the name of a `[layouts.<name>]` table | `"auto"` | Layout of the window a workspace opens with. `auto` resolves by client size: 200 by 40 cells or larger gives `trio`, 120 cells or wider gives `duo`, smaller gives `solo`, and an unknown size gives `duo`. |
+| `layout` | string | `solo`, `duo`, `trio`, `quad`, `review`, `team`, `auto`, or the name of a `[layouts.<name>]` table | `"auto"` | Layout of the window a workspace opens with. `team` is the agents rail on the left and the lead beside it, with the room its teammates open into; `lmux team` opens it by default. `auto` resolves by client size: 200 by 40 cells or larger gives `trio`, 120 cells or wider gives `duo`, smaller gives `solo`, and an unknown size gives `duo`. |
 | `split_ratio` | integer | 20 to 80 | `62` | The Claude pane's share of the window width, in percent, in the built-in layouts that split it (`duo` and `trio`). `quad` and `review` split evenly. |
+| `agent_panes` | integer | 0 to 8 | `3` | How many teammates share the lead's window before the next one opens in a window of its own, named after it. A teammate also gets a window of its own when the lead's window holds a pane of yours (a shell, the changes view) or when sharing would leave it less than 80 by 14 cells. `0` opens every teammate in a window of its own. |
 | `history_limit` | integer | 1000 to 2000000 | `100000` | Scrollback lines kept per pane (tmux `history-limit`). |
 | `prefix` | string | a tmux key name | `"C-b"` | The tmux prefix key. Press it twice to send it to the program in the pane. The generated configuration sets no second prefix. |
 | `shell` | string | absolute path, or `""` | `""` | Shell started in shell panes. Empty keeps tmux's choice, which is `$SHELL`. |
@@ -166,7 +167,8 @@ How Claude Code is launched in managed panes.
 | `permission_mode` | string | `default`, `manual`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`, or `""` | `""` | Passed as `--permission-mode=`. `bypassPermissions` is refused unless the launch uses the `strict` profile or `container` isolation. |
 | `statusline` | string | `auto`, `lyna`, `off` | `"auto"` | Whether the `lyna-tmux` status line goes into the per-launch settings. `auto` installs it only when your own Claude Code settings define none. |
 | `fullscreen` | boolean | `true`, `false` | `false` | Starts the pane with the flicker-free fullscreen renderer, which has mouse wheel scrolling. |
-| `teams` | boolean | `true`, `false` | `false` | Turns agent teams on, with teammates opened as tmux panes. |
+| `teams` | boolean | `true`, `false` | `false` | Turns agent teams on in every workspace. Off, only a workspace opened with `lmux team` runs a team. |
+| `teammate_mode` | string | `lmux`, `auto`, `in-process`, `iterm2` | `"lmux"` | Where a teammate opens. `lmux` opens it as a labeled pane of the workspace, placed by `workspace.agent_panes` and shown on the agents rail. `auto` leaves the choice to Claude Code, `in-process` keeps every teammate inside the lead's session, and `iterm2` opens terminal splits. Only `lmux` gives teammates the workspace's labels, layout and rail. |
 | `worktree_base` | string | `fresh`, `head`, or `""` | `""` | Written as `worktree.baseRef` in the per-launch settings: `fresh` bases new worktrees on the origin default branch, `head` on the current `HEAD`. Empty leaves the setting out. |
 | `workflow_size` | string | `small`, `medium`, `large`, `unrestricted`, or `""` | `""` | Size guideline written into the per-launch settings for dynamic workflows. Empty leaves it out. |
 | `bell` | boolean | `true`, `false` | `true` | Rings the terminal bell when Claude finishes or needs you, and turns tmux `monitor-bell` on so the window tab marks it. |
@@ -229,7 +231,7 @@ panes = [
 Rules for the table itself:
 
 - The name is lowercase letters, digits, `_` and `-`, up to 32 characters.
-- A built-in name (`solo`, `duo`, `trio`, `quad`, `review`, `auto`) cannot be redefined.
+- A built-in name (`solo`, `duo`, `trio`, `quad`, `review`, `team`, `auto`) cannot be redefined.
 - `panes` lists 1 to 9 panes and needs at least one `claude` pane.
 - The first pane is the window itself and takes no `split`, `size` or `parent`; every later
   pane splits an earlier one.
@@ -239,7 +241,7 @@ Fields of one pane:
 
 | Field | Type | Values | Default | Effect |
 | --- | --- | --- | --- | --- |
-| `role` | string | `claude`, `shell`, `changes`, `review`, `command` | required | What runs in the pane: Claude Code with the workspace's per-launch settings, a shell, the live changes view, the review editor, or a shell command. |
+| `role` | string | `claude`, `shell`, `changes`, `review`, `command`, `agents` | required | What runs in the pane: Claude Code with the workspace's per-launch settings, a shell, the live changes view, the review editor, a shell command, or the agents rail. |
 | `split` | string | `right`, `down` | required except on the first pane | Direction the pane is created in. |
 | `size` | integer | 10 to 90 | omitted, which splits in half | The new pane's share of the pane it splits, in percent. |
 | `parent` | integer | 1 to the index of the previous pane | omitted, which means the previous pane | The 1-based index of the earlier pane to split. |
@@ -274,13 +276,19 @@ clock = true
 alt_keys = true
 mouse = true
 # Let programs in panes send escape sequences straight to your terminal.
-# Off by default: pane output cannot drive your terminal or clipboard.
+# Off by default: pane output cannot drive your terminal or clipboard. The pane
+# running the agent always allows them, whatever this says, since that is where
+# its desktop notifications and its progress bar come from.
 allow_passthrough = false
 # Tell a pane when it gains or loses focus. Off by default: a program that asks
 # for focus events without reading them shows them as typed text, and the agent
-# client is one of them.
+# client is one of them. Turn it on only when every program you run in a pane
+# handles them (an editor that reloads a file on focus, for example).
 focus_events = false
-# When the agents rail is on screen: auto, always, key or off.
+# When the agents rail is on screen: auto opens it with the first agent that
+# joins the workspace and takes it away with the last one, always opens it with
+# the workspace and keeps it, key opens it only when you ask for it (Alt+A),
+# off never opens it by itself.
 agents_sidebar = "auto"
 
 [workspace]
@@ -289,6 +297,9 @@ agents_sidebar = "auto"
 layout = "auto"
 # Width of the Claude pane in percent when a layout splits it (20-80).
 split_ratio = 62
+# Teammates that share the lead's window before the next one opens as a window
+# of its own. 0 opens every teammate in a window of its own.
+agent_panes = 3
 history_limit = 100000
 # tmux prefix key. Press it twice to send it to the program in the pane.
 prefix = "C-b"
@@ -314,6 +325,9 @@ statusline = "auto"
 fullscreen = false
 # Agent teams, with teammates opened as tmux panes.
 teams = false
+# Where a teammate opens: lmux (a labeled pane of this workspace), auto (the
+# agent decides), in-process (inside the lead), iterm2 (a terminal split).
+teammate_mode = "lmux"
 # Base for new worktrees: fresh (origin default branch) or head. Empty uses the default.
 worktree_base = ""
 # Size guideline for dynamic workflows: small, medium, large, unrestricted.
