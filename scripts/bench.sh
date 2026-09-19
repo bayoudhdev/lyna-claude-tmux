@@ -29,6 +29,7 @@ Options:
 Environment:
   GO             the go command to use (default: go)
   HYPERFINE      the hyperfine command to use (default: hyperfine)
+  BENCHTIME      how long each Go benchmark runs (default: 2s)
 EOF
 }
 
@@ -185,7 +186,21 @@ for i in "${!names[@]}"; do
   fi
 done
 
-((dry_run)) && exit 0
+# The Go benchmarks measure work inside a live workspace rather than a process
+# start, so they are timed by the Go toolchain and not by hyperfine:
+# one redraw of a full agents rail, one reading arriving, and the pane Claude
+# Code opens for a teammate being taken over. bench_time is how long each runs.
+bench_time=${BENCHTIME:-2s}
+bench_names=("agents rail redraw, 40 agents" "agents rail, one reading" "teammate pane taken over")
+bench_pkgs=(./internal/tui/ ./internal/tui/ ./internal/app/)
+bench_funcs=(BenchmarkAgentBarRender BenchmarkAgentBarUpdate BenchmarkTeammateOpens)
+
+if ((dry_run)); then
+  for i in "${!bench_funcs[@]}"; do
+    show "$go_bin" -C "$root" test "${bench_pkgs[$i]}" -run '^$' -bench "^${bench_funcs[$i]}\$" -benchtime "$bench_time" -count 1
+  done
+  exit 0
+fi
 
 # table turns the per-command CSV exports (seconds) into one Markdown table in
 # milliseconds, relative to the first command.
@@ -203,6 +218,30 @@ table() {
     }'
 }
 
+# go_bench runs one Go benchmark and prints its mean in milliseconds, or
+# nothing when the benchmark did not run, which is what a machine without tmux
+# does to the one that opens a workspace. A benchmark that cannot even start
+# leaves its cell empty instead of ending the report, so the numbers a machine
+# can measure are still printed.
+go_bench() {
+  local pkg=$1 name=$2
+  "$go_bin" -C "$root" test "$pkg" -run '^$' -bench "^${name}\$" -benchtime "$bench_time" -count 1 2>/dev/null |
+    awk -v name="$name" 'index($1, name) == 1 && $4 == "ns/op" { printf "%.1f\n", $3 / 1000000 }' || true
+}
+
+# inside_table measures what a workspace is judged by while it runs: a redraw of
+# a full agents rail, a reading arriving in it, and the time between the pane
+# Claude Code opens for a teammate and the pane of ours it becomes.
+inside_table() {
+  local i mean
+  printf '\n| Inside a workspace | Mean [ms] |\n'
+  printf '|:---|---:|\n'
+  for i in "${!bench_funcs[@]}"; do
+    mean=$(go_bench "${bench_pkgs[$i]}" "${bench_funcs[$i]}")
+    printf "| \`%s\` | %s |\n" "${bench_names[$i]}" "${mean:-not measured}"
+  done
+}
+
 report() {
   local version
   version=$("$bin" version 2>/dev/null | head -n 1) || version="unknown"
@@ -210,6 +249,7 @@ report() {
   # Rosetta reports the translated architecture, not the one that runs here.
   printf '%s\n\n' "Measured with $("$hyperfine_bin" --version) on $(uname -s) $("$go_bin" env GOARCH), $("$go_bin" version | cut -d' ' -f3), lmux ${version#lmux }."
   table
+  inside_table
 }
 
 if [[ -n $output ]]; then

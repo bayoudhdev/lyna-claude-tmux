@@ -38,16 +38,27 @@ case $name in "go hello world") mean=0.0007 ;; esac
 printf 'command,mean,stddev,median,user,system,min,max\n%s,%s,0.0001,%s,0.0004,0.0003,0.0006,0.0030\n' "$name" "$mean" "$mean" > "$csv"
 `
 
-// fakeGo answers go version and go env, and builds by writing a script at the
-// -o path.
+// fakeGo answers go version and go env, builds by writing a script at the -o
+// path, and answers a benchmark run with one line in the toolchain's format.
+// BenchmarkTeammateOpens fails instead, standing for the benchmark a machine
+// cannot run: the report keeps the numbers it does have.
 const fakeGo = `#!/bin/sh
 echo "go $*" >> "$BENCH_LOG"
 if [ "$1" = version ]; then echo "go version go1.27.1 testos/testarch"; exit 0; fi
 if [ "$1" = env ]; then echo "testarch"; exit 0; fi
+bench=""
 while [ $# -gt 0 ]; do
-  if [ "$1" = -o ]; then printf '#!/bin/sh\necho hello\n' > "$2"; chmod 0755 "$2"; fi
-  shift
+  case $1 in
+  -bench) bench=$2; shift 2 ;;
+  -o) printf '#!/bin/sh\necho hello\n' > "$2"; chmod 0755 "$2"; shift 2 ;;
+  *) shift ;;
+  esac
 done
+if [ -n "$bench" ]; then
+  name=$(printf '%s' "$bench" | tr -d '^$')
+  if [ "$name" = BenchmarkTeammateOpens ]; then exit 1; fi
+  printf 'goos: testos\ngoarch: testarch\n%s-8\t100\t2500000 ns/op\t1024 B/op\t8 allocs/op\nPASS\n' "$name"
+fi
 `
 
 const fakeLmux = `#!/bin/sh
@@ -132,8 +143,11 @@ func TestBenchScriptArguments(t *testing.T) {
 		{name: "dry run builds the binary", args: []string{"--dry-run"}, golden: "bench/dry-run-build.txt"},
 		{name: "dry run needs no hyperfine", args: []string{"--dry-run"}, hyperfine: false, wantOut: "hyperfine --shell=none"},
 		{name: "dry run needs no go", args: []string{"--dry-run"}, env: []string{"GO=/nonexistent/go"}, wantOut: "/nonexistent/go build"},
+		{name: "dry run shows the go benchmarks", args: []string{"--dry-run"}, wantOut: "-bench '^BenchmarkAgentBarRender$' -benchtime 2s"},
+		{name: "the benchmark time comes from the environment", args: []string{"--dry-run"}, env: []string{"BENCHTIME=1x"}, wantOut: "-benchtime 1x"},
 		{name: "help", args: []string{"--help"}, wantOut: "Usage: scripts/bench.sh [--dry-run] [--bin PATH] [--runs N] [--output FILE]"},
 		{name: "help names the environment", args: []string{"--help"}, wantOut: "HYPERFINE      the hyperfine command to use (default: hyperfine)"},
+		{name: "help names the benchmark time", args: []string{"--help"}, wantOut: "BENCHTIME      how long each Go benchmark runs (default: 2s)"},
 		{name: "unknown argument", args: []string{"--fast"}, wantExit: 2, wantErr: "unknown argument: --fast"},
 		{name: "missing value", args: []string{"--dry-run", "--bin"}, wantExit: 2, wantErr: "--bin needs a value"},
 		{name: "one run is refused", args: []string{"--runs", "1"}, wantExit: 2, wantErr: "--runs must be a whole number of at least 2"},
@@ -213,7 +227,9 @@ func TestBenchScriptReport(t *testing.T) {
 			golden.Assert(t, "bench/report.md", []byte(report))
 
 			log := strings.ReplaceAll(string(mustRead(t, e.log)), lyna, "LYNA")
-			log = rewriteWork(log, e.tmp)
+			// The Go benchmarks are run from the repository, whose path is this
+			// machine's: the golden holds the calls, not where they were made.
+			log = strings.ReplaceAll(rewriteWork(log, e.tmp), repoRoot(t), "ROOT")
 			golden.Assert(t, "bench/calls.log", []byte(log))
 			if entries, _ := os.ReadDir(e.tmp); len(entries) != 0 {
 				t.Fatalf("scratch directory not removed: %v", entries)
@@ -260,6 +276,9 @@ func TestBenchScriptWithHyperfine(t *testing.T) {
 		"HOME=" + os.Getenv("HOME"),
 		"GOCACHE=" + goEnv(t, "GOCACHE"),
 		"GOPATH=" + goEnv(t, "GOPATH"),
+		// The Go benchmarks run for real here, so each one runs once: the
+		// flags and the parsing are what this case proves, not the timings.
+		"BENCHTIME=1x",
 	}
 	stdout, stderr, exit := runBench(t, env, "--runs", "2", "--bin", filepath.Join(filepath.Dir(e.bin), "lmux"))
 	if exit != 0 {
@@ -271,7 +290,11 @@ func TestBenchScriptWithHyperfine(t *testing.T) {
 			rows++
 		}
 	}
-	if rows != 4 || !strings.Contains(stdout, "| Command | Mean [ms] |") || !strings.Contains(stdout, "lmux v9.9.9") {
+	// Four commands timed by hyperfine, three benchmarks timed by the Go
+	// toolchain. A benchmark this machine cannot run still has its row, so the
+	// count holds whether or not tmux is installed here.
+	if rows != 7 || !strings.Contains(stdout, "| Command | Mean [ms] |") ||
+		!strings.Contains(stdout, "| Inside a workspace | Mean [ms] |") || !strings.Contains(stdout, "lmux v9.9.9") {
 		t.Fatalf("report:\n%s", stdout)
 	}
 }
