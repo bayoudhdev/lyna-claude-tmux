@@ -127,6 +127,9 @@ type Pane struct {
 	// Running names them, as team.ParseRunning reads them.
 	Subagents string
 	Running   string
+	// Transcript is the file the agent of the pane writes its session to,
+	// empty until a session has started in the pane.
+	Transcript string
 }
 
 // Location renders "session:window.pane".
@@ -159,6 +162,7 @@ var paneFields = []string{
 	"#{" + OptTeam + "}",
 	"#{" + OptSubagents + "}",
 	"#{" + OptRunning + "}",
+	"#{" + OptTranscript + "}",
 }
 
 // ListPanes lists panes. An empty target lists every pane on the server;
@@ -212,6 +216,7 @@ func parsePanes(out string) []Pane {
 			Team:           f[21],
 			Subagents:      f[22],
 			Running:        f[23],
+			Transcript:     f[24],
 		})
 	}
 	return panes

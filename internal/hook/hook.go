@@ -21,11 +21,13 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode/utf8"
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/hookevent"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/session"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/fsx"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/hook/githead"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/sanitize"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
 )
 
@@ -131,13 +133,18 @@ func Run(ctx context.Context, in Input, deps Deps) (status int) {
 		return 0
 	}
 
-	payload, known := deps.readPayload(name, in.Stdin)
+	payload, data, known := deps.readPayload(name, in.Stdin)
 	var branch *string
 	if ev == hookevent.SessionStart || ev == hookevent.Stop {
 		branch = deps.branch(name, payload.Cwd)
 	}
+	var transcript *string
+	if ev == hookevent.SessionStart && known {
+		kept := deps.transcript(name, hookevent.Transcript(data))
+		transcript = &kept
+	}
 
-	cmds, ring := Commands(ev, payload, known, pane, branch, getenv(session.EnvBell) != "0")
+	cmds, ring := Commands(ev, payload, known, pane, branch, transcript, getenv(session.EnvBell) != "0")
 	if len(cmds) == 0 {
 		return 0
 	}
@@ -160,25 +167,57 @@ func Run(ctx context.Context, in Input, deps Deps) (status int) {
 	return 0
 }
 
-// readPayload reads and decodes stdin. known is false when the payload was
-// missing, oversized or malformed; the caller then falls back to what the
-// event registration alone guarantees.
-func (d Deps) readPayload(name string, r io.Reader) (Payload, bool) {
+// readPayload reads and decodes stdin, and returns the bytes it read for the
+// fields only one event needs. known is false when the payload was missing,
+// oversized or malformed; the caller then falls back to what the event
+// registration alone guarantees.
+func (d Deps) readPayload(name string, r io.Reader) (Payload, []byte, bool) {
 	if r == nil {
 		d.logf(name, "no payload on stdin")
-		return Payload{}, false
+		return Payload{}, nil, false
 	}
 	data, err := fsx.ReadLimited(r, MaxStdinBytes)
 	if err != nil {
 		d.logf(name, "read payload: %v", err)
-		return Payload{}, false
+		return Payload{}, nil, false
 	}
 	p, err := DecodePayload(data)
 	if err != nil {
 		d.logf(name, "%v", err)
-		return Payload{}, false
+		return Payload{}, nil, false
 	}
-	return p, true
+	return p, data, true
+}
+
+// maxTranscript bounds the transcript path a pane keeps. A path Claude Code
+// writes is its configuration directory, a directory named after the project
+// and a session id, far shorter than this.
+const maxTranscript = 1024
+
+// transcriptExt is the extension of every transcript Claude Code writes.
+const transcriptExt = ".jsonl"
+
+// transcript returns the transcript path a pane keeps, or "" when the payload
+// names none it can keep.
+//
+// The path comes from a file the hook did not write, and whatever reads the
+// option opens the file it names, so the path is kept only as it arrived:
+// absolute and already clean, a .jsonl file, printable on one line, and no
+// longer than maxTranscript. A path that breaks one of the rules is not kept
+// at all rather than cleaned into a path Claude Code did not name.
+func (d Deps) transcript(name, path string) string {
+	switch {
+	case path == "":
+		return ""
+	case len(path) > maxTranscript:
+	case !filepath.IsAbs(path) || filepath.Clean(path) != path:
+	case !strings.HasSuffix(path, transcriptExt) || filepath.Base(path) == transcriptExt:
+	case !utf8.ValidString(path) || sanitize.Line(path) != path:
+	default:
+		return path
+	}
+	d.logf(name, "transcript path not kept: %q", path[:min(len(path), maxTranscript)])
+	return ""
 }
 
 // branch returns the label for @lt_branch, "" to clear it outside a
@@ -217,9 +256,11 @@ var fmtChangesSignal = "wait-for -S '" + tmux.ChangesChannel("#{session_id}") + 
 // Commands returns the tmux batch for an event on pane and whether the pane
 // bell rings after it. known reports that payload was decoded; without it the
 // handler relies on the matcher each event is registered with. branch is the
-// new @lt_branch value ("" clears it) or nil to leave it unchanged. The last
-// command of a ringing batch prints the pane's terminal path.
-func Commands(ev hookevent.Event, p Payload, known bool, pane string, branch *string, bell bool) ([]tmux.Command, bool) {
+// new @lt_branch value ("" clears it) or nil to leave it unchanged, and
+// transcript is the same for @lt_transcript, whose value the caller has
+// checked. The last command of a ringing batch prints the pane's terminal
+// path.
+func Commands(ev hookevent.Event, p Payload, known bool, pane string, branch, transcript *string, bell bool) ([]tmux.Command, bool) {
 	var cmds []tmux.Command
 	state := func(s string) { cmds = append(cmds, tmux.Command{"set-option", "-p", "-t", pane, tmux.OptState, s}) }
 	agents := func() { cmds = append(cmds, tmux.Command{"run-shell", "-C", "-t", pane, tmux.AgentsSignal}) }
@@ -295,6 +336,18 @@ func Commands(ev hookevent.Event, p Payload, known bool, pane string, branch *st
 		agents()
 	}
 
+	// The transcript of a pane changes when a session starts in it, a session
+	// that compacts, resumes or clears included, and on no other event: every
+	// other event of the session names the same file, and the hooks of those
+	// run on every tool call. A session whose transcript cannot be kept
+	// leaves none, rather than the one of the session before it.
+	if transcript != nil && ev == hookevent.SessionStart {
+		if *transcript == "" {
+			cmds = append(cmds, tmux.Command{"set-option", "-p", "-u", "-t", pane, tmux.OptTranscript})
+		} else {
+			cmds = append(cmds, tmux.Command{"set-option", "-p", "-t", pane, tmux.OptTranscript, *transcript})
+		}
+	}
 	if branch != nil && (ev == hookevent.SessionStart || ev == hookevent.Stop) {
 		// A pane target resolves to the session holding the pane.
 		if *branch == "" {

@@ -98,6 +98,9 @@ func TestRunBranch(t *testing.T) {
 				// window before it touches the branch.
 				want += "\x00;\x00" + strings.Join(agentsSignal, "\x00")
 				want += "\x00" + strings.Join(rememberLayout, "\x00")
+				// None of these payloads names a transcript, and a session
+				// that names none leaves none on the pane.
+				want += "\x00;\x00" + strings.Join(transcriptUnset, "\x00")
 			}
 			if tc.wantTail != nil {
 				want += "\x00;\x00" + strings.Join(tc.wantTail, "\x00")

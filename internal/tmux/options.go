@@ -21,6 +21,10 @@ const (
 	OptAgent     = "@lt_agent"      // pane: name of the teammate running in it
 	OptAgentType = "@lt_agent_type" // pane: agent type of that teammate
 	OptTeam      = "@lt_team"       // pane: team that teammate belongs to
+	// OptTranscript is a pane option: the transcript Claude Code writes the
+	// session of the pane's agent to, as its hooks named it. It is stored as
+	// the path itself, never drawn, so it is not escaped for drawing.
+	OptTranscript = "@lt_transcript"
 
 	// Names shared with the tmux plugin this project derives from, used when
 	// lyna-tmux runs inside the user's own tmux server so existing sessions and

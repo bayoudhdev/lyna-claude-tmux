@@ -22,16 +22,20 @@ func TestCommands(t *testing.T) {
 	remember := tmux.RememberLayout(pane)[0]
 	branchSet := func(v string) tmux.Command { return tmux.Command{"set-option", "-t", pane, "@lt_branch", v} }
 	branchUnset := tmux.Command{"set-option", "-u", "-t", pane, "@lt_branch"}
+	const path = "/home/u/.claude/projects/-work-api/5f0c2a1e.jsonl"
+	keep := tmux.Command{"set-option", "-p", "-t", pane, "@lt_transcript", path}
+	drop := tmux.Command{"set-option", "-p", "-u", "-t", pane, "@lt_transcript"}
 
 	cases := []struct {
-		name     string
-		ev       hookevent.Event
-		p        Payload
-		unknown  bool
-		branch   *string
-		bellOff  bool
-		want     []tmux.Command
-		wantRing bool
+		name       string
+		ev         hookevent.Event
+		p          Payload
+		unknown    bool
+		branch     *string
+		transcript *string
+		bellOff    bool
+		want       []tmux.Command
+		wantRing   bool
 	}{
 		{name: "session start idle", ev: hookevent.SessionStart, p: Payload{Source: "startup"}, want: []tmux.Command{set("idle"), agents, remember}},
 		{name: "session start with branch", ev: hookevent.SessionStart, p: Payload{Source: "resume"}, branch: strp("main"), want: []tmux.Command{set("idle"), agents, remember, branchSet("main")}},
@@ -39,6 +43,18 @@ func TestCommands(t *testing.T) {
 		{name: "session start branch escaped for drawing", ev: hookevent.SessionStart, branch: strp("feat/#[fg=red]"), want: []tmux.Command{set("idle"), agents, remember, branchSet("feat/##[fg=red]")}},
 		{name: "compaction keeps state, refreshes branch", ev: hookevent.SessionStart, p: Payload{Source: "compact"}, branch: strp("dev"), want: []tmux.Command{branchSet("dev")}},
 		{name: "compaction without branch does nothing", ev: hookevent.SessionStart, p: Payload{Source: "compact"}, want: nil},
+		{name: "session start keeps its transcript", ev: hookevent.SessionStart, p: Payload{Source: "startup"}, transcript: strp(path), branch: strp("main"), want: []tmux.Command{set("idle"), agents, remember, keep, branchSet("main")}},
+		{name: "a resumed session keeps its transcript", ev: hookevent.SessionStart, p: Payload{Source: "resume"}, transcript: strp(path), want: []tmux.Command{set("idle"), agents, remember, keep}},
+		{name: "compaction keeps its transcript too", ev: hookevent.SessionStart, p: Payload{Source: "compact"}, transcript: strp(path), want: []tmux.Command{keep}},
+		{name: "a session whose transcript is not kept leaves none", ev: hookevent.SessionStart, p: Payload{Source: "clear"}, transcript: strp(""), want: []tmux.Command{set("idle"), agents, remember, drop}},
+		{name: "a transcript on another event is not kept", ev: hookevent.UserPromptSubmit, transcript: strp(path), want: []tmux.Command{set("busy"), remember}},
+		{name: "a transcript on stop is not kept", ev: hookevent.Stop, transcript: strp(path), bellOff: true, want: []tmux.Command{set("idle")}},
+		{name: "a transcript on session end is left", ev: hookevent.SessionEnd, transcript: strp(""), want: []tmux.Command{
+			{"set-option", "-p", "-u", "-t", pane, "@lt_state"},
+			{"set-option", "-p", "-u", "-t", pane, "@lt_subagents"},
+			{"set-option", "-p", "-u", "-t", pane, "@lt_running"},
+			agents,
+		}},
 		{name: "prompt busy", ev: hookevent.UserPromptSubmit, want: []tmux.Command{set("busy"), remember}},
 		{name: "prompt ignores branch", ev: hookevent.UserPromptSubmit, branch: strp("main"), want: []tmux.Command{set("busy"), remember}},
 		{name: "ask user waits and rings", ev: hookevent.PreToolUse, p: Payload{ToolName: "AskUserQuestion"}, want: []tmux.Command{set("waiting"), tty}, wantRing: true},
@@ -96,7 +112,7 @@ func TestCommands(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, ring := Commands(tc.ev, tc.p, !tc.unknown, pane, tc.branch, !tc.bellOff)
+			got, ring := Commands(tc.ev, tc.p, !tc.unknown, pane, tc.branch, tc.transcript, !tc.bellOff)
 			if !reflect.DeepEqual(got, tc.want) {
 				t.Fatalf("Commands =\n%q\nwant\n%q", got, tc.want)
 			}
@@ -119,7 +135,7 @@ func TestCommandsCoverRegistrations(t *testing.T) {
 			case hookevent.Notification:
 				p.NotificationType = r.Matcher
 			}
-			cmds, _ := Commands(r.Event, p, true, "%1", nil, true)
+			cmds, _ := Commands(r.Event, p, true, "%1", nil, nil, true)
 			if len(cmds) == 0 {
 				t.Fatalf("no commands for %+v", r)
 			}
