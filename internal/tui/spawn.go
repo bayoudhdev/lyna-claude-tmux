@@ -10,6 +10,7 @@ import (
 	"charm.land/huh/v2"
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/agentdef"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/claudecfg"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/layout"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/sanitize"
 )
@@ -47,14 +48,24 @@ type SpawnOptions struct {
 // SpawnRequest is the agent a form asked for.
 type SpawnRequest struct {
 	Target SpawnTarget
-	// Agent is the agent type, Model and Effort what it runs with, both empty
-	// when the form was left on what the workspace already uses.
+	// Agent is the agent definition, Model and Effort what it runs with, all
+	// three empty when the form was left on what the workspace already uses:
+	// the built-in agent is the one a session runs when it names none.
 	Agent, Model, Effort string
 	// Worktree asks for a git worktree of the agent's own, and Name names it
 	// and the window an agent of our own opens in.
 	Worktree bool
 	Name     string
 	Prompt   string
+}
+
+// AgentName is the agent the request is for, as it is shown: the definition
+// it names, or the built-in agent.
+func (r SpawnRequest) AgentName() string {
+	if r.Agent == "" {
+		return agentdef.Default
+	}
+	return r.Agent
 }
 
 // SpawnResult is the outcome of the form.
@@ -119,9 +130,13 @@ func (m *SpawnModel) Result() (SpawnResult, bool) { return m.result, m.done }
 // request is the form's values as a request.
 func (m *SpawnModel) request() SpawnRequest {
 	v := m.values
+	agent := strings.TrimSpace(v.Agent)
+	if agent == agentdef.Default {
+		agent = ""
+	}
 	return SpawnRequest{
 		Target:   SpawnTarget(v.Target),
-		Agent:    strings.TrimSpace(v.Agent),
+		Agent:    agent,
 		Model:    strings.TrimSpace(v.Model),
 		Effort:   v.Effort,
 		Worktree: v.Worktree,
@@ -140,7 +155,7 @@ var ErrSpawnPrompt = errors.New("the agent needs something to do")
 func SpawnMessage(req SpawnRequest) string {
 	var b strings.Builder
 	b.WriteString("Start a ")
-	b.WriteString(sanitize.Line(spawnAgent(req.Agent)))
+	b.WriteString(sanitize.Line(req.AgentName()))
 	b.WriteString(" agent")
 	if req.Worktree {
 		b.WriteString(" in a git worktree of its own")
@@ -163,15 +178,6 @@ func SpawnMessage(req SpawnRequest) string {
 	return b.String()
 }
 
-// spawnAgent is the agent type a request names, which is the built-in one
-// where it names none.
-func spawnAgent(name string) string {
-	if name == "" {
-		return agentdef.Default
-	}
-	return name
-}
-
 // spawnAsksTheLead reports a request the lead carries out.
 func (m *SpawnModel) spawnAsksTheLead() bool { return m.values.Target == string(SpawnLead) }
 
@@ -192,14 +198,9 @@ func (m *SpawnModel) buildForm() *huh.Form {
 		huh.NewInput().Title("Model").
 			Description("model alias or id; empty runs it on what the workspace runs").
 			Placeholder("opus").CharLimit(128).Value(&v.Model),
-		huh.NewSelect[string]().Title("Effort").Options(
-			huh.NewOption("workspace   what the workspace already uses", ""),
-			huh.NewOption("low         quickest answers", "low"),
-			huh.NewOption("medium      balanced", "medium"),
-			huh.NewOption("high        more reasoning on hard steps", "high"),
-			huh.NewOption("xhigh       extended reasoning", "xhigh"),
-			huh.NewOption("max         the most reasoning per step", "max"),
-		).Value(&v.Effort),
+		huh.NewSelect[string]().Title("Effort").
+			Options(effortOptions("workspace   what the workspace already uses")...).
+			Value(&v.Effort),
 	).Title(step(2, "Agent"))
 
 	work := huh.NewGroup(
@@ -213,7 +214,7 @@ func (m *SpawnModel) buildForm() *huh.Form {
 		huh.NewText().Title("Prompt").
 			Description("what the agent is being asked to do").
 			CharLimit(spawnPromptLimit).Value(&v.Prompt).
-			Validate(checkSpawnPrompt),
+			Validate(m.checkPrompt),
 		huh.NewConfirm().Title("Start it?").
 			DescriptionFunc(m.summary, v).
 			Affirmative("Start").Negative("Cancel").Value(&v.Go),
@@ -246,24 +247,33 @@ func (m *SpawnModel) agentOptions() []huh.Option[string] {
 
 // checkName refuses a name no window or worktree could take. A request the
 // lead carries out names nothing of ours, so an empty name is one the lead
-// picks itself.
+// picks itself; an agent of our own opens in a window, and a window is named.
 func (m *SpawnModel) checkName(name string) error {
 	name = strings.TrimSpace(name)
-	if name == "" {
-		if m.spawnAsksTheLead() || !m.values.Worktree {
-			return nil
-		}
+	switch {
+	case name != "":
+		return layout.ValidateWorktree(name)
+	case m.spawnAsksTheLead():
+		return nil
+	case m.values.Worktree:
 		return errors.New("a worktree needs a name")
 	}
-	return layout.ValidateWorktree(name)
+	return errors.New("a window of its own needs a name")
 }
 
-// checkSpawnPrompt refuses a request with nothing to ask.
-func checkSpawnPrompt(p string) error {
-	if strings.TrimSpace(p) == "" {
+// checkPrompt refuses a request with nothing to ask, and one the agent would
+// not read as a prompt. The second rule is the launch's, and applies to the
+// agent we start ourselves: what the lead is asked is text in a conversation
+// that is already running.
+func (m *SpawnModel) checkPrompt(p string) error {
+	p = strings.TrimSpace(p)
+	if p == "" {
 		return ErrSpawnPrompt
 	}
-	return nil
+	if m.spawnAsksTheLead() {
+		return nil
+	}
+	return claudecfg.ValidatePrompt(p)
 }
 
 // summary is the review step's description: the exact text an ask-the-lead
@@ -273,7 +283,7 @@ func (m *SpawnModel) summary() string {
 	if req.Target == SpawnLead {
 		return "the lead is sent, exactly:\n" + SpawnMessage(req)
 	}
-	lines := []string{"agent:    " + spawnAgent(req.Agent)}
+	lines := []string{"agent:    " + sanitize.Line(req.AgentName())}
 	if req.Model != "" {
 		lines = append(lines, "model:    "+req.Model)
 	}
@@ -360,7 +370,7 @@ func (m *SpawnModel) render() string {
 				"   "+s.Text.Render(truncate(m.result.Message, max(m.width-4, 0), s.Ellipsis)))
 			return screen(lines, m.width, m.height)
 		}
-		lines = append(lines, " "+s.Success.Render("starting "+spawnAgent(m.result.Request.Agent)))
+		lines = append(lines, " "+s.Success.Render("starting "+sanitize.Line(m.result.Request.AgentName())))
 		return screen(lines, m.width, m.height)
 	}
 	lines = append(lines, "")

@@ -143,6 +143,14 @@ type TaskRequest struct {
 	Name string
 	// Prompt, when set, is the first prompt of the conversation.
 	Prompt string
+	// Agent, Model and Effort are the session the window runs, empty for the
+	// ones the configuration chooses.
+	Agent  string
+	Model  string
+	Effort string
+	// NoWorktree opens the window in the project directory rather than in a
+	// worktree of its own, for work that shares the tree with the workspace.
+	NoWorktree bool
 }
 
 // taskPlan names the plan of a task window.
@@ -161,8 +169,12 @@ func (s *Server) OpenTask(ctx context.Context, h Host, req TaskRequest) (WindowR
 	if err != nil {
 		return WindowResult{}, err
 	}
-	plan := layout.Plan{Name: taskPlan, Panes: []layout.Pane{{Role: layout.RoleClaude, Worktree: req.Name}}}
-	var o LaunchOptions
+	pane := layout.Pane{Role: layout.RoleClaude, Worktree: req.Name}
+	if req.NoWorktree {
+		pane.Worktree = ""
+	}
+	plan := layout.Plan{Name: taskPlan, Panes: []layout.Pane{pane}}
+	o := LaunchOptions{Agent: req.Agent, Model: req.Model, Effort: req.Effort}
 	if req.Prompt != "" {
 		o.ExtraArgs = []string{req.Prompt}
 	}

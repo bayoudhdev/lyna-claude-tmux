@@ -39,6 +39,9 @@ type LaunchOptions struct {
 	Model          string
 	Effort         string
 	PermissionMode string
+	// Agent names an agent definition the session runs as, empty for a session
+	// that runs as none, which is every session a user opens themselves.
+	Agent string
 	// Sandbox is the profile name. The off profile is honored only here, as an
 	// explicit request, never from the configuration file.
 	Sandbox   string
@@ -184,6 +187,7 @@ func (s *Server) prepareLaunch(h Host, root, name string, o LaunchOptions) (laun
 		Model:            pick(o.Model, cfg.Claude.Model),
 		Effort:           pick(o.Effort, cfg.Claude.Effort),
 		PermissionMode:   permissionMode,
+		Agent:            o.Agent,
 		AddDirs:          cfg.Claude.AddDirs,
 		MCPConfigs:       cfg.Claude.MCPConfig,
 		PluginDirs:       cfg.Claude.PluginDirs,

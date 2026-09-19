@@ -18,6 +18,7 @@ func workspaceCommands(d Deps) []*cobra.Command {
 	return []*cobra.Command{
 		popupCommand(d),
 		taskCommand(d),
+		spawnCommand(d),
 		teamCommand(d),
 		resumeCommand(d),
 		layoutCommand(d),

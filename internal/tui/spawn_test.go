@@ -1,12 +1,14 @@
 package tui
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/agentdef"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/claudecfg"
 )
 
 // spawnDefs are the definitions a workspace offers in these tests.
@@ -59,6 +61,22 @@ func TestSpawnAsksTheLead(t *testing.T) {
 	}
 }
 
+// TestSpawnAsksTheLeadInItsOwnWords covers the prompts only a launch refuses:
+// what the lead is asked is text in a conversation that is already running, so
+// a single word or a leading dash is sent as it was typed.
+func TestSpawnAsksTheLeadInItsOwnWords(t *testing.T) {
+	for _, prompt := range []string{"refactor", "-v is the flag to add"} {
+		t.Run(prompt, func(t *testing.T) {
+			m := startSpawn(t, SpawnOptions{Agents: spawnDefs(), Lead: true},
+				append(keys("enter", "enter", "enter", "enter", "n", "enter"), append(typeText(prompt), keys("enter", "y")...)...)...)
+			res, done := m.Result()
+			if !done || !res.Sent || res.Request.Prompt != prompt {
+				t.Fatalf("the form did not send %q: %+v (done %v)\n%s", prompt, res, done, plain(m))
+			}
+		})
+	}
+}
+
 // TestSpawnStartsItsOwn covers the other target: a workspace with no lead to
 // ask never offers the choice, and the agent opens in a window of its own.
 func TestSpawnStartsItsOwn(t *testing.T) {
@@ -72,7 +90,7 @@ func TestSpawnStartsItsOwn(t *testing.T) {
 		t.Fatalf("the form did not finish: %+v", res)
 	}
 	want := SpawnRequest{
-		Target: SpawnOwn, Agent: agentdef.Default, Model: "opus", Effort: "high",
+		Target: SpawnOwn, Model: "opus", Effort: "high",
 		Name: "spike", Prompt: "try the other parser",
 	}
 	if res.Request != want {
@@ -161,6 +179,38 @@ func TestSpawnMessage(t *testing.T) {
 	}
 }
 
+// TestSpawnAgentName covers the name a request is shown under.
+func TestSpawnAgentName(t *testing.T) {
+	cases := []struct {
+		agent, want string
+	}{
+		{agent: "", want: agentdef.Default},
+		{agent: "api-developer", want: "api-developer"},
+	}
+	for _, tc := range cases {
+		if got := (SpawnRequest{Agent: tc.agent}).AgentName(); got != tc.want {
+			t.Fatalf("AgentName(%q) = %q, want %q", tc.agent, got, tc.want)
+		}
+	}
+}
+
+// TestEffortOptions keeps the forms in step with the launch: every effort the
+// launch accepts is offered, after the choice that leaves it unset, and
+// nothing the launch would refuse is.
+func TestEffortOptions(t *testing.T) {
+	opts := effortOptions("unset")
+	values := make([]string, 0, len(opts))
+	for _, o := range opts {
+		values = append(values, o.Value)
+	}
+	if want := append([]string{""}, claudecfg.Efforts()...); !slices.Equal(values, want) {
+		t.Fatalf("effort options %q, want %q", values, want)
+	}
+	if opts[0].Key != "unset" {
+		t.Fatalf("the first option reads %q", opts[0].Key)
+	}
+}
+
 // TestSpawnRefusesWhatCannotBeStarted drives the validation of the form: a
 // worktree with no name, a name no worktree could take, and an agent with
 // nothing to do.
@@ -180,6 +230,21 @@ func TestSpawnRefusesWhatCannotBeStarted(t *testing.T) {
 			name:  "a name no worktree could take",
 			msgs:  append(append(keys("enter", "enter", "enter", "y"), typeText("../escape")...), press("enter")),
 			wants: "worktree name",
+		},
+		{
+			name:  "an agent of its own with no name",
+			msgs:  append(keys("enter", "enter", "enter", "n"), press("enter")),
+			wants: "a window of its own needs a name",
+		},
+		{
+			name:  "a prompt claude would read as an option",
+			msgs:  append(append(keys("enter", "enter", "enter", "n"), typeText("spike")...), append(keys("enter"), append(typeText("-v now"), press("enter"))...)...),
+			wants: "must not start with '-'",
+		},
+		{
+			name:  "a prompt of one word the agent would run as a subcommand",
+			msgs:  append(append(keys("enter", "enter", "enter", "n"), typeText("spike")...), append(keys("enter"), append(typeText("update"), press("enter"))...)...),
+			wants: "one word",
 		},
 		{
 			name:  "an agent with nothing to do",

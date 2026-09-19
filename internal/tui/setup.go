@@ -182,15 +182,9 @@ func (m *SetupModel) buildForm() *huh.Form {
 					c.Claude.Model = strings.TrimSpace(model)
 					return m.problemsFor(c, "claude.model")
 				}),
-			huh.NewSelect[string]().Title("Effort").Options(
-				huh.NewOption("default     let Claude decide", ""),
-				huh.NewOption("low         quickest answers", "low"),
-				huh.NewOption("medium      balanced", "medium"),
-				huh.NewOption("high        more reasoning on hard steps", "high"),
-				huh.NewOption("xhigh       extended reasoning", "xhigh"),
-				huh.NewOption("max         the most reasoning per step", "max"),
-				huh.NewOption("ultracode   long autonomous coding runs", "ultracode"),
-			).Value(&v.Effort),
+			huh.NewSelect[string]().Title("Effort").
+				Options(effortOptions("default     let Claude decide")...).
+				Value(&v.Effort),
 			huh.NewSelect[string]().Title("Status line").Options(
 				huh.NewOption("auto   lyna status line unless you configured your own", "auto"),
 				huh.NewOption("lyna   always the lyna status line", "lyna"),
@@ -220,6 +214,20 @@ func (m *SetupModel) buildForm() *huh.Form {
 		WithTheme(m.opts.Styles.huhTheme()).
 		WithShowHelp(false).
 		WithWidth(m.formWidth())
+}
+
+// effortOptions are the effort levels a form offers, after the choice that
+// leaves the level to what is already in place, which unset describes.
+func effortOptions(unset string) []huh.Option[string] {
+	return []huh.Option[string]{
+		huh.NewOption(unset, ""),
+		huh.NewOption("low         quickest answers", "low"),
+		huh.NewOption("medium      balanced", "medium"),
+		huh.NewOption("high        more reasoning on hard steps", "high"),
+		huh.NewOption("xhigh       extended reasoning", "xhigh"),
+		huh.NewOption("max         the most reasoning per step", "max"),
+		huh.NewOption("ultracode   long autonomous coding runs", "ultracode"),
+	}
 }
 
 // optionLabel aligns a choice's help after its name; a long name keeps one
