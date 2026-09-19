@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-20
+
 ### Added
 
 - Every teammate of an agent team opens as a pane of the workspace: labeled with its name, drawn with the workspace's own border and state, placed by a pane policy, and listed on the agents rail. `claude.teammate_mode` chooses this or one of the ways Claude Code opens teammates itself. A team never fails to start over this: if the launcher cannot be written or the pane cannot be taken over, the agent runs exactly where Claude Code put it and the reason goes to the diagnostic log.
@@ -68,6 +70,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Release archives for Linux and macOS (amd64, arm64) with shell completions and a man page, deb, rpm and apk packages, SPDX SBOMs, checksums and build provenance attestations.
 - `scripts/bench.sh` start-up benchmarks.
 
-[Unreleased]: https://github.com/bayoudhdev/lyna-claude-tmux/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/bayoudhdev/lyna-claude-tmux/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/bayoudhdev/lyna-claude-tmux/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/bayoudhdev/lyna-claude-tmux/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/bayoudhdev/lyna-claude-tmux/releases/tag/v1.0.0
