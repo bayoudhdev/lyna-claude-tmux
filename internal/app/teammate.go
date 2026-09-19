@@ -42,6 +42,9 @@ type TeammateRequest struct {
 	// Sidebar is ui.agents_sidebar: whether a workspace opens the agents rail
 	// by itself when the first agent arrives in it.
 	Sidebar string
+	// SidebarWidth is ui.sidebar_width: the width in cells that rail opens at,
+	// and the width the tiling puts a rail back to. Zero is the default width.
+	SidebarWidth int
 	// LogPath is the diagnostic log; empty logs nothing.
 	LogPath string
 	// Now timestamps log lines; nil uses the clock.
@@ -76,6 +79,11 @@ func Teammate(ctx context.Context, h Host, req TeammateRequest) (TeammateRun, er
 		return TeammateRun{}, fmt.Errorf("%w (got %q)", ErrTeammateAgent, sanitize.Line(req.ClaudePath))
 	}
 	env := h.Environ
+	if client := h.Getenv(session.EnvClient); client != "" {
+		// The launcher carried the pane's server here and cleared TMUX for this
+		// process. The agent runs in the environment the pane really has.
+		env = withEnv(withoutEnv(env, session.EnvClient), "TMUX="+client)
+	}
 	spawn := team.ParseSpawn(req.Args)
 	who := teammateName(spawn)
 	ws, err := adoptTeammatePane(ctx, h, req, spawn)
@@ -139,7 +147,7 @@ var teammatePaneFields = []string{
 // workspace it belongs to.
 func adoptTeammatePane(ctx context.Context, h Host, req TeammateRequest, spawn team.Spawn) (teammateWorkspace, error) {
 	pane := h.Getenv("TMUX_PANE")
-	socket, inTmux := tmux.SocketFromEnv(h.Getenv("TMUX"))
+	socket, inTmux := tmux.SocketFromEnv(teammateClient(h))
 	if !inTmux || !tmux.ValidPaneID(pane) {
 		return teammateWorkspace{}, fmt.Errorf("no pane of a workspace to label (TMUX_PANE=%q)", sanitize.Line(pane))
 	}
@@ -171,7 +179,7 @@ func adoptTeammatePane(ctx context.Context, h Host, req TeammateRequest, spawn t
 	place := teammatePlace{
 		pane: pane, window: fields[2], remembered: fields[5], agent: spawn.Name,
 		size: layout.AgentWindow{Width: cells(fields[3]), Height: cells(fields[4]), Max: req.AgentPanes},
-		rail: railProcess(h.Exe, req.Sidebar),
+		rail: railProcess(h.Exe, req.Sidebar), railWidth: req.SidebarWidth,
 	}
 	return teammateWorkspace{
 		socket: socket.Path, session: fields[1],
@@ -190,6 +198,9 @@ type teammatePlace struct {
 	// rail is the agents rail to open in the window when it carries none, or
 	// the zero process when the workspace opens none by itself.
 	rail tmux.PaneProcess
+	// railWidth is ui.sidebar_width, the width a rail is opened at and put
+	// back to.
+	railWidth int
 }
 
 // railProcess is the rail a workspace opens by itself when the first agent
@@ -250,23 +261,33 @@ func placeTeammatePane(ctx context.Context, client *tmux.Client, p teammatePlace
 	// window has none of, never a teammate that failed to be placed.
 	var railErr error
 	if rail == "" && len(p.rail.Argv) > 0 {
-		if rail, railErr = openRail(ctx, client, anchor, p.rail); rail != "" {
-			w.Rail = layout.RailWidth
+		if rail, railErr = openRail(ctx, client, anchor, p.railWidth, p.rail); rail != "" {
+			w.Rail = layout.RailCells(p.railWidth)
 		}
 	}
 	if layout.PlaceAgent(w) == layout.PlaceHere {
-		_, err = client.Batch(ctx, tmux.TileAgents(p.window, lead, rail)...)
+		_, err = client.Batch(ctx, tmux.TileAgents(p.window, lead, rail, p.railWidth)...)
 		return errors.Join(railErr, err)
 	}
-	_, err = client.Batch(ctx, tmux.BreakOutTeammate(p.pane, p.window, p.agent, p.remembered)...)
+	// The window a teammate leaves is given back to the user only when that
+	// teammate was the last agent in it. One that still carries the rail or
+	// another teammate is arranged for those instead: the arrangement
+	// remembered for the user is the one the window had with no agent at all,
+	// and tmux refuses an arrangement that does not fit the panes there now.
+	seq := tmux.BreakOutTeammate(p.pane, p.window, p.agent, p.remembered)
+	if w.Teammates > 1 || rail != "" {
+		seq = tmux.BreakOutTeammate(p.pane, p.window, p.agent, "").
+			Then(tmux.TileAgents(p.window, lead, rail, p.railWidth))
+	}
+	_, err = client.Batch(ctx, seq...)
 	return errors.Join(railErr, err)
 }
 
-// openRail opens the agents rail of a window beside its leftmost pane and
-// makes it a pane of ours. It returns the rail, which is empty when none was
-// opened.
-func openRail(ctx context.Context, client *tmux.Client, anchor string, proc tmux.PaneProcess) (string, error) {
-	cmd := tmux.OpenRail(anchor, proc)
+// openRail opens the agents rail of a window beside its leftmost pane, width
+// cells wide, and makes it a pane of ours. It returns the rail, which is empty
+// when none was opened.
+func openRail(ctx context.Context, client *tmux.Client, anchor string, width int, proc tmux.PaneProcess) (string, error) {
+	cmd := tmux.OpenRail(anchor, width, proc)
 	if len(cmd) == 0 {
 		return "", fmt.Errorf("no pane to open the agents rail beside (%q)", sanitize.Line(anchor))
 	}
@@ -303,6 +324,29 @@ func cells(s string) int {
 		return 0
 	}
 	return n
+}
+
+// teammateClient is the tmux client environment of the pane the launcher runs
+// in: the variable the launcher carried it in, or TMUX itself when a teammate
+// opened without a launcher of ours.
+func teammateClient(h Host) string {
+	if client := h.Getenv(session.EnvClient); client != "" {
+		return client
+	}
+	return h.Getenv("TMUX")
+}
+
+// withoutEnv returns environ without the named variables.
+func withoutEnv(environ []string, names ...string) []string {
+	out := make([]string, 0, len(environ))
+	for _, kv := range environ {
+		key, _, _ := strings.Cut(kv, "=")
+		if slices.Contains(names, key) {
+			continue
+		}
+		out = append(out, kv)
+	}
+	return out
 }
 
 // withEnv returns environ with each assignment set: one that names a variable

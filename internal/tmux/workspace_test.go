@@ -132,6 +132,40 @@ func TestCreateWorkspaceSplitParents(t *testing.T) {
 	}
 }
 
+// TestCreateWorkspaceRailWidth sets the rail of a plan to the width the plan
+// carries once every pane is split: the split could only ask for a share.
+func TestCreateWorkspaceRailWidth(t *testing.T) {
+	cases := []struct {
+		name  string
+		rail  int
+		wantX string
+	}{
+		{name: "a plan that names no width", wantX: "28"},
+		{name: "the narrowest rail", rail: layout.MinRailWidth, wantX: "20"},
+		{name: "a wider rail", rail: 44, wantX: "44"},
+		{name: "the widest rail", rail: layout.MaxRailWidth, wantX: "60"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := &scripted{results: []Result{ok(created), ok("%4\n"), ok("")}}
+			spec := duoSpec(t)
+			plan, err := layout.Builtin(layout.Team, layout.Options{Width: 200, RailWidth: tc.rail})
+			if err != nil {
+				t.Fatal(err)
+			}
+			spec.Window.Plan = plan
+			if _, err := New(Options{Executor: rec}).CreateWorkspace(context.Background(), spec); err != nil {
+				t.Fatal(err)
+			}
+			// The rail is the window, %3; the lead splits it and keeps the focus.
+			want := []string{"resize-pane", "-t", "%3", "-x", tc.wantX, ";", "select-pane", "-t", "%4"}
+			if last := rec.calls[len(rec.calls)-1]; !reflect.DeepEqual(last, want) {
+				t.Fatalf("last call %q, want %q", last, want)
+			}
+		})
+	}
+}
+
 func TestAddWindowCommands(t *testing.T) {
 	cases := []struct {
 		name     string

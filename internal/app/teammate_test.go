@@ -35,7 +35,7 @@ type teammateScene struct {
 // openTeammateScene builds that scene at the given size on a real server, and
 // points the host at the new pane the way the pane's own environment points at
 // it, which is what the launcher reads.
-func openTeammateScene(t *testing.T, h *testHost, s *Server, width, height int) teammateScene {
+func openTeammateScene(t testing.TB, h *testHost, s *Server, width, height int) teammateScene {
 	t.Helper()
 	ctx := tmuxtest.Context(t)
 	plan, err := layout.Builtin(layout.Solo, layout.Options{})
@@ -147,8 +147,14 @@ func TestTeammatePlacesItsPane(t *testing.T) {
 		// elsewhere is a window of the user's own elsewhere in the workspace,
 		// which the window the teammate opened in is not read from.
 		elsewhere bool
-		// rail opens the agents rail in the window the teammate opened in.
-		rail          bool
+		// rail opens the agents rail in the window the teammate opened in, and
+		// railWidth is ui.sidebar_width, which the rail is opened at and put
+		// back to.
+		rail      bool
+		railWidth int
+		// kept is a teammate of ours already beside the lead, which stays in the
+		// window when the one being opened moves out of it.
+		kept          bool
 		wantHere      bool
 		wantLeadWidth string
 	}{
@@ -168,7 +174,19 @@ func TestTeammatePlacesItsPane(t *testing.T) {
 			name: "a teammate in a window that carries the rail", width: 240, height: 60, panes: 3,
 			rail: true, wantHere: true, wantLeadWidth: "211",
 		},
+		{
+			name: "a teammate in a window that carries a wider rail", width: 240, height: 60, panes: 3,
+			rail: true, railWidth: 44, wantHere: true, wantLeadWidth: "195",
+		},
 		{name: "one teammate more than the window shares", width: 240, height: 60, panes: 0},
+		{
+			name: "a teammate that leaves another teammate behind", width: 240, height: 60, panes: 1,
+			kept: true, wantLeadWidth: "96",
+		},
+		{
+			name: "a teammate that leaves the rail behind", width: 240, height: 60, panes: 0,
+			rail: true, wantLeadWidth: "211",
+		},
 		{name: "a window too narrow to read two agents in", width: 100, height: 60, panes: 3},
 		{name: "a window too short to read two agents in", width: 240, height: 13, panes: 3},
 	}
@@ -186,12 +204,23 @@ func TestTeammatePlacesItsPane(t *testing.T) {
 			}
 			if tc.rail {
 				out, err := s.Client.Run(ctx, "split-window", "-b", "-h", "-d", "-t", scene.lead,
-					"-l", strconv.Itoa(layout.RailWidth), "-P", "-F", "#{pane_id}", "sleep 3600")
+					"-l", strconv.Itoa(layout.RailCells(tc.railWidth)), "-P", "-F", "#{pane_id}", "sleep 3600")
 				if err != nil {
 					t.Fatal(err)
 				}
 				rail = strings.TrimSpace(out)
 				if _, err := s.Client.Run(ctx, "set-option", "-p", "-t", rail, tmux.OptRole, tmux.RoleAgents); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.kept {
+				// A teammate of ours already beside the lead: the window it
+				// shares is never given back to the user while it is there.
+				out, err := s.Client.Run(ctx, "split-window", "-d", "-t", scene.lead, "-v", "-P", "-F", "#{pane_id}", "sleep 3600")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := s.Client.Run(ctx, "set-option", "-p", "-t", strings.TrimSpace(out), tmux.OptRole, tmux.RoleTeammate); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -206,7 +235,7 @@ func TestTeammatePlacesItsPane(t *testing.T) {
 			}
 
 			if _, err := Teammate(ctx, h.Host, TeammateRequest{
-				ClaudePath: "/bin/sh", Args: spawnArgs, AgentPanes: tc.panes,
+				ClaudePath: "/bin/sh", Args: spawnArgs, AgentPanes: tc.panes, SidebarWidth: tc.railWidth,
 			}); err != nil {
 				t.Fatalf("Teammate: %v", err)
 			}
@@ -239,19 +268,40 @@ func TestTeammatePlacesItsPane(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if got != strconv.Itoa(layout.RailWidth) {
-						t.Fatalf("the rail is %s cells wide, want %d", got, layout.RailWidth)
+					if want := strconv.Itoa(layout.RailCells(tc.railWidth)); got != want {
+						t.Fatalf("the rail is %s cells wide, want %s", got, want)
 					}
 				}
 				return
 			}
-			// The window the teammate left is the one the user was working in.
-			got, err := s.Client.Display(ctx, scene.window, "#{window_layout}")
-			if err != nil {
-				t.Fatal(err)
-			}
-			if got != scene.remembered {
-				t.Fatalf("window arrangement %q, want the stored %q", got, scene.remembered)
+			if tc.wantLeadWidth != "" {
+				// The window keeps an agent of ours, so it is arranged for the
+				// ones that stay rather than given back to the user.
+				width, err := s.Client.Display(ctx, scene.lead, "#{pane_width}")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if width != tc.wantLeadWidth {
+					t.Fatalf("lead width %s, want %s once the teammate left", width, tc.wantLeadWidth)
+				}
+				if rail != "" {
+					got, err := s.Client.Display(ctx, rail, "#{pane_width}")
+					if err != nil {
+						t.Fatal(err)
+					}
+					if want := strconv.Itoa(layout.RailCells(tc.railWidth)); got != want {
+						t.Fatalf("the rail is %s cells wide, want %s", got, want)
+					}
+				}
+			} else {
+				// The window the teammate left is the one the user was working in.
+				got, err := s.Client.Display(ctx, scene.window, "#{window_layout}")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got != scene.remembered {
+					t.Fatalf("window arrangement %q, want the stored %q", got, scene.remembered)
+				}
 			}
 			windows, err := s.Client.Run(ctx, "list-windows", "-t", tmux.ExactSession("api"), "-F", "#{window_name}")
 			if err != nil {
@@ -269,6 +319,41 @@ func TestTeammatePlacesItsPane(t *testing.T) {
 				t.Fatalf("current window %s, want %s", current, scene.window)
 			}
 		})
+	}
+}
+
+// TestTeammateTakesTheServerFromTheLauncher drives the pane over the way the
+// launcher hands it over: the server is named in a variable of ours and TMUX is
+// empty, so nothing loaded here can reach a server before it is checked. The
+// pane is still adopted, and the agent is given the environment the pane has.
+func TestTeammateTakesTheServerFromTheLauncher(t *testing.T) {
+	ctx := tmuxtest.Context(t)
+	h := newTestHost(t)
+	s := openServer(t, h)
+	pane := openTeammateScene(t, h, s, 240, 60).pane
+	client := h.env["TMUX"]
+	h.env[session.EnvClient] = client
+	h.env["TMUX"] = ""
+	h.refreshEnviron()
+
+	run, err := Teammate(ctx, h.Host, TeammateRequest{ClaudePath: "/bin/sh", Args: spawnArgs})
+	if err != nil {
+		t.Fatalf("Teammate: %v", err)
+	}
+	role, err := s.Client.Display(ctx, pane, "#{"+tmux.OptRole+"}")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if role != tmux.RoleTeammate {
+		t.Fatalf("pane role %q, want %q: the launcher named the server and the pane was not adopted", role, tmux.RoleTeammate)
+	}
+	if want := "TMUX=" + client; !slices.Contains(run.Env, want) {
+		t.Fatalf("the agent runs without %q", want)
+	}
+	for _, kv := range run.Env {
+		if strings.HasPrefix(kv, session.EnvClient+"=") {
+			t.Fatalf("the agent is given %q, which is ours to carry and not the pane's", kv)
+		}
 	}
 }
 
@@ -320,6 +405,14 @@ func TestTeammateStartsAnyway(t *testing.T) {
 		{
 			name: "a pane of a tmux that is not a workspace", tmuxEnv: "/tmp/tmux-501/default,1,0",
 			pane: "%3", reply: "\x1fwork", wantCmds: 1, wantLog: "not in a workspace of ours",
+		},
+		{
+			// A server that answers every field is still not ours: what makes
+			// a pane ours is the option the workspace sets on it, and a tmux
+			// of the user's own answers the same fields with that option off.
+			name: "a pane of the user's own tmux", tmuxEnv: "/tmp/tmux-501/default,1,0",
+			pane: "%3", reply: "0\x1fwork\x1f@1\x1f211\x1f50\x1fbb62,211x50,0,0,1",
+			wantCmds: 1, wantLog: "not in a workspace of ours",
 		},
 	}
 	for _, tc := range cases {
@@ -543,18 +636,30 @@ func railPanes(t *testing.T, s *Server, window string) []tmux.Pane {
 func TestTeammateOpensTheRail(t *testing.T) {
 	cases := []struct {
 		name, sidebar string
+		// width is ui.sidebar_width, and panes workspace.agent_panes: with
+		// none, the teammate moves to a window of its own and the rail stays at
+		// the width it was opened at, with no tiling to put it back to one.
+		width, panes int
 		// existing carries a rail into the window before the teammate arrives.
 		existing bool
 		// wantOpened expects a rail opened by the launcher itself.
 		wantOpened bool
 		wantRails  int
 	}{
-		{name: "auto opens it with the first teammate", sidebar: config.SidebarAuto, wantOpened: true, wantRails: 1},
-		{name: "a window that carries one keeps the one it has", sidebar: config.SidebarAuto, existing: true, wantRails: 1},
-		{name: "the key mode waits to be asked", sidebar: config.SidebarKey},
-		{name: "off opens none", sidebar: config.SidebarOff},
-		{name: "always is opened with the workspace, not here", sidebar: config.SidebarAlways},
-		{name: "a workspace with no configuration read opens none"},
+		{name: "auto opens it with the first teammate", sidebar: config.SidebarAuto, panes: 3, wantOpened: true, wantRails: 1},
+		{
+			name: "auto opens it at the configured width", sidebar: config.SidebarAuto, width: 44, panes: 3,
+			wantOpened: true, wantRails: 1,
+		},
+		{
+			name: "a teammate that moves away leaves the rail at the width it opened at", sidebar: config.SidebarAuto,
+			width: 44, wantOpened: true, wantRails: 1,
+		},
+		{name: "a window that carries one keeps the one it has", sidebar: config.SidebarAuto, panes: 3, existing: true, wantRails: 1},
+		{name: "the key mode waits to be asked", sidebar: config.SidebarKey, panes: 3},
+		{name: "off opens none", sidebar: config.SidebarOff, panes: 3},
+		{name: "always is opened with the workspace, not here", sidebar: config.SidebarAlways, panes: 3},
+		{name: "a workspace with no configuration read opens none", panes: 3},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -577,7 +682,7 @@ func TestTeammateOpensTheRail(t *testing.T) {
 			}
 
 			if _, err := Teammate(ctx, h.Host, TeammateRequest{
-				ClaudePath: "/bin/sh", Args: spawnArgs, AgentPanes: 3, Sidebar: tc.sidebar,
+				ClaudePath: "/bin/sh", Args: spawnArgs, AgentPanes: tc.panes, Sidebar: tc.sidebar, SidebarWidth: tc.width,
 			}); err != nil {
 				t.Fatalf("Teammate: %v", err)
 			}
@@ -609,8 +714,8 @@ func TestTeammateOpensTheRail(t *testing.T) {
 			if len(panes) == 0 || panes[0].ID != rail.ID {
 				t.Fatalf("the window reads %+v, want the rail first", panes)
 			}
-			if rail.Width != layout.RailWidth {
-				t.Fatalf("the rail is %d cells wide, want %d", rail.Width, layout.RailWidth)
+			if want := layout.RailCells(tc.width); rail.Width != want {
+				t.Fatalf("the rail is %d cells wide, want %d", rail.Width, want)
 			}
 			if rail.Active {
 				t.Fatal("the rail took the cursor with it")
@@ -623,6 +728,43 @@ func TestTeammateOpensTheRail(t *testing.T) {
 				if !strings.Contains(started, want) {
 					t.Fatalf("the rail runs %q, which lacks %q", started, want)
 				}
+			}
+		})
+	}
+}
+
+// TestTeammateMeasuresTheRailItOpens places a teammate against the rail the
+// launcher opened for it, at the width that rail was opened at: a window with
+// room for a teammate beside a rail of the default width has none beside the
+// widest one.
+func TestTeammateMeasuresTheRailItOpens(t *testing.T) {
+	cases := []struct {
+		name     string
+		width    int
+		wantHere bool
+	}{
+		{name: "beside a rail of the default width", wantHere: true},
+		{name: "beside the widest rail", width: layout.MaxRailWidth},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := tmuxtest.Context(t)
+			h := newTestHost(t)
+			writeExeStub(t, h)
+			s := openServer(t, h)
+			scene := openTeammateScene(t, h, s, 120, 60)
+			if _, err := Teammate(ctx, h.Host, TeammateRequest{
+				ClaudePath: "/bin/sh", Args: spawnArgs, AgentPanes: 3, Sidebar: config.SidebarAuto, SidebarWidth: tc.width,
+			}); err != nil {
+				t.Fatalf("Teammate: %v", err)
+			}
+			panes, err := s.Client.ListPanes(ctx, scene.window)
+			if err != nil {
+				t.Fatal(err)
+			}
+			here := slices.ContainsFunc(panes, func(p tmux.Pane) bool { return p.ID == scene.pane && p.WindowID == scene.window })
+			if here != tc.wantHere {
+				t.Fatalf("the teammate is beside the lead: %v, want %v", here, tc.wantHere)
 			}
 		})
 	}

@@ -198,11 +198,12 @@ func (c *Client) split(ctx context.Context, built *Built, w WindowSpec, tail []C
 	}
 	// The rail is a number of cells, not a share: a share of a wide client
 	// would give it a column far past anything it has to draw. The split that
-	// made it could only ask for a share, so the width is set here.
+	// made it could only ask for a share, so the width the plan carries is set
+	// here.
 	var cmds []Command
 	for i, pane := range w.Plan.Panes {
 		if pane.Role == layout.RoleAgents {
-			cmds = append(cmds, Command{"resize-pane", "-t", built.Panes[i], "-x", strconv.Itoa(layout.RailWidth)})
+			cmds = append(cmds, Command{"resize-pane", "-t", built.Panes[i], "-x", strconv.Itoa(layout.RailCells(w.Plan.RailWidth))})
 		}
 	}
 	cmds = append(cmds, Command{"select-pane", "-t", built.Panes[w.Plan.Focus]})

@@ -83,15 +83,15 @@ func RememberLayout(target string) Seq {
 // share the workspace gives its lead.
 // A window that carries the agents rail is arranged around it: main-vertical
 // gives the leftmost pane the column of its own, which is the rail, so the
-// rail is put back to its own width and the lead stacks with the teammates in
-// what it leaves.
-func TileAgents(window, lead, rail string) Seq {
+// rail is put back to its own width, railWidth cells, and the lead stacks with
+// the teammates in what it leaves.
+func TileAgents(window, lead, rail string, railWidth int) Seq {
 	if !ValidPaneID(lead) {
 		return nil
 	}
 	seq := Cmd("select-layout", "-t", window, "main-vertical")
 	if ValidPaneID(rail) {
-		return seq.Then(Cmd("resize-pane", "-t", rail, "-x", strconv.Itoa(layout.RailWidth)))
+		return seq.Then(Cmd("resize-pane", "-t", rail, "-x", strconv.Itoa(layout.RailCells(railWidth))))
 	}
 	return seq.Then(Cmd("resize-pane", "-t", lead, "-x", strconv.Itoa(layout.AgentLeadRatio)+"%"))
 }
@@ -132,16 +132,16 @@ var AgentsSignal = "wait-for -S '" + AgentsChannel("#{session_id}") + "'"
 // anchor, the window's leftmost pane, and prints the id of the pane it made.
 //
 // The rail does not take the cursor with it (-d): it opens by itself while the
-// user is typing in a pane of their own. Its width is a number of cells given
-// at the split, since the rail holds a fixed set of columns rather than a
-// share of a window. An anchor that is not a pane id returns nothing.
-func OpenRail(anchor string, proc PaneProcess) Command {
+// user is typing in a pane of their own. Its width, width cells, is given at
+// the split, since the rail holds a fixed set of columns rather than a share
+// of a window. An anchor that is not a pane id returns nothing.
+func OpenRail(anchor string, width int, proc PaneProcess) Command {
 	if !ValidPaneID(anchor) {
 		return nil
 	}
 	return append(Command{
 		"split-window", "-b", "-h", "-d", "-P", "-F", "#{pane_id}",
-		"-l", strconv.Itoa(layout.RailWidth), "-t", anchor,
+		"-l", strconv.Itoa(layout.RailCells(width)), "-t", anchor,
 	}, proc.args()...)
 }
 

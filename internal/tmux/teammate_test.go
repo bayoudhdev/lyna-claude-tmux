@@ -87,6 +87,7 @@ func TestTileAgents(t *testing.T) {
 	cases := []struct {
 		name               string
 		window, lead, rail string
+		railWidth          int
 		want               string
 	}{
 		{
@@ -98,6 +99,14 @@ func TestTileAgents(t *testing.T) {
 			want: "select-layout -t @2 main-vertical ; resize-pane -t %9 -x 28",
 		},
 		{
+			name: "a rail the workspace made wider", window: "@2", lead: "%1", rail: "%9", railWidth: 44,
+			want: "select-layout -t @2 main-vertical ; resize-pane -t %9 -x 44",
+		},
+		{
+			name: "a width with no rail to give it to", window: "@2", lead: "%1", railWidth: 44,
+			want: "select-layout -t @2 main-vertical ; resize-pane -t %1 -x 40%",
+		},
+		{
 			name: "a rail named instead of identified", window: "@2", lead: "%1", rail: "agents",
 			want: "select-layout -t @2 main-vertical ; resize-pane -t %1 -x 40%",
 		},
@@ -106,7 +115,7 @@ func TestTileAgents(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := tmux.TileAgents(tc.window, tc.lead, tc.rail).String(); got != tc.want {
+			if got := tmux.TileAgents(tc.window, tc.lead, tc.rail, tc.railWidth).String(); got != tc.want {
 				t.Fatalf("TileAgents:\n got %s\nwant %s", got, tc.want)
 			}
 		})
@@ -157,6 +166,7 @@ func TestOpenRail(t *testing.T) {
 	proc := tmux.PaneProcess{Argv: []string{"/opt/lmux", "agents", "--rail", "--auto"}}
 	cases := []struct {
 		name, anchor string
+		width        int
 		proc         tmux.PaneProcess
 		want         tmux.Command
 	}{
@@ -164,6 +174,20 @@ func TestOpenRail(t *testing.T) {
 			name: "beside the leftmost pane of a window", anchor: "%4", proc: proc,
 			want: tmux.Command{
 				"split-window", "-b", "-h", "-d", "-P", "-F", "#{pane_id}", "-l", "28", "-t", "%4",
+				"--", "/opt/lmux", "agents", "--rail", "--auto",
+			},
+		},
+		{
+			name: "at the width the workspace asks for", anchor: "%4", width: 44, proc: proc,
+			want: tmux.Command{
+				"split-window", "-b", "-h", "-d", "-P", "-F", "#{pane_id}", "-l", "44", "-t", "%4",
+				"--", "/opt/lmux", "agents", "--rail", "--auto",
+			},
+		},
+		{
+			name: "no narrower than the narrowest rail", anchor: "%4", width: 3, proc: proc,
+			want: tmux.Command{
+				"split-window", "-b", "-h", "-d", "-P", "-F", "#{pane_id}", "-l", "20", "-t", "%4",
 				"--", "/opt/lmux", "agents", "--rail", "--auto",
 			},
 		},
@@ -180,7 +204,7 @@ func TestOpenRail(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := tmux.OpenRail(tc.anchor, tc.proc)
+			got := tmux.OpenRail(tc.anchor, tc.width, tc.proc)
 			if !slices.Equal(got, tc.want) {
 				t.Fatalf("OpenRail:\n got %q\nwant %q", got, tc.want)
 			}
