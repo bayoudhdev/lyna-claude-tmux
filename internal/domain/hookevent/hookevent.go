@@ -3,7 +3,9 @@
 //
 // It is the contract between the settings generator (which writes the hook
 // entries) and the hook handler (which maps each event to agent state), so both
-// sides agree on event names and matchers.
+// sides agree on event names and matchers, and it reads the part of a payload
+// every event shares that the handler keeps for the agents view: the
+// transcript of the session.
 package hookevent
 
 import "slices"
