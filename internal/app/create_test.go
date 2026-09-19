@@ -431,6 +431,16 @@ func TestCreateWorkspaceRequests(t *testing.T) {
 			},
 		},
 		{
+			// lmux team names no layout unless asked to: the team layout is
+			// what a workspace started to run a team opens.
+			name: "a team opens in the team layout", wantName: "crew", wantRoles: []string{"agents", "claude"},
+			req: CreateRequest{Dir: other, Name: "crew", Width: 240, Height: 60, Launch: LaunchOptions{Teams: true}},
+		},
+		{
+			name: "a team keeps the layout it names", wantName: "crew-solo", wantRoles: []string{"claude"},
+			req: CreateRequest{Dir: other, Name: "crew-solo", Layout: layout.Solo, Launch: LaunchOptions{Teams: true}},
+		},
+		{
 			name: "custom layout with a command pane", wantName: "tests", wantRoles: []string{"claude", "command"},
 			req: CreateRequest{Dir: other, Name: "tests", Layout: "tests"},
 			setup: func(t *testing.T) {

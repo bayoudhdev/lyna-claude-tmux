@@ -28,7 +28,9 @@ type CreateRequest struct {
 	Dir string
 	// Name is the session name; empty derives it from the project root.
 	Name string
-	// Layout is a built-in or custom layout name; empty takes the configuration.
+	// Layout is a built-in or custom layout name. Empty opens the team layout
+	// for a launch with agent teams turned on, and the configured one
+	// otherwise.
 	Layout string
 	// Width and Height are the terminal size, used by the auto layout.
 	Width, Height int
@@ -208,9 +210,21 @@ func (s *Server) plan(req CreateRequest, name string) (layout.Plan, error) {
 	return p, p.Validate()
 }
 
-// layoutPlan builds the plan of the layout a request names.
+// layoutName is the layout a request opens: the one it names, then the team
+// layout for a workspace started to run a team, then the configured default.
+func (s *Server) layoutName(req CreateRequest) string {
+	switch {
+	case req.Layout != "":
+		return req.Layout
+	case req.Launch.Teams:
+		return layout.Team
+	}
+	return s.Config.Workspace.Layout
+}
+
+// layoutPlan builds the plan of the layout a request opens.
 func (s *Server) layoutPlan(req CreateRequest, name string) (layout.Plan, error) {
-	layoutName := pick(req.Layout, s.Config.Workspace.Layout)
+	layoutName := s.layoutName(req)
 	if custom, ok := s.Config.Layouts[layoutName]; ok {
 		return layout.Custom(layoutName, name, customPanes(custom))
 	}

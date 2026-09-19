@@ -17,8 +17,9 @@ func teamCommand(d Deps) *cobra.Command {
 		Short: "Open a Claude workspace with agent teams turned on",
 		Long: "Open a Claude workspace for the project that contains dir, like create, with experimental\n" +
 			"agent teams turned on for its Claude panes: teammates open as tmux panes in the workspace.\n" +
-			"A project that already has a running workspace is attached as it is. Arguments after -- are\n" +
-			"passed to claude.",
+			"The workspace opens in the team layout, the agents rail beside the lead, unless -l names\n" +
+			"another. A project that already has a running workspace is attached as it is. Arguments\n" +
+			"after -- are passed to claude.",
 		Example: "  lmux team\n  lmux team ~/src/api -l solo --model opus",
 	}
 	return createFlags(cmd, d, createCommand{
