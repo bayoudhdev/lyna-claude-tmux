@@ -21,11 +21,17 @@ const (
 	RoleChanges Role = "changes"
 	RoleReview  Role = "review"
 	RoleCommand Role = "command"
+	// RoleAgents is the rail: every agent of the workspace, what it is doing
+	// and where it runs.
+	RoleAgents Role = "agents"
 )
 
 // Roles lists every pane role, the Claude role first.
 func Roles() []string {
-	return []string{string(RoleClaude), string(RoleShell), string(RoleChanges), string(RoleReview), string(RoleCommand)}
+	return []string{
+		string(RoleClaude), string(RoleShell), string(RoleChanges),
+		string(RoleReview), string(RoleCommand), string(RoleAgents),
+	}
 }
 
 // Split is the direction a new pane is created in.
@@ -58,6 +64,10 @@ type Plan struct {
 	Panes []Pane
 	// Focus is the index of the pane selected after creation.
 	Focus int
+	// RailWidth is the width in cells the agents rail of the plan is given,
+	// read through RailCells, so zero is the default width. A rail holds a set
+	// of columns rather than a share of the window, so its size is not a split.
+	RailWidth int
 }
 
 // Built-in layout names.
@@ -67,11 +77,14 @@ const (
 	Trio   = "trio"
 	Quad   = "quad"
 	Review = "review"
-	Auto   = "auto"
+	// Team is the layout a team is run in: the rail on the left, the lead
+	// beside it, and the room the teammates open into.
+	Team = "team"
+	Auto = "auto"
 )
 
 // Names lists the built-in layouts, auto last.
-func Names() []string { return []string{Solo, Duo, Trio, Quad, Review, Auto} }
+func Names() []string { return []string{Solo, Duo, Trio, Quad, Review, Team, Auto} }
 
 // IsBuiltin reports whether name is a built-in layout.
 func IsBuiltin(name string) bool { return slices.Contains(Names(), name) }
@@ -84,6 +97,9 @@ type Options struct {
 	Session string
 	// Width and Height are the client size in cells, used by auto.
 	Width, Height int
+	// RailWidth is ui.sidebar_width, the width of the agents rail of the
+	// layouts that carry one.
+	RailWidth int
 }
 
 // Size thresholds for auto, in terminal cells.
@@ -155,6 +171,11 @@ func Builtin(name string, o Options) (Plan, error) {
 			{Role: RoleClaude},
 			{Role: RoleReview, Split: SplitRight, Size: 50, Parent: 0},
 		}}
+	case Team:
+		// The rail is the window, and the lead splits it: the rail is then the
+		// leftmost pane of the window, which is the one the agent area is
+		// tiled beside rather than over.
+		p = WithRail(Plan{Panes: []Pane{{Role: RoleClaude}}}, o.Width, o.RailWidth)
 	default:
 		return Plan{}, fmt.Errorf("%w %q", ErrUnknown, name)
 	}
@@ -176,7 +197,7 @@ func (p Plan) Validate() error {
 		switch pane.Role {
 		case RoleClaude:
 			claude++
-		case RoleShell, RoleChanges, RoleReview:
+		case RoleShell, RoleChanges, RoleReview, RoleAgents:
 		case RoleCommand:
 			if pane.Command == "" {
 				return fmt.Errorf("%s: a command pane needs a command", where)

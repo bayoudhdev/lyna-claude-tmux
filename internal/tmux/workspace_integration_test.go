@@ -104,6 +104,8 @@ func TestIntegrationWorkspaceGeometry(t *testing.T) {
 	cases := []struct {
 		name   string
 		layout string
+		// rail is the width the plan gives its rail, zero for the default.
+		rail int
 		// widths are the expected pane widths in plan order.
 		widths []int
 	}{
@@ -111,10 +113,15 @@ func TestIntegrationWorkspaceGeometry(t *testing.T) {
 		// pane and the old pane the rest minus one border column.
 		{name: "duo", layout: layout.Duo, widths: []int{123, 76}},
 		{name: "quad", layout: layout.Quad, widths: []int{99, 100, 99, 100}},
+		// The rail is a number of cells, and the lead takes the rest of the
+		// window but the border between them.
+		{name: "team", layout: layout.Team, widths: []int{layout.RailWidth, 200 - layout.RailWidth - 1}},
+		{name: "team-wide", layout: layout.Team, rail: 50, widths: []int{50, 149}},
+		{name: "team-narrow", layout: layout.Team, rail: layout.MinRailWidth, widths: []int{20, 179}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			plan, err := layout.Builtin(tc.layout, layout.Options{Session: "g"})
+			plan, err := layout.Builtin(tc.layout, layout.Options{Session: "g", Width: 200, RailWidth: tc.rail})
 			if err != nil {
 				t.Fatal(err)
 			}

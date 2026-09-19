@@ -152,9 +152,13 @@ func foreignSocket(h Host, name string) (string, bool) {
 
 // Inside reports whether the process runs in a pane of this lyna-tmux server,
 // from the socket path tmux exports in TMUX.
-func (s *Server) Inside(h Host) bool {
+func (s *Server) Inside(h Host) bool { return insideServer(h, s.SocketName) }
+
+// insideServer reports whether the process runs in a pane of the server with
+// the -L name, from the socket path tmux exports in TMUX.
+func insideServer(h Host, name string) bool {
 	socket, _, ok := strings.Cut(h.Getenv("TMUX"), ",")
-	return ok && socket != "" && filepath.Clean(socket) == SocketPath(h.Getenv, s.SocketName)
+	return ok && socket != "" && filepath.Clean(socket) == SocketPath(h.Getenv, name)
 }
 
 // workspaceErr maps a missing session or a stopped server to ErrNoWorkspace.

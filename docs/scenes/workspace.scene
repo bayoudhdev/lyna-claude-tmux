@@ -3,7 +3,7 @@ title lmux create ~/src/acme-api
 size 112 34
 pre lmux kill --all
 pre rm -rf .devcontainer
-run lmux create . --layout trio
+run lmux create . --layout trio --nested
 film 5 0.9
 wait 5
 frame 3

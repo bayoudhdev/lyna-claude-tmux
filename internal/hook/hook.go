@@ -21,6 +21,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode/utf8"
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/hookevent"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/session"
@@ -36,8 +37,6 @@ const (
 	envTmux     = "TMUX"
 	envTmuxPane = "TMUX_PANE"
 
-	// LogMaxBytes caps the diagnostic log before it rotates.
-	LogMaxBytes = 256 << 10
 	// execTimeout bounds the tmux client call. Hooks run asynchronously and
 	// Claude Code does not time them out, so a wedged server must not leave
 	// hook processes behind.
@@ -134,13 +133,18 @@ func Run(ctx context.Context, in Input, deps Deps) (status int) {
 		return 0
 	}
 
-	payload, known := deps.readPayload(name, in.Stdin)
+	payload, data, known := deps.readPayload(name, in.Stdin)
 	var branch *string
 	if ev == hookevent.SessionStart || ev == hookevent.Stop {
 		branch = deps.branch(name, payload.Cwd)
 	}
+	var transcript *string
+	if ev == hookevent.SessionStart && known {
+		kept := deps.transcript(name, hookevent.Transcript(data))
+		transcript = &kept
+	}
 
-	cmds, ring := Commands(ev, payload, known, pane, branch, getenv(session.EnvBell) != "0")
+	cmds, ring := Commands(ev, payload, known, pane, branch, transcript, getenv(session.EnvBell) != "0")
 	if len(cmds) == 0 {
 		return 0
 	}
@@ -163,25 +167,57 @@ func Run(ctx context.Context, in Input, deps Deps) (status int) {
 	return 0
 }
 
-// readPayload reads and decodes stdin. known is false when the payload was
-// missing, oversized or malformed; the caller then falls back to what the
-// event registration alone guarantees.
-func (d Deps) readPayload(name string, r io.Reader) (Payload, bool) {
+// readPayload reads and decodes stdin, and returns the bytes it read for the
+// fields only one event needs. known is false when the payload was missing,
+// oversized or malformed; the caller then falls back to what the event
+// registration alone guarantees.
+func (d Deps) readPayload(name string, r io.Reader) (Payload, []byte, bool) {
 	if r == nil {
 		d.logf(name, "no payload on stdin")
-		return Payload{}, false
+		return Payload{}, nil, false
 	}
 	data, err := fsx.ReadLimited(r, MaxStdinBytes)
 	if err != nil {
 		d.logf(name, "read payload: %v", err)
-		return Payload{}, false
+		return Payload{}, nil, false
 	}
 	p, err := DecodePayload(data)
 	if err != nil {
 		d.logf(name, "%v", err)
-		return Payload{}, false
+		return Payload{}, nil, false
 	}
-	return p, true
+	return p, data, true
+}
+
+// maxTranscript bounds the transcript path a pane keeps. A path Claude Code
+// writes is its configuration directory, a directory named after the project
+// and a session id, far shorter than this.
+const maxTranscript = 1024
+
+// transcriptExt is the extension of every transcript Claude Code writes.
+const transcriptExt = ".jsonl"
+
+// transcript returns the transcript path a pane keeps, or "" when the payload
+// names none it can keep.
+//
+// The path comes from a file the hook did not write, and whatever reads the
+// option opens the file it names, so the path is kept only as it arrived:
+// absolute and already clean, a .jsonl file, printable on one line, and no
+// longer than maxTranscript. A path that breaks one of the rules is not kept
+// at all rather than cleaned into a path Claude Code did not name.
+func (d Deps) transcript(name, path string) string {
+	switch {
+	case path == "":
+		return ""
+	case len(path) > maxTranscript:
+	case !filepath.IsAbs(path) || filepath.Clean(path) != path:
+	case !strings.HasSuffix(path, transcriptExt) || filepath.Base(path) == transcriptExt:
+	case !utf8.ValidString(path) || sanitize.Line(path) != path:
+	default:
+		return path
+	}
+	d.logf(name, "transcript path not kept: %q", path[:min(len(path), maxTranscript)])
+	return ""
 }
 
 // branch returns the label for @lt_branch, "" to clear it outside a
@@ -209,14 +245,6 @@ func (d Deps) branch(name, cwd string) *string {
 	}
 }
 
-// Formats evaluated by tmux while it executes the batch. Arithmetic runs
-// inside one set-option -F, which the server applies atomically, so hooks
-// fired concurrently for parallel subagents never lose an update.
-const (
-	fmtSubagentsInc = "#{e|+:#{" + tmux.OptSubagents + "},1}"
-	fmtSubagentsDec = "#{?#{e|>:#{" + tmux.OptSubagents + "},0},#{e|-:#{" + tmux.OptSubagents + "},1},0}"
-)
-
 // fmtChangesSignal signals the changes channel of the session holding the
 // pane. The session id is only known to tmux, so the command is built by
 // run-shell -C from a format. The id goes into a single-quoted token, where
@@ -228,11 +256,20 @@ var fmtChangesSignal = "wait-for -S '" + tmux.ChangesChannel("#{session_id}") + 
 // Commands returns the tmux batch for an event on pane and whether the pane
 // bell rings after it. known reports that payload was decoded; without it the
 // handler relies on the matcher each event is registered with. branch is the
-// new @lt_branch value ("" clears it) or nil to leave it unchanged. The last
-// command of a ringing batch prints the pane's terminal path.
-func Commands(ev hookevent.Event, p Payload, known bool, pane string, branch *string, bell bool) ([]tmux.Command, bool) {
+// new @lt_branch value ("" clears it) or nil to leave it unchanged, and
+// transcript is the same for @lt_transcript, whose value the caller has
+// checked. The last command of a ringing batch prints the pane's terminal
+// path.
+func Commands(ev hookevent.Event, p Payload, known bool, pane string, branch, transcript *string, bell bool) ([]tmux.Command, bool) {
 	var cmds []tmux.Command
 	state := func(s string) { cmds = append(cmds, tmux.Command{"set-option", "-p", "-t", pane, tmux.OptState, s}) }
+	agents := func() { cmds = append(cmds, tmux.Command{"run-shell", "-C", "-t", pane, tmux.AgentsSignal}) }
+	// The arrangement of the window is read when the user hands work to the
+	// agent, which is when it is the arrangement they chose. It is what a
+	// teammate leaving the window puts back, and the command carries the rule
+	// that a window holding a teammate is not read, so nothing here has to
+	// know which panes the window holds.
+	remember := func() { cmds = append(cmds, tmux.RememberLayout(pane)...) }
 	ring := false
 
 	switch ev {
@@ -241,9 +278,14 @@ func Commands(ev hookevent.Event, p Payload, known bool, pane string, branch *st
 		// is still working.
 		if p.Source != "compact" {
 			state(StateIdle)
+			// A session starting in a pane is an agent the sidebar did not have
+			// a moment ago, teammates included: they start the same way.
+			agents()
+			remember()
 		}
 	case hookevent.UserPromptSubmit:
 		state(StateBusy)
+		remember()
 	case hookevent.PreToolUse:
 		if known && p.ToolName != hookevent.MatchAskUser {
 			return nil, false
@@ -273,19 +315,39 @@ func Commands(ev hookevent.Event, p Payload, known bool, pane string, branch *st
 			cmds = append(cmds, tmux.Command{"run-shell", "-C", "-t", pane, fmtChangesSignal})
 		}
 	case hookevent.SubagentStart:
-		cmds = append(cmds, tmux.Command{"set-option", "-p", "-t", pane, "-F", tmux.OptSubagents, fmtSubagentsInc})
+		cmds = append(cmds, tmux.StartSubagent(pane, p.AgentID, p.AgentType)...)
+		agents()
 	case hookevent.SubagentStop:
-		cmds = append(cmds, tmux.Command{"set-option", "-p", "-t", pane, "-F", tmux.OptSubagents, fmtSubagentsDec})
+		cmds = append(cmds, tmux.StopSubagent(pane, p.AgentID, p.AgentType)...)
+		agents()
+	case hookevent.TeammateIdle, hookevent.TaskCreated, hookevent.TaskCompleted:
+		// The event fires in the session that leads the team, and what it
+		// reports belongs to the team rather than to this pane: a teammate out
+		// of work, a task created or finished. The sidebar reads the team for
+		// itself, so the pane it is told about is the one whose sidebar has to
+		// read it again.
+		agents()
 	case hookevent.Stop:
 		state(StateIdle)
 		ring = bell
 	case hookevent.SessionEnd:
-		cmds = append(cmds,
-			tmux.Command{"set-option", "-p", "-u", "-t", pane, tmux.OptState},
-			tmux.Command{"set-option", "-p", "-u", "-t", pane, tmux.OptSubagents},
-		)
+		cmds = append(cmds, tmux.Command{"set-option", "-p", "-u", "-t", pane, tmux.OptState})
+		cmds = append(cmds, tmux.ClearSubagents(pane)...)
+		agents()
 	}
 
+	// The transcript of a pane changes when a session starts in it, a session
+	// that compacts, resumes or clears included, and on no other event: every
+	// other event of the session names the same file, and the hooks of those
+	// run on every tool call. A session whose transcript cannot be kept
+	// leaves none, rather than the one of the session before it.
+	if transcript != nil && ev == hookevent.SessionStart {
+		if *transcript == "" {
+			cmds = append(cmds, tmux.Command{"set-option", "-p", "-u", "-t", pane, tmux.OptTranscript})
+		} else {
+			cmds = append(cmds, tmux.Command{"set-option", "-p", "-t", pane, tmux.OptTranscript, *transcript})
+		}
+	}
 	if branch != nil && (ev == hookevent.SessionStart || ev == hookevent.Stop) {
 		// A pane target resolves to the session holding the pane.
 		if *branch == "" {
@@ -391,14 +453,5 @@ func ringTTY(open func(string) (io.WriteCloser, error), path string) error {
 // logf appends one line to the diagnostic log. Logging failures are dropped:
 // there is nowhere left to report them without disturbing Claude Code.
 func (d Deps) logf(name, format string, args ...any) {
-	if d.LogPath == "" {
-		return
-	}
-	line := d.Now().UTC().Format(time.RFC3339) + " " + name + ": " + sanitize.Line(fmt.Sprintf(format, args...))
-	err := fsx.AppendCapped(d.LogPath, []byte(line), LogMaxBytes)
-	if errors.Is(err, os.ErrNotExist) {
-		if fsx.EnsurePrivateDir(filepath.Dir(d.LogPath)) == nil {
-			_ = fsx.AppendCapped(d.LogPath, []byte(line), LogMaxBytes)
-		}
-	}
+	Log(d.LogPath, d.Now(), name, format, args...)
 }

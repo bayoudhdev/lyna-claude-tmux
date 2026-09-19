@@ -1,0 +1,30 @@
+ ◎ agents                 6
+▾ lead 1
+  ◆ api                  0s
+▾ teammates 3
+  ○ build-api            0s
+  ⠋ review-api           0s
+  · write-docs           0s
+▾ subagents 1
+  ⠋ security-auditor     0s
+▾ elsewhere 1
+  ⠋ web                  0s
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 1/3 tasks  1 bloc… ↓/j down

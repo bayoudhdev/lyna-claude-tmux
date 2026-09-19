@@ -111,7 +111,7 @@ func TestSetupResults(t *testing.T) {
 				{Key: "ui.theme", From: "lyna", To: "light"},
 				{Key: "ui.icons", From: "auto", To: "ascii"},
 				{Key: "ui.color", From: "auto", To: "256"},
-				{Key: "workspace.layout", From: "auto", To: "review"},
+				{Key: "workspace.layout", From: "auto", To: "team"},
 				{Key: "ui.alt_keys", From: "true", To: "false"},
 				{Key: "ui.mouse", From: "true", To: "false"},
 				{Key: "claude.model", From: "", To: "opus"},

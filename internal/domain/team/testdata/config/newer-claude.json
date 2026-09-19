@@ -1,0 +1,30 @@
+{
+  "name": "session-9f9f9f9f",
+  "createdAt": 1789024519411,
+  "leadAgentId": "team-lead@session-9f9f9f9f",
+  "leadSessionId": "9f9f9f9f-6dd2-4c3a-924b-74473d771695",
+  "policy": {
+    "maxMembers": 8,
+    "shutdownGrace": "30s"
+  },
+  "members": [
+    {
+      "agentId": "team-lead@session-9f9f9f9f",
+      "name": "team-lead",
+      "agentType": "team-lead",
+      "joinedAt": 1789024519411,
+      "tmuxPaneId": "leader",
+      "cwd": "/home/dev/acme-api",
+      "backendType": "in-process",
+      "capabilities": ["tasks", "handback"]
+    },
+    {
+      "agentId": "docs@session-9f9f9f9f",
+      "name": "docs",
+      "joinedAt": 1789024619411,
+      "cwd": "/home/dev/acme-api",
+      "backendType": "iterm2",
+      "windowPaneId": "w1p3"
+    }
+  ]
+}

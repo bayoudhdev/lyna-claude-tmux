@@ -26,6 +26,10 @@ type PopupSpec struct {
 	// Argv is executed without a shell. It needs at least two elements:
 	// display-popup hands a single argument to the default shell.
 	Argv []string
+	// KeepOnFailure leaves the popup on screen when the program fails, so the
+	// error it printed is read before Escape closes it. A program that
+	// succeeds closes it as always.
+	KeepOnFailure bool
 }
 
 // Command renders the display-popup command. The invocation that runs it
@@ -45,6 +49,10 @@ func (p PopupSpec) Command() (Command, error) {
 		cmd = append(cmd, "-t", p.Pane)
 	}
 	cmd = append(cmd, "-E")
+	if p.KeepOnFailure {
+		// A second -E closes the popup only on success.
+		cmd = append(cmd, "-E")
+	}
 	if p.Width != "" {
 		cmd = append(cmd, "-w", p.Width)
 	}

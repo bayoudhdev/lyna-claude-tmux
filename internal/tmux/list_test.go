@@ -52,7 +52,10 @@ func TestFieldSep(t *testing.T) {
 // TestParsePanesEscapedReply reads a reply from the tmux version that prints
 // the separator as an octal escape: every row must still parse.
 func TestParsePanesEscapedReply(t *testing.T) {
-	fields := []string{"%3", "$1", "api", "@2", "1", "claude", "0", "/dev/ttys004", "4242", "/work/api", "claude", "Claude", "1", "1", "0", "120", "40", "claude", "waiting"}
+	fields := []string{
+		"%3", "$1", "api", "@2", "1", "claude", "0", "/dev/ttys004", "4242", "/work/api", "claude", "Claude",
+		"1", "1", "0", "120", "40", "claude", "waiting", "", "", "", "", "", "",
+	}
 	got := parsePanes(escapedRow(fields...) + "\n")
 	if len(got) != 1 || got[0].ID != "%3" || got[0].SessionName != "api" || got[0].State != "waiting" {
 		t.Fatalf("parsePanes() = %+v", got)
@@ -80,12 +83,30 @@ func TestParseSessions(t *testing.T) {
 }
 
 func TestParsePanes(t *testing.T) {
-	out := row("%3", "$1", "api", "@2", "1", "claude", "0", "/dev/ttys004", "4242", "/work/api", "claude", "Claude", "1", "1", "0", "120", "40", "claude", "waiting") + "\n" +
-		row("%4", "$1", "api", "@2", "1", "claude", "1", "/dev/ttys005", "4243", "/work/api", "zsh", "", "0", "1", "1", "80", "40", "", "") + "\n"
+	out := row("%3", "$1", "api", "@2", "1", "claude", "0", "/dev/ttys004", "4242", "/work/api", "claude", "Claude",
+		"1", "1", "0", "120", "40", "claude", "waiting", "", "", "", "2", "a1=explore,b2=review",
+		"/home/u/.claude/projects/-work-api/5f0c2a1e.jsonl") + "\n" +
+		row("%4", "$1", "api", "@2", "1", "claude", "1", "/dev/ttys005", "4243", "/work/api", "zsh", "",
+			"0", "1", "1", "80", "40", "", "", "", "", "", "", "", "") + "\n" +
+		row("%5", "$1", "api", "@3", "2", "review-api", "0", "/dev/ttys006", "4244", "/work/api", "claude", "review-api",
+			"1", "0", "0", "144", "40", "teammate", "busy", "review-api", "api-developer", "session-8f3c1d2a", "0", "",
+			"/home/u/My Projects #2/.claude/projects/-work-api/9b1e.jsonl") + "\n" +
+		// A row one field short is from a format this release did not ask
+		// for, one without the transcript, and is skipped rather than read
+		// into the wrong fields.
+		row("%6", "$1", "api", "@3", "2", "review-api", "1", "/dev/ttys007", "4245", "/work/api", "claude", "",
+			"0", "0", "0", "144", "40", "teammate", "", "", "", "", "", "") + "\n"
 	got := parsePanes(out)
 	want := []Pane{
-		{ID: "%3", SessionID: "$1", SessionName: "api", WindowID: "@2", WindowIndex: 1, WindowName: "claude", PaneIndex: 0, TTY: "/dev/ttys004", PID: 4242, CurrentPath: "/work/api", CurrentCommand: "claude", Title: "Claude", Active: true, WindowActive: true, Width: 120, Height: 40, Role: "claude", State: "waiting"},
+		{ID: "%3", SessionID: "$1", SessionName: "api", WindowID: "@2", WindowIndex: 1, WindowName: "claude", PaneIndex: 0, TTY: "/dev/ttys004", PID: 4242, CurrentPath: "/work/api", CurrentCommand: "claude", Title: "Claude", Active: true, WindowActive: true, Width: 120, Height: 40, Role: "claude", State: "waiting", Subagents: "2", Running: "a1=explore,b2=review", Transcript: "/home/u/.claude/projects/-work-api/5f0c2a1e.jsonl"},
 		{ID: "%4", SessionID: "$1", SessionName: "api", WindowID: "@2", WindowIndex: 1, WindowName: "claude", PaneIndex: 1, TTY: "/dev/ttys005", PID: 4243, CurrentPath: "/work/api", CurrentCommand: "zsh", WindowActive: true, Dead: true, Width: 80, Height: 40},
+		{
+			ID: "%5", SessionID: "$1", SessionName: "api", WindowID: "@3", WindowIndex: 2, WindowName: "review-api",
+			PaneIndex: 0, TTY: "/dev/ttys006", PID: 4244, CurrentPath: "/work/api", CurrentCommand: "claude",
+			Title: "review-api", Active: true, Width: 144, Height: 40, Role: "teammate", State: "busy",
+			Agent: "review-api", AgentType: "api-developer", Team: "session-8f3c1d2a", Subagents: "0",
+			Transcript: "/home/u/My Projects #2/.claude/projects/-work-api/9b1e.jsonl",
+		},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("parsePanes() =\n%+v\nwant\n%+v", got, want)

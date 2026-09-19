@@ -123,6 +123,15 @@ type errReader struct{}
 
 func (errReader) Read([]byte) (int, error) { return 0, errors.New("stdin broken") }
 
+// agentsSignal is the command the handler adds when the agents of a session
+// change: a session starting or ending, a subagent, a teammate, a task.
+var agentsSignal = []string{"run-shell", "-C", "-t", "%3", "wait-for -S 'lt-agents-#{session_id}'"}
+
+// rememberLayout is the command the handler adds when the user hands work to
+// the agent, which stores the arrangement a teammate leaving the window puts
+// back.
+var rememberLayout = append([]string{";"}, tmux.RememberLayout("%3")[0]...)
+
 func TestRun(t *testing.T) {
 	signal := []string{"run-shell", "-C", "-t", "%3", "wait-for -S 'lt-changes-#{session_id}'"}
 	cases := []struct {
@@ -149,12 +158,12 @@ func TestRun(t *testing.T) {
 		{
 			name: "plugin outside managed pane runs", event: "UserPromptSubmit", plugin: true,
 			stdin: strings.NewReader(`{"prompt":"hi"}`),
-			want:  [][]string{argv("set-option -p -t %3 @lt_state busy")},
+			want:  [][]string{append(argv("set-option -p -t %3 @lt_state busy"), rememberLayout...)},
 		},
 		{
 			name: "managed settings hook runs inside managed pane", event: "UserPromptSubmit",
 			env: map[string]string{"LYNA_TMUX_MANAGED": "1"}, stdin: strings.NewReader(`{}`),
-			want: [][]string{argv("set-option -p -t %3 @lt_state busy")},
+			want: [][]string{append(argv("set-option -p -t %3 @lt_state busy"), rememberLayout...)},
 		},
 		{
 			name: "outside tmux", event: "Stop", env: map[string]string{"TMUX": "<unset>"},
@@ -181,7 +190,7 @@ func TestRun(t *testing.T) {
 		{
 			name: "malformed stdin still updates state", event: "UserPromptSubmit",
 			stdin:   strings.NewReader("{not json"),
-			want:    [][]string{argv("set-option -p -t %3 @lt_state busy")},
+			want:    [][]string{append(argv("set-option -p -t %3 @lt_state busy"), rememberLayout...)},
 			wantLog: []string{"hook UserPromptSubmit: hook: decode payload"},
 		},
 		{
@@ -192,7 +201,7 @@ func TestRun(t *testing.T) {
 		},
 		{
 			name: "unreadable stdin", event: "UserPromptSubmit", stdin: errReader{},
-			want:    [][]string{argv("set-option -p -t %3 @lt_state busy")},
+			want:    [][]string{append(argv("set-option -p -t %3 @lt_state busy"), rememberLayout...)},
 			wantLog: []string{"read payload: stdin broken"},
 		},
 		{
@@ -202,7 +211,12 @@ func TestRun(t *testing.T) {
 		{
 			name: "subagent counter", event: "SubagentStart",
 			stdin: strings.NewReader(`{"agent_id":"a1","agent_type":"Explore"}`),
-			want:  [][]string{{"-S", testSocket, "-u", "set-option", "-p", "-t", "%3", "-F", "@lt_subagents", fmtSubagentsInc}},
+			want: [][]string{append([]string{
+				"-S", testSocket, "-u",
+				"set-option", "-p", "-t", "%3", "-F", "@lt_subagents", "#{e|+:#{@lt_subagents},1}", ";",
+				"set-option", "-p", "-t", "%3", "-F", "@lt_running",
+				"#{?#{e|<:#{n:@lt_running},512},#{@lt_running}a1=Explore#,,#{@lt_running}}", ";",
+			}, agentsSignal...)},
 		},
 		{
 			name: "stop rings the pane terminal", event: "Stop",
@@ -240,39 +254,39 @@ func TestRun(t *testing.T) {
 		{
 			name: "tmux missing is logged", event: "UserPromptSubmit", stdin: strings.NewReader(`{}`),
 			execErr: tmux.ErrNotInstalled,
-			want:    [][]string{argv("set-option -p -t %3 @lt_state busy")},
+			want:    [][]string{append(argv("set-option -p -t %3 @lt_state busy"), rememberLayout...)},
 			wantLog: []string{"tmux: not installed"},
 		},
 		{
 			name: "session end after pane closed is quiet", event: "SessionEnd", stdin: strings.NewReader(`{"reason":"other"}`),
 			result: tmux.Result{ExitCode: 1, Stderr: []byte("no such pane: %3")},
-			want:   [][]string{argv("set-option -p -u -t %3 @lt_state ; set-option -p -u -t %3 @lt_subagents")},
+			want:   [][]string{append(argv("set-option -p -u -t %3 @lt_state ; set-option -p -u -t %3 @lt_subagents ; set-option -p -u -t %3 @lt_running ;"), agentsSignal...)},
 		},
 		{
 			name: "session end after session closed is quiet", event: "SessionEnd", stdin: strings.NewReader(`{"reason":"other"}`),
 			result: tmux.Result{ExitCode: 1, Stderr: []byte("no such session: %3")},
-			want:   [][]string{argv("set-option -p -u -t %3 @lt_state ; set-option -p -u -t %3 @lt_subagents")},
+			want:   [][]string{append(argv("set-option -p -u -t %3 @lt_state ; set-option -p -u -t %3 @lt_subagents ; set-option -p -u -t %3 @lt_running ;"), agentsSignal...)},
 		},
 		{
 			name: "session end with target lookup failure is quiet", event: "SessionEnd", stdin: strings.NewReader(`{"reason":"other"}`),
 			result: tmux.Result{ExitCode: 1, Stderr: []byte("can't find pane: %3")},
-			want:   [][]string{argv("set-option -p -u -t %3 @lt_state ; set-option -p -u -t %3 @lt_subagents")},
+			want:   [][]string{append(argv("set-option -p -u -t %3 @lt_state ; set-option -p -u -t %3 @lt_subagents ; set-option -p -u -t %3 @lt_running ;"), agentsSignal...)},
 		},
 		{
 			name: "session end when tmux cannot run is logged", event: "SessionEnd", stdin: strings.NewReader(`{"reason":"other"}`),
 			execErr: tmux.ErrNotInstalled,
-			want:    [][]string{argv("set-option -p -u -t %3 @lt_state ; set-option -p -u -t %3 @lt_subagents")},
+			want:    [][]string{append(argv("set-option -p -u -t %3 @lt_state ; set-option -p -u -t %3 @lt_subagents ; set-option -p -u -t %3 @lt_running ;"), agentsSignal...)},
 			wantLog: []string{"hook SessionEnd: tmux set-option: tmux: not installed"},
 		},
 		{
 			name: "session end after server exit is quiet", event: "SessionEnd", stdin: strings.NewReader(`{"reason":"other"}`),
 			result: tmux.Result{ExitCode: 1, Stderr: []byte("no server running on /tmp/tmux-501/default")},
-			want:   [][]string{argv("set-option -p -u -t %3 @lt_state ; set-option -p -u -t %3 @lt_subagents")},
+			want:   [][]string{append(argv("set-option -p -u -t %3 @lt_state ; set-option -p -u -t %3 @lt_subagents ; set-option -p -u -t %3 @lt_running ;"), agentsSignal...)},
 		},
 		{
 			name: "session end other failure is logged", event: "SessionEnd", stdin: strings.NewReader(`{"reason":"other"}`),
 			result:  tmux.Result{ExitCode: 1, Stderr: []byte("invalid option: @lt_state")},
-			want:    [][]string{argv("set-option -p -u -t %3 @lt_state ; set-option -p -u -t %3 @lt_subagents")},
+			want:    [][]string{append(argv("set-option -p -u -t %3 @lt_state ; set-option -p -u -t %3 @lt_subagents ; set-option -p -u -t %3 @lt_running ;"), agentsSignal...)},
 			wantLog: []string{"hook SessionEnd: tmux set-option: invalid option: @lt_state"},
 		},
 	}

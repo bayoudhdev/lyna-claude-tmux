@@ -36,6 +36,11 @@ func TestPopupSpecCommand(t *testing.T) {
 			},
 		},
 		{
+			name: "a failure kept on screen",
+			spec: PopupSpec{Pane: "%3", Title: "spawn", Argv: []string{"/opt/lmux", "spawn", "--session", "api"}, KeepOnFailure: true},
+			want: Command{"display-popup", "-t", "%3", "-E", "-E", "-T", " spawn ", "--", "/opt/lmux", "spawn", "--session", "api"},
+		},
+		{
 			name: "client and pane",
 			spec: PopupSpec{Client: "client-1", Pane: "%0", Argv: []string{"/usr/bin/tmux", "attach-session"}},
 			want: Command{"display-popup", "-c", "client-1", "-t", "%0", "-E", "--", "/usr/bin/tmux", "attach-session"},

@@ -1,0 +1,32 @@
+# The agents rail: every agent the workspace can see, in a pane of its own.
+# A second workspace is opened first, so the rail has an agent elsewhere to
+# list beside the one this window runs.
+title Alt+A opens the agents rail
+size 120 34
+pre lmux kill --all
+pre rm -rf .devcontainer
+pre lmux create ~/src/acme-web --layout solo --detach
+run lmux create . --layout trio --nested
+wait 6
+frame 1.4
+keys M-A
+wait 2.5
+frame 2.4
+# The rail opens beside the window and leaves the focus where it was, so the
+# keys below go to it only once it is focused.
+keys M-[
+wait 0.8
+frame 1.2
+keys Down
+wait 0.8
+frame 1.2
+keys Down
+wait 0.8
+frame 1.6
+# Folding a section, and opening it again.
+keys Space
+wait 0.9
+frame 1.6
+keys Space
+wait 0.9
+frame 2.2

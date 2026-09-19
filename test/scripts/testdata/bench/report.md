@@ -6,3 +6,9 @@ Measured with hyperfine 1.20.0 on UNAME testarch, go1.27.1, lmux v9.9.9 (abc1234
 | `lmux version` | 2.1 ± 0.1 | 0.6 | 3.0 | 0.4 | 0.3 | 3.00 |
 | `lmux hook Stop` | 2.1 ± 0.1 | 0.6 | 3.0 | 0.4 | 0.3 | 3.00 |
 | `lmux statusline` | 2.1 ± 0.1 | 0.6 | 3.0 | 0.4 | 0.3 | 3.00 |
+
+| Inside a workspace | Mean [ms] |
+|:---|---:|
+| `agents rail redraw, 40 agents` | 2.5 |
+| `agents rail, one reading` | 2.5 |
+| `teammate pane taken over` | not measured |

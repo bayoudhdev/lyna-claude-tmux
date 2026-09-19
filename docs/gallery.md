@@ -21,6 +21,9 @@ scene named beside it, and the animations of the same scenes are in the
 
 | | |
 |---|---|
+| **The agents rail** (`rail.scene`)<br>Every agent the workspace can see, grouped, with its state and how long it has been at it. | ![The agents rail](assets/rail.png) |
+| **A team at work** (`team.scene`)<br>The agent, what it runs beside it, the shared task list and a transcript. | ![The rail while a team works](assets/team.png) |
+| **Starting an agent** (`spawn.scene`)<br>The form `s` opens: definition, model, effort, worktree and prompt. | ![The spawn form](assets/spawn.png) |
 | **The picker** (`agents.scene`)<br>Every agent on the machine, what it is doing, and where it runs. | ![The agent picker](assets/agents.png) |
 | **Tasks** (`task.scene`)<br>A task window with its own worktree, listed by git. | ![A task worktree](assets/task.png) |
 

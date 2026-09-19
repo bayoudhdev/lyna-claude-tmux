@@ -13,6 +13,8 @@ import (
 
 	"github.com/pelletier/go-toml/v2"
 
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/claudecfg"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/layout"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/review"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/fsx"
 )
@@ -42,12 +44,17 @@ type UI struct {
 	Mouse            bool   `toml:"mouse"`
 	AllowPassthrough bool   `toml:"allow_passthrough"`
 	FocusEvents      bool   `toml:"focus_events"`
+	AgentsSidebar    string `toml:"agents_sidebar"`
+	// SidebarWidth is the width of the agents rail in cells, wherever it
+	// opens: with the workspace, with the first agent, or on the key.
+	SidebarWidth int `toml:"sidebar_width"`
 }
 
 // Workspace controls sessions and panes.
 type Workspace struct {
 	Layout       string `toml:"layout"`
 	SplitRatio   int    `toml:"split_ratio"`
+	AgentPanes   int    `toml:"agent_panes"`
 	HistoryLimit int    `toml:"history_limit"`
 	Prefix       string `toml:"prefix"`
 	Shell        string `toml:"shell"`
@@ -63,12 +70,17 @@ type Claude struct {
 	Statusline     string   `toml:"statusline"`
 	Fullscreen     bool     `toml:"fullscreen"`
 	Teams          bool     `toml:"teams"`
+	TeammateMode   string   `toml:"teammate_mode"`
 	WorktreeBase   string   `toml:"worktree_base"`
 	WorkflowSize   string   `toml:"workflow_size"`
 	Bell           bool     `toml:"bell"`
-	AddDirs        []string `toml:"add_dirs,omitempty"`
-	MCPConfig      []string `toml:"mcp_config,omitempty"`
-	PluginDirs     []string `toml:"plugin_dirs,omitempty"`
+	// AgentWorktree is the answer the spawn form starts the worktree question
+	// on. Off, agents work in the project directory the way the agent runs
+	// them itself, and a worktree of their own is something you ask for.
+	AgentWorktree bool     `toml:"agent_worktree"`
+	AddDirs       []string `toml:"add_dirs,omitempty"`
+	MCPConfig     []string `toml:"mcp_config,omitempty"`
+	PluginDirs    []string `toml:"plugin_dirs,omitempty"`
 }
 
 // Sandbox selects the sandbox profile, the isolation level and user additions
@@ -133,16 +145,20 @@ func Default() Config {
 			Clock:          true,
 			AltKeys:        true,
 			Mouse:          true,
+			AgentsSidebar:  SidebarAuto,
+			SidebarWidth:   layout.RailWidth,
 		},
 		Workspace: Workspace{
 			Layout:       "auto",
 			SplitRatio:   62,
+			AgentPanes:   layout.DefaultAgentPanes,
 			HistoryLimit: 100000,
 			Prefix:       "C-b",
 		},
 		Claude: Claude{
-			Statusline: "auto",
-			Bell:       true,
+			Statusline:   "auto",
+			TeammateMode: claudecfg.TeammateLmux,
+			Bell:         true,
 		},
 		Sandbox: Sandbox{
 			Profile:   "standard",
@@ -277,3 +293,22 @@ func Choices(key string) []string {
 	}
 	return nil
 }
+
+// When the agents rail is on screen (ui.agents_sidebar).
+const (
+	// SidebarAuto opens the rail with the first agent that joins the workspace
+	// and takes it away with the last one.
+	SidebarAuto = "auto"
+	// SidebarAlways opens the rail with the workspace and keeps it.
+	SidebarAlways = "always"
+	// SidebarKey opens it only when the key asks for it.
+	SidebarKey = "key"
+	// SidebarOff never opens it and installs no key for it.
+	SidebarOff = "off"
+)
+
+// RailKey reports whether the workspace binds a key to the agents rail. Every
+// choice but off does: off is the choice of someone who does not want the
+// rail, so the key and the menu entry go with it. The rail is still reachable
+// from a layout that holds an agents pane and from the command itself.
+func (u UI) RailKey() bool { return u.AgentsSidebar != SidebarOff }

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/keys"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/layout"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/session"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/theme"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/testutil/tmuxtest"
@@ -333,6 +334,43 @@ func TestIntegrationStatusFormats(t *testing.T) {
 			target: claude, format: look.StatusLeft(),
 			want: []string{" λ  ws "},
 		},
+		{
+			name: "teammate border carries its own name",
+			setup: []tmux.Command{
+				{"set-option", "-p", "-t", shell, tmux.OptRole, tmux.RoleTeammate},
+				{"set-option", "-p", "-t", shell, tmux.OptAgent, tmux.AgentOption("review-api")},
+				{"set-option", "-p", "-t", shell, tmux.OptState, "busy"},
+			},
+			target: shell, format: look.BorderFormat(),
+			want:    []string{"◎ review-api", "● working"},
+			notWant: []string{"claude", "shell"},
+		},
+		{
+			name: "a hash in a teammate name is drawn as a hash",
+			setup: []tmux.Command{
+				{"set-option", "-p", "-t", shell, tmux.OptAgent, tmux.AgentOption("fix#12")},
+			},
+			target: shell, format: look.BorderFormat(),
+			want: []string{"◎ fix#12"},
+		},
+		{
+			name: "a teammate pane that lost its name still says what it is",
+			setup: []tmux.Command{
+				{"set-option", "-p", "-u", "-t", shell, tmux.OptAgent},
+			},
+			target: shell, format: look.BorderFormat(),
+			want: []string{"◎ teammate"},
+		},
+		{
+			name: "the rail says what it is and carries no state",
+			setup: []tmux.Command{
+				{"set-option", "-p", "-t", shell, tmux.OptRole, tmux.RoleAgents},
+				{"set-option", "-p", "-t", shell, tmux.OptState, "busy"},
+			},
+			target: shell, format: look.BorderFormat(),
+			want:    []string{"◎ agents"},
+			notWant: []string{"teammate", "claude", "shell"},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -467,5 +505,86 @@ func TestIntegrationStatusLeftFitsTheLongestName(t *testing.T) {
 				t.Fatalf("status-left-length is %s, want the longest name plus its block", limit)
 			}
 		})
+	}
+}
+
+// TestIntegrationAgentsRailToggles runs the registered rail command twice on a
+// real server, the way the key binding and the menu run it. The first call
+// opens the rail as the leftmost pane of the window, at the width the rail is
+// drawn in, tagged with its role and with the focus left where it was; the
+// second call closes it again. The binary is a script in a directory whose
+// name has a space, so the quoting of the path survives being read back out of
+// a format and parsed as a command.
+func TestIntegrationAgentsRailToggles(t *testing.T) {
+	srv := tmuxtest.Start(t)
+	ctx := tmuxtest.Context(t)
+	dir := filepath.Join(t.TempDir(), "lyna tools")
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	bin := filepath.Join(dir, "lmux")
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\nexec sleep 3600\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	env := tmux.Env{
+		Bin: bin, ConfPath: filepath.Join(dir, "tmux.conf"), PopupWidth: "90%", PopupHeight: "85%",
+		Bindings: keys.Defaults(keys.Options{AltKeys: true, Prefix: "C-a"}),
+	}
+	o := confOptions(t, installedVersion(t), lookSpec{"lyna", "unicode", theme.DepthTrue}, env)
+	if out, err := srv.Client.Run(ctx, "source-file", writeConf(t, tmux.GenerateConf(o))); err != nil {
+		t.Fatalf("source-file: %v %s", err, out)
+	}
+	if _, err := srv.Client.Run(ctx, "new-session", "-d", "-s", "ws", "-x", "120", "-y", "30", "sleep 3600"); err != nil {
+		t.Fatal(err)
+	}
+	panes, err := srv.Client.ListPanes(ctx, tmux.ExactSession("ws"))
+	if err != nil || len(panes) != 1 {
+		t.Fatalf("panes %v %v", panes, err)
+	}
+	lead := panes[0].ID
+	if _, err := srv.Client.Run(ctx, "set-option", "-p", "-t", lead, tmux.OptRole, tmux.RoleClaude); err != nil {
+		t.Fatal(err)
+	}
+	toggle := func() {
+		t.Helper()
+		if out, err := srv.Client.Run(ctx, "run-shell", "-C", "-t", lead, "#{"+tmux.DoOption(tmux.DoAgentsRail)+"}"); err != nil {
+			t.Fatalf("toggle: %v %s", err, out)
+		}
+	}
+
+	toggle()
+	tmuxtest.WaitFor(t, "the rail to open", func() bool {
+		panes, err := srv.Client.ListPanes(ctx, tmux.ExactSession("ws"))
+		return err == nil && len(panes) == 2
+	})
+	panes, err = srv.Client.ListPanes(ctx, tmux.ExactSession("ws"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rail := panes[0]
+	if rail.Role != string(layout.RoleAgents) {
+		t.Fatalf("the first pane of the window is %q, want the rail", rail.Role)
+	}
+	if rail.Width != layout.RailWidth {
+		t.Fatalf("the rail is %d cells wide, want %d", rail.Width, layout.RailWidth)
+	}
+	if rail.Active || !panes[1].Active {
+		t.Fatalf("the rail took the focus: %+v", panes)
+	}
+	if panes[1].ID != lead {
+		t.Fatalf("the lead moved: %q, want %q", panes[1].ID, lead)
+	}
+
+	toggle()
+	tmuxtest.WaitFor(t, "the rail to close", func() bool {
+		panes, err := srv.Client.ListPanes(ctx, tmux.ExactSession("ws"))
+		return err == nil && len(panes) == 1
+	})
+	panes, err = srv.Client.ListPanes(ctx, tmux.ExactSession("ws"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(panes) != 1 || panes[0].ID != lead {
+		t.Fatalf("closing the rail left %+v, want the lead alone", panes)
 	}
 }

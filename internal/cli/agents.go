@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"text/tabwriter"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/agent"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/sanitize"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tui"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/watch"
 )
 
 // Picker refresh intervals. Each listing runs claude once, so the list
@@ -35,7 +37,8 @@ func agentCommands(d Deps) []*cobra.Command {
 }
 
 func newAgentsCmd(d Deps) *cobra.Command {
-	var popup, asJSON bool
+	var popup, asJSON, rail, auto bool
+	var session string
 	cmd := &cobra.Command{
 		Use:   "agents",
 		Short: "Pick a Claude agent: jump to its pane, attach a background job or stop it",
@@ -47,6 +50,9 @@ func newAgentsCmd(d Deps) *cobra.Command {
 			"  lmux agents --json",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if rail {
+				return d.agentsRailRun(cmd, app.AgentBarRequest{Session: session, Popup: popup, CloseWhenEmpty: auto})
+			}
 			ctx, h, s, err := d.openServer(cmd)
 			if err != nil {
 				return err
@@ -78,9 +84,78 @@ func newAgentsCmd(d Deps) *cobra.Command {
 	f := cmd.Flags()
 	f.BoolVar(&popup, "popup", false, "run inside a tmux popup: a jump switches the popup's client and closes the popup")
 	f.BoolVar(&asJSON, "json", false, "print a fresh agents snapshot as JSON")
+	f.BoolVar(&rail, "rail", false, "draw the live agents rail of one workspace instead of the picker")
+	f.StringVar(&session, "session", "", "workspace the rail follows outside tmux")
+	f.BoolVar(&auto, "auto", false, "close the rail again once the agents it opened for are gone")
 	_ = f.MarkHidden("popup")
+	_ = f.MarkHidden("rail")
+	_ = f.MarkHidden("auto")
+	_ = f.MarkHidden("session")
+	_ = cmd.RegisterFlagCompletionFunc("session", cobra.NoFileCompletions)
 	cmd.MarkFlagsMutuallyExclusive("popup", "json")
+	cmd.MarkFlagsMutuallyExclusive("rail", "json")
 	return cmd
+}
+
+// agentsRailRun draws the agents rail until it quits. The refresh loop feeds
+// the model through a channel; both stop together, and no goroutine outlives
+// the call.
+func (d Deps) agentsRailRun(cmd *cobra.Command, req app.AgentBarRequest) error {
+	term := d.Terminal()
+	if !term.Interactive {
+		return errors.New("the agents rail draws a live view and needs a terminal; lyna-tmux starts it in a pane or popup")
+	}
+	h, err := d.Host()
+	if err != nil {
+		return err
+	}
+	view, err := app.OpenAgentBar(cmd.Context(), h, req)
+	if err != nil {
+		return err
+	}
+	view.Options.Width, view.Options.Height = term.Width, term.Height
+	view.Options.Now = d.now
+	// The host environment, not the parent process, decides the colors.
+	return agentBarRun(cmd.Context(), view, streams(cmd), tea.WithEnvironment(h.Environ))
+}
+
+// agentBarRun runs the rail on its own refresh loop.
+func agentBarRun(ctx context.Context, view app.AgentBarView, s Streams, opts ...tea.ProgramOption) error {
+	ctx, cancel := context.WithCancel(ctx)
+	updates := make(chan tui.AgentBarUpdate)
+	var wg sync.WaitGroup
+	// The loop stops on the canceled context alone, so the wait is registered
+	// first and runs last: a panic out of the program cancels before waiting
+	// instead of blocking on a goroutine nothing stopped.
+	defer wg.Wait()
+	defer cancel()
+	wg.Go(func() {
+		// Closing tells a rail still waiting for a reading that none will come.
+		defer close(updates)
+		loop := watch.Loop{
+			Signal:   view.Signal,
+			Debounce: app.AgentBarDebounce,
+			Idle:     app.AgentBarIdle,
+			Refresh: func(ctx context.Context) {
+				select {
+				case updates <- view.Read(ctx):
+				case <-ctx.Done():
+				}
+			},
+		}
+		loop.Run(ctx)
+	})
+	options := view.Options
+	options.Updates = updates
+	base := []tea.ProgramOption{tea.WithContext(ctx), tea.WithInput(s.In), tea.WithOutput(s.Out)}
+	if options.Width > 0 && options.Height > 0 {
+		// Without a size the program draws nothing until the terminal reports one.
+		base = append(base, tea.WithWindowSize(options.Width, options.Height))
+	}
+	program := tea.NewProgram(tui.NewAgentBar(options), append(base, opts...)...)
+	_, err := program.Run()
+	cancel()
+	return err
 }
 
 // agentsBackend lists agents and performs the picker's effects; app.AgentsView

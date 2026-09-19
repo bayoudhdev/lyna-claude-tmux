@@ -1,0 +1,30 @@
+ ✻ transcript review-api
+› the rail shows no tokens for the review agent, find out why
+● Reading the pane options first.
+  ▸ Read /work/api/internal/tmux/options.go
+  └ 24 lines
+  ▸ Bash go test ./internal/tmux/
+  └ exit status 1: list_test.go:41: pane 3 carries no transcript
+● The option is only written when a session starts, so a pane whose
+  session started before the hooks were installed carries none.
+  Starting a session in it fills the rail.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 7 entries  4m ago                                                                 ↓/j down  q close

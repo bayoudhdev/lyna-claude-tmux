@@ -8,6 +8,7 @@
   [38;2;57;211;83m┃[m   [38;2;230;237;243mtrio   Claude, a shell and live changes[m                                 
   [38;2;57;211;83m┃[m   [38;2;230;237;243mquad   four Claude agents in their own worktrees[m                        
   [38;2;57;211;83m┃[m   [38;2;230;237;243mreview Claude beside a review pane[m                                      
+  [38;2;57;211;83m┃[m   [38;2;230;237;243mteam   the agents rail, the lead and room for its teammates[m             
   [38;2;57;211;83m┃[m [38;2;57;211;83m> [m[38;2;57;211;83mauto   chosen from the terminal size[m                                    
                                                                               
   [38;2;57;211;83m [m [38;2;125;133;144mAlt keys[m                                                                  
@@ -19,7 +20,6 @@
   [38;2;57;211;83m [m [38;2;125;133;144mclick panes, tabs and status buttons; scroll with the wheel[m               
   [38;2;57;211;83m [m                                                                           
   [38;2;57;211;83m [m                       [48;2;57;211;83m  [m[1;38;2;13;17;23;48;2;57;211;83mOn[m[48;2;57;211;83m  [m [48;2;22;27;34m  [m[38;2;125;133;144;48;2;22;27;34mOff[m[48;2;22;27;34m  [m                                     
-
 
 
 

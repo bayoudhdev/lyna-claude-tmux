@@ -1,0 +1,30 @@
+[1;38;2;57;211;83;48;2;22;27;34m ✻ transcript [m[38;2;230;237;243;48;2;22;27;34mreview-api[m[38;2;230;237;243;48;2;22;27;34m                                                                            [m
+[38;2;88;166;255m› [m[38;2;230;237;243mthe rail shows no tokens for the review agent, find out why[m                                       
+[38;2;57;211;83m● [m[38;2;230;237;243mReading the pane options first.[m                                                                   
+[38;2;125;133;144m  [m[38;2;48;54;61m▸ [m[1;38;2;88;166;255mRead[m[38;2;125;133;144m /work/api/internal/tmux/options.go[m                                                         
+[38;2;125;133;144m  [m[38;2;48;54;61m└ [m[38;2;125;133;144m24 lines[m                                                                                        
+[38;2;125;133;144m  [m[38;2;48;54;61m▸ [m[1;38;2;88;166;255mBash[m[38;2;125;133;144m go test ./internal/tmux/[m                                                                   
+[38;2;125;133;144m  [m[38;2;48;54;61m└ [m[38;2;255;95;86mexit status 1: list_test.go:41: pane 3 carries no transcript[m                                    
+[38;2;57;211;83m● [m[38;2;230;237;243mThe option is only written when a session starts, so a pane whose[m                                 
+[38;2;57;211;83m  [m[38;2;230;237;243msession started before the hooks were installed carries none.[m                                     
+[38;2;57;211;83m  [m[38;2;230;237;243mStarting a session in it fills the rail.[m                                                          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[38;2;230;237;243;48;2;22;27;34m 7 entries[m[38;2;125;133;144;48;2;22;27;34m  4m ago[m[38;2;230;237;243;48;2;22;27;34m                                                                [m [1;38;2;88;166;255m↓/j[m [38;2;125;133;144mdown[m[38;2;125;133;144m  [m[1;38;2;88;166;255mq[m [38;2;125;133;144mclose[m

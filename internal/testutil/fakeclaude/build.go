@@ -25,20 +25,29 @@ const buildTimeout = 5 * time.Minute
 // first on PATH. The build cache keeps repeated builds fast.
 func Build(t testing.TB) string {
 	t.Helper()
+	return BuildProgram(t, mainPackage, "claude")
+}
+
+// BuildProgram compiles the main package pkg into a fresh temporary directory
+// as an executable called name, and returns its absolute path. It is how a
+// test runs a real binary of this module in a pane beside the fake: the
+// lyna-tmux binary Claude Code starts a teammate through, for one.
+func BuildProgram(t testing.TB, pkg, name string) string {
+	t.Helper()
 	goBin, err := goTool()
 	if err != nil {
 		t.Fatalf("fakeclaude: %v", err)
 	}
-	out := filepath.Join(t.TempDir(), "claude")
+	out := filepath.Join(t.TempDir(), name)
 	ctx, cancel := context.WithTimeout(context.Background(), buildTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, goBin, "build", "-o", out, mainPackage)
+	cmd := exec.CommandContext(ctx, goBin, "build", "-o", out, pkg)
 	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
 	var output bytes.Buffer
 	cmd.Stdout = &output
 	cmd.Stderr = &output
 	if err := cmd.Run(); err != nil {
-		t.Fatalf("fakeclaude: go build %s: %v\n%s", mainPackage, err, output.String())
+		t.Fatalf("fakeclaude: go build %s: %v\n%s", pkg, err, output.String())
 	}
 	return out
 }
@@ -86,6 +95,33 @@ func ReadHookRuns(t testing.TB, path string) []HookRun {
 	return out
 }
 
+// ReadTmuxRuns returns the tmux commands a lead recorded in path, in order.
+func ReadTmuxRuns(t testing.TB, path string) []TmuxRun {
+	t.Helper()
+	var out []TmuxRun
+	readLines(t, path, "tmux", func(line []byte) error {
+		var run TmuxRun
+		err := json.Unmarshal(line, &run)
+		out = append(out, run)
+		return err
+	})
+	return out
+}
+
+// ReadTeammates returns the teammates a lead recorded opening in path, in
+// order.
+func ReadTeammates(t testing.TB, path string) []TeammateSpawn {
+	t.Helper()
+	var out []TeammateSpawn
+	readLines(t, path, "teammate", func(line []byte) error {
+		var s TeammateSpawn
+		err := json.Unmarshal(line, &s)
+		out = append(out, s)
+		return err
+	})
+	return out
+}
+
 func readLines(t testing.TB, path, kind string, decode func([]byte) error) {
 	t.Helper()
 	data, err := os.ReadFile(path)
@@ -95,6 +131,9 @@ func readLines(t testing.TB, path, kind string, decode func([]byte) error) {
 	if err != nil {
 		t.Fatalf("fakeclaude: read records: %v", err)
 	}
+	// Only complete lines count: a test polls the file while fakes in other
+	// panes append to it, and a line still being written has no newline yet.
+	data = data[:bytes.LastIndexByte(data, '\n')+1]
 	sc := bufio.NewScanner(bytes.NewReader(data))
 	sc.Buffer(make([]byte, 0, 64<<10), 64<<20)
 	for n := 1; sc.Scan(); n++ {

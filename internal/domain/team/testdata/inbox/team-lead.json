@@ -1,0 +1,24 @@
+[
+  {
+    "type": "message",
+    "from": "explore-git",
+    "text": "The branch is created in two places: the release workflow and the sandbox script.",
+    "timestamp": "2026-09-10T09:29:41.221Z",
+    "read": true,
+    "color": "blue"
+  },
+  {
+    "from": "review-api",
+    "text": "Two handlers build a query from the body without a bound parameter. Details in task 2.",
+    "timestamp": "2026-09-10T09:42:13.004Z",
+    "summary": "Two handlers build queries unsafely",
+    "color": "green"
+  },
+  {
+    "type": "task_handback",
+    "from": "tests",
+    "text": "Task 3 is blocked until task 1 is done.",
+    "timestamp": "2026-09-10T09:43:02.910Z",
+    "read": false
+  }
+]

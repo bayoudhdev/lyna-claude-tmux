@@ -28,7 +28,9 @@ type CreateRequest struct {
 	Dir string
 	// Name is the session name; empty derives it from the project root.
 	Name string
-	// Layout is a built-in or custom layout name; empty takes the configuration.
+	// Layout is a built-in or custom layout name. Empty opens the team layout
+	// for a launch with agent teams turned on, and the configured one
+	// otherwise.
 	Layout string
 	// Width and Height are the terminal size, used by the auto layout.
 	Width, Height int
@@ -192,9 +194,39 @@ func describeProject(x tmux.Session) string {
 	return "the workspace of " + x.Project
 }
 
-// plan builds the window layout for a request.
+// plan builds the window layout for a request. The rail is asked for by the
+// configuration rather than by the layout, so a workspace that always carries
+// one gets it whichever layout it opens, and the layout that carries it
+// already keeps the one it has. Every rail of the workspace opens at the
+// configured width, the one a custom layout places included.
 func (s *Server) plan(req CreateRequest, name string) (layout.Plan, error) {
-	layoutName := pick(req.Layout, s.Config.Workspace.Layout)
+	p, err := s.layoutPlan(req, name)
+	if err != nil {
+		return layout.Plan{}, err
+	}
+	p.RailWidth = s.Config.UI.SidebarWidth
+	if s.Config.UI.AgentsSidebar != config.SidebarAlways {
+		return p, nil
+	}
+	p = layout.WithRail(p, req.Width, s.Config.UI.SidebarWidth)
+	return p, p.Validate()
+}
+
+// layoutName is the layout a request opens: the one it names, then the team
+// layout for a workspace started to run a team, then the configured default.
+func (s *Server) layoutName(req CreateRequest) string {
+	switch {
+	case req.Layout != "":
+		return req.Layout
+	case req.Launch.Teams:
+		return layout.Team
+	}
+	return s.Config.Workspace.Layout
+}
+
+// layoutPlan builds the plan of the layout a request opens.
+func (s *Server) layoutPlan(req CreateRequest, name string) (layout.Plan, error) {
+	layoutName := s.layoutName(req)
 	if custom, ok := s.Config.Layouts[layoutName]; ok {
 		return layout.Custom(layoutName, name, customPanes(custom))
 	}
@@ -207,6 +239,7 @@ func (s *Server) plan(req CreateRequest, name string) (layout.Plan, error) {
 		Session:    name,
 		Width:      req.Width,
 		Height:     req.Height,
+		RailWidth:  s.Config.UI.SidebarWidth,
 	})
 }
 

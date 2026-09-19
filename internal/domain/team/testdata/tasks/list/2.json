@@ -1,0 +1,10 @@
+{
+  "id": "2",
+  "subject": "Review the request handlers for injection",
+  "description": "Every handler that builds a query from the request body.",
+  "activeForm": "Reviewing the request handlers",
+  "owner": "review-api",
+  "status": "in_progress",
+  "blocks": ["4"],
+  "blockedBy": []
+}

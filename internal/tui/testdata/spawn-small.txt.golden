@@ -1,0 +1,14 @@
+ ◎ spawn
+
+  2/3  Agent
+  ┃ Agent
+  ┃ > general-purpose the agent with
+  ┃   no definition of its own
+  ┃   api-developer changes the API
+  ┃   security-auditor reads a diff
+  ┃   for its risks
+
+
+
+
+ enter next  shift+tab back  esc cancel

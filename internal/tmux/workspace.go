@@ -196,8 +196,18 @@ func (c *Client) split(ctx context.Context, built *Built, w WindowSpec, tail []C
 		}
 		built.Panes = append(built.Panes, id)
 	}
-	cmds := append([]Command{{"select-pane", "-t", built.Panes[w.Plan.Focus]}}, tail...)
-	_, err := c.Batch(ctx, cmds...)
+	// The rail is a number of cells, not a share: a share of a wide client
+	// would give it a column far past anything it has to draw. The split that
+	// made it could only ask for a share, so the width the plan carries is set
+	// here.
+	var cmds []Command
+	for i, pane := range w.Plan.Panes {
+		if pane.Role == layout.RoleAgents {
+			cmds = append(cmds, Command{"resize-pane", "-t", built.Panes[i], "-x", strconv.Itoa(layout.RailCells(w.Plan.RailWidth))})
+		}
+	}
+	cmds = append(cmds, Command{"select-pane", "-t", built.Panes[w.Plan.Focus]})
+	_, err := c.Batch(ctx, append(cmds, tail...)...)
 	return err
 }
 
@@ -263,7 +273,7 @@ func paneOptions(target string, role layout.Role, p PaneProcess) []Command {
 // keepsFailure reports whether a dead pane of this role is kept on screen.
 func keepsFailure(role layout.Role) bool {
 	switch role {
-	case layout.RoleClaude, layout.RoleChanges, layout.RoleReview, layout.RoleCommand:
+	case layout.RoleClaude, layout.RoleChanges, layout.RoleReview, layout.RoleCommand, layout.RoleAgents:
 		return true
 	default:
 		return false

@@ -10,7 +10,7 @@ pre rm -rf .devcontainer
 pre rm -rf .claude/worktrees
 pre rm -rf .git/worktrees
 pre lmux create . --layout duo --detach
-run lmux create .
+run lmux create . --nested
 wait 3
 frame 1.6
 keys M-]

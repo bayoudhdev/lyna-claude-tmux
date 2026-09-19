@@ -1,7 +1,7 @@
 // Package doctor inspects the machine for everything lyna-tmux and Claude Code
-// need: tmux, Claude Code, git, the sandbox prerequisites of the platform,
-// terminal capabilities, key binding collisions, Docker for container
-// isolation and Neovim for the review popup.
+// need: tmux, Claude Code, how agent teams open, git, the sandbox
+// prerequisites of the platform, terminal capabilities, key binding
+// collisions, Docker for container isolation and Neovim for the review popup.
 //
 // Doctor only reads. Every problem it reports carries the exact command or
 // setting that fixes it; it never installs or changes anything itself. All
@@ -131,12 +131,22 @@ type Deps struct {
 	ClaudeMinVersion string
 	// AltKeys mirrors ui.alt_keys: the root-table Alt bindings are installed.
 	AltKeys bool
+	// NoAgentsRail mirrors ui.agents_sidebar set to off: no key opens the
+	// agents rail, so no key is reported for it and none can collide.
+	NoAgentsRail bool
 	// Prefix is the tmux prefix key (workspace.prefix), "C-b" when empty.
 	Prefix string
 	// SandboxProfile mirrors sandbox.profile; "off" skips sandbox prerequisites.
 	SandboxProfile string
 	// Isolation mirrors sandbox.isolation; "container" makes Docker required.
 	Isolation string
+	// Teams mirrors claude.teams and TeammateMode claude.teammate_mode: whether
+	// every workspace runs agent teams, and who opens their teammates.
+	Teams        bool
+	TeammateMode string
+	// LogFile is the diagnostic log, where the teammate launcher writes how
+	// every teammate opened; empty when the lyna-tmux directories are unknown.
+	LogFile string
 	// Timeout bounds each command; DefaultTimeout when zero.
 	Timeout time.Duration
 }
@@ -167,6 +177,7 @@ func Run(ctx context.Context, d Deps) []Result {
 		checkTmux,
 		checkClaude,
 		checkProjectTrust,
+		checkTeams,
 		checkGit,
 		checkSandbox,
 		checkSandboxRuntime,

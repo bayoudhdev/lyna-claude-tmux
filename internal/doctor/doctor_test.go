@@ -35,6 +35,8 @@ func linuxWithProblems() fakeSystem {
 			procVersionPath:                      procLinux,
 			usernsPath:                           "1\n",
 			"/home/u/.claude/" + KeybindingsFile: `{"bindings": [{"context": "Chat", "bindings": {"alt+s": "chat:stash"}}]}`,
+			linuxLog: "2026-09-15T12:32:00Z teammate-fallback: write-docs opens the way the agent opens it: " +
+				"the team runs on the agent's own server (/tmp/claude-swarm-4242)\n",
 		},
 		outputs: map[string]fakeOutput{
 			"/usr/bin/tmux -V":                                 {out: "tmux 3.2a\n"},
@@ -45,11 +47,19 @@ func linuxWithProblems() fakeSystem {
 	}
 }
 
+// The diagnostic logs of the golden hosts, where their teammates are written
+// down.
+const (
+	linuxLog = "/home/u/.local/state/lyna-tmux/lyna-tmux.log"
+	macLog   = "/Users/u/.local/state/lyna-tmux/lyna-tmux.log"
+)
+
 // macHealthy is a macOS host with everything in place.
 func macHealthy() fakeSystem {
 	return fakeSystem{
-		goos: "darwin",
-		env:  map[string]string{"TERM_PROGRAM": "ghostty", "TERM": "xterm-ghostty", "COLORTERM": "truecolor", "LANG": "en_US.UTF-8"},
+		goos:  "darwin",
+		files: map[string]string{macLog: "2026-09-15T12:30:00Z teammate: review-api opened in workspace api\n"},
+		env:   map[string]string{"TERM_PROGRAM": "ghostty", "TERM": "xterm-ghostty", "COLORTERM": "truecolor", "LANG": "en_US.UTF-8"},
 		bins: map[string]string{
 			"tmux": "/opt/homebrew/bin/tmux", "claude": "/Users/u/.local/bin/claude", "git": "/usr/bin/git",
 			"sandbox-exec": "/usr/bin/sandbox-exec", "pbcopy": "/usr/bin/pbcopy", "docker": "/opt/homebrew/bin/docker",
@@ -72,11 +82,14 @@ func TestRunGolden(t *testing.T) {
 		edit   func(*Deps)
 		failed bool
 	}{
-		{name: "linux-problems", sys: linuxWithProblems(), failed: true},
+		{name: "linux-problems", sys: linuxWithProblems(), edit: func(d *Deps) {
+			d.LogFile = linuxLog
+		}, failed: true},
 		{name: "darwin-healthy", sys: macHealthy(), edit: func(d *Deps) {
 			d.ClaudeHome = "/Users/u/.claude"
 			d.Isolation = "container"
 			d.ClaudeMinVersion = "2.1.0"
+			d.Teams, d.LogFile = true, macLog
 		}},
 	}
 	for _, tc := range cases {
@@ -128,7 +141,7 @@ func TestRunOrderIsStable(t *testing.T) {
 	for _, r := range first {
 		ids = append(ids, r.ID)
 	}
-	want := "tmux claude claude-trust git sandbox truecolor clipboard option-meta shift-enter keybindings docker nvim"
+	want := "tmux claude claude-trust teams git sandbox truecolor clipboard option-meta shift-enter keybindings docker nvim"
 	if got := strings.Join(ids, " "); got != want {
 		t.Fatalf("ids = %q, want %q", got, want)
 	}

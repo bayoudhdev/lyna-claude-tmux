@@ -1,0 +1,24 @@
+ ◎ spawn
+
+  3/3  Work
+    > review-api
+
+    Prompt
+    what the agent is being asked to do
+    read the router
+
+
+
+
+
+
+  ┃ Start it?
+  ┃ the lead is sent, exactly:
+  ┃ Start a api-developer agent in a git worktree of its own named review-api,
+  ┃ and tell it: read the router
+  ┃
+  ┃                             Start     Cancel
+
+
+
+ enter next  shift+tab back  esc cancel

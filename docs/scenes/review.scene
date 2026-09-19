@@ -4,7 +4,7 @@ size 112 34
 pre lmux kill --all
 pre rm -rf .devcontainer
 pre lmux create . --layout trio --detach
-run lmux create .
+run lmux create . --nested
 wait 4
 frame 1.2
 keys M-g

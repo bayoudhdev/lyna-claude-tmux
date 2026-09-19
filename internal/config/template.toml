@@ -29,13 +29,23 @@ allow_passthrough = false
 # client is one of them. Turn it on only when every program you run in a pane
 # handles them (an editor that reloads a file on focus, for example).
 focus_events = false
+# When the agents rail is on screen: auto opens it with the first agent that
+# joins the workspace and takes it away with the last one, always opens it with
+# the workspace and keeps it, key opens it only when you ask for it (Alt+A),
+# off never opens it and binds no key to it.
+agents_sidebar = "auto"
+# Width of the agents rail in cells (20-60), however it opens.
+sidebar_width = 28
 
 [workspace]
-# Default layout: solo, duo, trio, quad, review, auto (picks by terminal size), or
+# Default layout: solo, duo, trio, quad, review, team, auto (picks by terminal size), or
 # the name of a [layouts.<name>] table below.
 layout = "auto"
 # Width of the Claude pane in percent when a layout splits it (20-80).
 split_ratio = 62
+# Teammates that share the lead's window before the next one opens as a window
+# of its own. 0 opens every teammate in a window of its own.
+agent_panes = 3
 history_limit = 100000
 # tmux prefix key. Press it twice to send it to the program in the pane.
 prefix = "C-b"
@@ -61,12 +71,18 @@ statusline = "auto"
 fullscreen = false
 # Agent teams, with teammates opened as tmux panes.
 teams = false
+# Where a teammate opens: lmux (a labeled pane of this workspace), auto (the
+# agent decides), in-process (inside the lead), iterm2 (a terminal split).
+teammate_mode = "lmux"
 # Base for new worktrees: fresh (origin default branch) or head. Empty uses the default.
 worktree_base = ""
 # Size guideline for dynamic workflows: small, medium, large, unrestricted.
 workflow_size = ""
 # Ring the terminal bell when Claude finishes or needs you.
 bell = true
+# Give an agent started from the workspace a git worktree of its own, rather
+# than the project directory. The spawn form starts on this answer.
+agent_worktree = false
 # add_dirs = ["~/src/shared-lib"]
 # mcp_config = ["~/.config/mcp/servers.json"]
 # plugin_dirs = ["~/src/my-plugins"]

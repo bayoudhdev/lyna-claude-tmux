@@ -1,0 +1,20 @@
+ ≡ tasks  session-8f3c1d2a           2 of 6 done, 2 blocked
+▌ ◐ #1  designing the schema                api-developer
+  ✓ #2  review the plan                     security-audit…
+  ⊘ #3  write the migration  blocked by #1  db-engineer
+  ○ #4  wire the router
+  ⊘ #5  document the endpoi…  blocked by #3 docs
+  ✓ #10 set up the fixtures                 api-developer
+
+
+
+
+
+
+
+─ #1 design the schema ─────────────────────────────────────
+ Design the tables the billing service needs.
+
+ Keep every amount in cents and every timestamp in UTC, and
+ write down each index with the query it serves.
+                            ↓/j down  enter details  q close

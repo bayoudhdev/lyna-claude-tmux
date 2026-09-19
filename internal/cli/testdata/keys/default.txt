@@ -17,6 +17,7 @@ Workspace keys, no prefix (Alt is Option on macOS; enable Option as Meta in your
     Alt+e             Sessions and windows
   TOOLS
     Alt+a             Agents
+    Alt+A             Agents rail
     Alt+g             Review changes
     Alt+s             Scratch shell
     Alt+Space         Menu
@@ -40,6 +41,7 @@ After the prefix Ctrl+b
     w                 Sessions and windows
   TOOLS
     a                 Agents
+    A                 Agents rail
     g                 Review changes
     S                 Scratch shell
     Space             Menu

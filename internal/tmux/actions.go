@@ -1,7 +1,10 @@
 package tmux
 
 import (
+	"strconv"
+
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/keys"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/layout"
 )
 
 // Env is what generated commands need to know about the installation.
@@ -15,6 +18,13 @@ type Env struct {
 	PopupWidth, PopupHeight string
 	// Bindings are the installed key bindings, listed by the menu action.
 	Bindings []keys.Binding
+	// RailWidth is ui.sidebar_width, the width in cells the rail toggle opens
+	// the agents rail at; zero opens it at the default width.
+	RailWidth int
+	// NoAgentsRail leaves the rail toggle out of the generated configuration,
+	// for a workspace configured never to open the rail on its own. Nothing
+	// then refers to it: the key it was bound to is gone with it.
+	NoAgentsRail bool
 }
 
 // binCommand renders a lyna-tmux invocation for a shell started by tmux
@@ -34,6 +44,36 @@ const projectPath = "#{?#{" + OptProject + "}," + "#{" + OptProject + "},#{pane_
 // claudePaneList expands to the pane ids of the Claude panes in the current
 // window, each followed by a space.
 const claudePaneList = "#{P:#{?#{==:#{" + OptRole + "}," + RoleClaude + "},#{pane_id} ,}}"
+
+// windowPaneList expands to the pane ids of the current window, each followed
+// by a space, in the order they are laid out.
+const windowPaneList = "#{P:#{pane_id} }"
+
+// agentsPaneList expands to the pane ids of the agents rails in the current
+// window, each followed by a space. A window has one or none.
+const agentsPaneList = "#{P:#{?#{==:#{" + OptRole + "}," + RoleAgents + "},#{pane_id} ,}}"
+
+// AgentsRailSeq opens the agents rail of the current window, or closes the one
+// that is already there.
+//
+// The rail opens against the leftmost pane of the window, so it is the pane
+// tmux gives a column of its own whenever the window is arranged for the
+// agents. It is not told which workspace to follow: it runs in a pane of that
+// workspace and reads it from the pane itself.
+func (e Env) AgentsRailSeq() Seq {
+	// The leftmost pane is the first of the window: tmux numbers panes by where
+	// they are on the screen. Its id is used rather than a name such as
+	// {top-left}, which the command parser reads as the start of a block.
+	open := "split-window -b -h -l " + strconv.Itoa(layout.RailCells(e.RailWidth)) +
+		" -t #{s/ .*//:" + windowPaneList + "} " + e.binCommand("agents", "--rail", "--auto") +
+		" ; set-option -p " + OptRole + " " + RoleAgents +
+		" ; last-pane"
+	// The branches are separated by the commas of the conditional, which skips
+	// over the nested formats of the first one; the second is plain text, where
+	// a comma of the installation path would be read as that separator.
+	shut := "kill-pane -t #{s/ .*//:" + agentsPaneList + "}"
+	return Cmd("run-shell", "-C", "#{?"+agentsPaneList+","+shut+","+escapeFormatCommas(open)+"}")
+}
 
 // SplitSeq splits the current pane and marks the new pane as a shell.
 func SplitSeq(right bool) Seq {
@@ -89,6 +129,7 @@ func FocusClaudeSeq() Seq {
 const (
 	DoSplitRight  = "split_right"
 	DoAgents      = "agents"
+	DoAgentsRail  = "agents_rail"
 	DoReview      = "review"
 	DoSandbox     = "sandbox"
 	DoMenuKeys    = "menu_keys"
@@ -115,12 +156,18 @@ type Registered struct {
 	Seq  Seq
 }
 
-// Registry returns every registered command. Menus opened by mouse bindings
-// target the pane or window under the mouse.
+// Registry returns every registered command, the rail toggle left out of a
+// workspace that never opens the rail on its own. Menus opened by mouse
+// bindings target the pane or window under the mouse.
 func (e Env) Registry() []Registered {
-	return []Registered{
+	out := []Registered{
 		{DoSplitRight, SplitSeq(true)},
 		{DoAgents, e.AgentsSeq()},
+	}
+	if !e.NoAgentsRail {
+		out = append(out, Registered{DoAgentsRail, e.AgentsRailSeq()})
+	}
+	return append(out, []Registered{
 		{DoReview, e.ReviewSeq()},
 		{DoSandbox, e.SandboxSeq()},
 		{DoMenuKeys, e.KeysMenu().Seq()},
@@ -128,7 +175,7 @@ func (e Env) Registry() []Registered {
 		{DoMenuWindow, withMouseTarget(e.WindowMenu().Seq())},
 		{DoMenuPane, withMouseTarget(e.PaneMenu().Seq())},
 		{DoMenuClaude, ClaudeMenu().Seq()},
-	}
+	}...)
 }
 
 // ActionSeq maps a binding to its tmux commands.
@@ -164,6 +211,8 @@ func (e Env) ActionSeq(b keys.Binding) Seq {
 		return Cmd("choose-tree", "-Zs")
 	case keys.ActionAgents:
 		return e.AgentsSeq()
+	case keys.ActionAgentsRail:
+		return DoSeq(DoAgentsRail)
 	case keys.ActionReview:
 		return e.ReviewSeq()
 	case keys.ActionScratch:

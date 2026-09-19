@@ -1,6 +1,7 @@
 package keys
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -45,7 +46,7 @@ func TestDefaultsTables(t *testing.T) {
 		wantRoot   int
 		wantPrefix string
 	}{
-		{name: "alt keys on", opts: Options{AltKeys: true}, wantRoot: 26, wantPrefix: "C-b"},
+		{name: "alt keys on", opts: Options{AltKeys: true}, wantRoot: 27, wantPrefix: "C-b"},
 		{name: "alt keys off", opts: Options{AltKeys: false, Prefix: "C-a"}, wantRoot: 0, wantPrefix: "C-a"},
 	}
 	for _, tc := range cases {
@@ -270,6 +271,57 @@ func TestHuman(t *testing.T) {
 		t.Run(tc.in, func(t *testing.T) {
 			if got := Human(tc.in); got != tc.want {
 				t.Fatalf("Human(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestDefaultsWithoutTheRailKey pins what a workspace configured never to open
+// the agents rail on its own installs: no key for the rail in either table,
+// and every other binding exactly as it was.
+func TestDefaultsWithoutTheRailKey(t *testing.T) {
+	cases := []struct {
+		name string
+		opts Options
+		// wantKeys are the rail keys the same options install with the rail on
+		// a key, in the order they are installed.
+		wantKeys []string
+	}{
+		{name: "alt keys on", opts: Options{AltKeys: true, Prefix: "C-b"}, wantKeys: []string{"M-A", "A"}},
+		{name: "alt keys off", opts: Options{Prefix: "C-a"}, wantKeys: []string{"A"}},
+	}
+	railKeys := func(bs []Binding) []string {
+		var out []string
+		for _, b := range bs {
+			if b.Action == ActionAgentsRail {
+				out = append(out, b.Key)
+			}
+		}
+		return out
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			with := Defaults(tc.opts)
+			off := tc.opts
+			off.NoAgentsRail = true
+			without := Defaults(off)
+			if got := railKeys(with); !slices.Equal(got, tc.wantKeys) {
+				t.Fatalf("rail keys = %v, want %v", got, tc.wantKeys)
+			}
+			if got := railKeys(without); len(got) != 0 {
+				t.Fatalf("the rail is off and still bound to %v", got)
+			}
+			var rest []Binding
+			for _, b := range with {
+				if b.Action != ActionAgentsRail {
+					rest = append(rest, b)
+				}
+			}
+			if !slices.Equal(rest, without) {
+				t.Fatalf("dropping the rail key changed the other bindings:\n%v\n%v", rest, without)
+			}
+			if c := Conflicts(without); len(c) != 0 {
+				t.Fatalf("conflicts without the rail key: %v", c)
 			}
 		})
 	}

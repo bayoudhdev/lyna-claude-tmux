@@ -1,6 +1,7 @@
 // Package fakeclaude is a stand-in for the claude executable in tests. It
 // records every invocation, answers the read-only commands lyna-tmux runs,
-// runs hook commands from a --settings file the way Claude Code does, and
+// runs hook commands from a --settings file the way Claude Code does, opens
+// the teammates of an agent team the way Claude Code's tmux backend does, and
 // then behaves like an interactive session until stdin closes or it receives
 // SIGTERM or SIGHUP.
 //
@@ -41,11 +42,27 @@ const (
 	EnvTool = "FAKECLAUDE_TOOL"
 	// EnvSessionID is the session_id hook payloads carry.
 	EnvSessionID = "FAKECLAUDE_SESSION_ID"
-	// EnvExit set to "1" makes an interactive session exit after its hooks.
+	// EnvExit set to "1" makes an interactive session exit after its hooks
+	// and its team.
 	EnvExit = "FAKECLAUDE_EXIT"
 	// EnvBlock set to "1" makes every command wait for a signal before doing
 	// anything but recording, for timeout tests.
 	EnvBlock = "FAKECLAUDE_BLOCK"
+	// EnvTeammates makes an interactive session the lead of an agent team: a
+	// comma-separated list of "name:type" teammates (the type may be empty)
+	// it opens once its hooks ran. Inside tmux each one gets a pane of the
+	// lead's window, set up with the commands Claude Code's tmux backend runs
+	// and started with CLAUDE_CODE_TEAMMATE_COMMAND, or with the fake itself
+	// when that is unset; with teammateMode "in-process", or outside tmux,
+	// they stay inside the lead. The team file is written under
+	// CLAUDE_CONFIG_DIR, which must be set. A session started with teammate
+	// arguments is a teammate and opens no team.
+	EnvTeammates = "FAKECLAUDE_TEAMMATES"
+	// EnvTeamGate names a tmux wait-for channel on the lead's server that the
+	// lead waits on before opening each teammate, so a test decides when each
+	// one opens. Unset, they open in one burst, as a model spawning several
+	// teammates in one turn opens them.
+	EnvTeamGate = "FAKECLAUDE_TEAM_GATE"
 )
 
 // Defaults for unset variables.
@@ -103,6 +120,9 @@ type Process struct {
 	Stderr  io.Writer
 	// Signal is closed when the process receives SIGTERM or SIGHUP.
 	Signal <-chan struct{}
+	// Executable is the fake's own path, which a teammate is started with
+	// when no CLAUDE_CODE_TEAMMATE_COMMAND replaces it; empty uses Args[0].
+	Executable string
 }
 
 // OSProcess describes the running executable: its arguments, environment,
@@ -124,7 +144,11 @@ func OSProcess() (p Process, stop func()) {
 	if err != nil {
 		dir = ""
 	}
-	p = Process{Args: os.Args, Environ: os.Environ(), Dir: dir, Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr, Signal: closed}
+	exe, err := os.Executable()
+	if err != nil {
+		exe = ""
+	}
+	p = Process{Args: os.Args, Environ: os.Environ(), Dir: dir, Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr, Signal: closed, Executable: exe}
 	var once sync.Once
 	return p, func() {
 		once.Do(func() {
@@ -167,6 +191,9 @@ func Main(p Process) int {
 		return p.agents(args[1:])
 	}
 	if code := p.runHooks(inv); code != 0 {
+		return code
+	}
+	if code := p.openTeam(inv); code != 0 {
 		return code
 	}
 	if p.getenv(EnvExit) == "1" {
@@ -329,10 +356,7 @@ func (p Process) runHooks(inv Invocation) int {
 // hookInput builds the documented stdin payload for event and returns the
 // value its matcher filters on, or nil when the event has no matcher.
 func (p Process) hookInput(event string, inv Invocation) (json.RawMessage, *string) {
-	sessionID := p.getenv(EnvSessionID)
-	if sessionID == "" {
-		sessionID = DefaultSessionID
-	}
+	sessionID := p.sessionID()
 	tool := p.getenv(EnvTool)
 	if tool == "" {
 		tool = DefaultTool

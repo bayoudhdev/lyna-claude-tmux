@@ -47,7 +47,11 @@ func newKeysCmd(d Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			bindings := keys.Defaults(keys.Options{AltKeys: cfg.UI.AltKeys, Prefix: cfg.Workspace.Prefix})
+			bindings := keys.Defaults(keys.Options{
+				AltKeys:      cfg.UI.AltKeys,
+				Prefix:       cfg.Workspace.Prefix,
+				NoAgentsRail: !cfg.UI.RailKey(),
+			})
 			report := keysReport{Prefix: cfg.Workspace.Prefix, Workspace: []keyEntry{}, Claude: []keyEntry{}, Conflicts: []string{}}
 			for _, b := range bindings {
 				report.Workspace = append(report.Workspace, keyEntry{

@@ -1,0 +1,24 @@
+ ◎ spawn
+
+  2/3  Agent
+  ┃ Agent
+  ┃ > general-purpose the agent with no definition of its own
+  ┃   api-developer changes the API
+  ┃   security-auditor reads a diff for its risks
+
+    Model
+    model alias or id; empty runs it on what the workspace runs
+    > opus
+
+    Effort
+      workspace   what the workspace already uses
+      low         quickest answers
+      medium      balanced
+      high        more reasoning on hard steps
+      xhigh       extended reasoning
+      max         the most reasoning per step
+      ultracode   long autonomous coding runs
+
+
+
+ enter next  shift+tab back  esc cancel

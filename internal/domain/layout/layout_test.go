@@ -43,6 +43,12 @@ func TestBuiltin(t *testing.T) {
 		opts     Options
 		wantName string
 		want     []Pane
+		// wantFocus is the pane the window opens on, the first one unless the
+		// layout says otherwise.
+		wantFocus int
+		// wantRail is the width the plan gives its rail, zero for a layout
+		// that carries none.
+		wantRail int
 	}{
 		{
 			name: "solo", layout: Solo, opts: Options{SplitRatio: 62}, wantName: Solo,
@@ -87,6 +93,45 @@ func TestBuiltin(t *testing.T) {
 			want: []Pane{{Role: RoleClaude}, {Role: RoleReview, Split: SplitRight, Size: 50}},
 		},
 		{
+			name: "team on a measured client", layout: Team, opts: Options{Width: 200}, wantName: Team,
+			want: []Pane{
+				{Role: RoleAgents},
+				{Role: RoleClaude, Split: SplitRight, Size: 86},
+			},
+			wantFocus: 1, wantRail: RailWidth,
+		},
+		{
+			name: "team without a measured client", layout: Team, wantName: Team,
+			want: []Pane{
+				{Role: RoleAgents},
+				{Role: RoleClaude, Split: SplitRight, Size: 86},
+			},
+			wantFocus: 1, wantRail: RailWidth,
+		},
+		{
+			// Sixty cells of two hundred are thirty percent: the lead keeps
+			// what the wider rail leaves, and the plan carries the width.
+			name: "team with a wide rail", layout: Team, opts: Options{Width: 200, RailWidth: 60}, wantName: Team,
+			want: []Pane{
+				{Role: RoleAgents},
+				{Role: RoleClaude, Split: SplitRight, Size: 70},
+			},
+			wantFocus: 1, wantRail: 60,
+		},
+		{
+			name: "team with a narrow rail and no measured client", layout: Team, opts: Options{RailWidth: 20}, wantName: Team,
+			want: []Pane{
+				{Role: RoleAgents},
+				{Role: RoleClaude, Split: SplitRight, Size: 90},
+			},
+			wantFocus: 1, wantRail: 20,
+		},
+		{
+			name: "a rail width means nothing to a layout without a rail", layout: Duo,
+			opts: Options{SplitRatio: 62, RailWidth: 60}, wantName: Duo,
+			want: []Pane{{Role: RoleClaude}, {Role: RoleShell, Split: SplitRight, Size: 38}},
+		},
+		{
 			name: "auto resolves by size", layout: Auto, opts: Options{SplitRatio: 62, Width: 80, Height: 24}, wantName: Solo,
 			want: []Pane{{Role: RoleClaude}},
 		},
@@ -103,8 +148,11 @@ func TestBuiltin(t *testing.T) {
 			if !reflect.DeepEqual(got.Panes, tc.want) {
 				t.Errorf("Panes = %+v\nwant %+v", got.Panes, tc.want)
 			}
-			if got.Focus != 0 {
-				t.Errorf("Focus = %d, want 0", got.Focus)
+			if got.Focus != tc.wantFocus {
+				t.Errorf("Focus = %d, want %d", got.Focus, tc.wantFocus)
+			}
+			if got.RailWidth != tc.wantRail {
+				t.Errorf("RailWidth = %d, want %d", got.RailWidth, tc.wantRail)
 			}
 		})
 	}

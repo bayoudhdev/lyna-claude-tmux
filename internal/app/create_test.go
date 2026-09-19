@@ -404,6 +404,43 @@ func TestCreateWorkspaceRequests(t *testing.T) {
 			},
 		},
 		{
+			// The rail is asked for by the configuration, so the layout the
+			// user chose is the layout they get, with the rail in front of it.
+			name: "a workspace that always carries the rail", wantName: "rails", wantRoles: []string{"agents", "claude", "shell"},
+			req: CreateRequest{Dir: other, Name: "rails", Layout: layout.Duo, Width: 240, Height: 60},
+			setup: func(t *testing.T) {
+				t.Helper()
+				s.Config.UI.AgentsSidebar = config.SidebarAlways
+				t.Cleanup(func() { s.Config.UI.AgentsSidebar = config.SidebarAuto })
+			},
+			check: func(t *testing.T, _ CreateResult) {
+				t.Helper()
+				panes, err := s.Client.ListPanes(tmuxtest.Context(t), tmux.ExactSession("rails"))
+				if err != nil || len(panes) != 3 {
+					t.Fatalf("panes %+v, %v", panes, err)
+				}
+				if panes[0].Width != layout.RailWidth {
+					t.Fatalf("the rail is %d cells wide, want %d", panes[0].Width, layout.RailWidth)
+				}
+				// The workspace it follows is named on the command line: a rail
+				// opened with the window is not one that closes with the agents.
+				calls := e.exeCalls(t, 2)
+				if want := "agents|--rail|--session|rails|"; calls[len(calls)-1] != want {
+					t.Fatalf("the rail ran %q, want %q", calls[len(calls)-1], want)
+				}
+			},
+		},
+		{
+			// lmux team names no layout unless asked to: the team layout is
+			// what a workspace started to run a team opens.
+			name: "a team opens in the team layout", wantName: "crew", wantRoles: []string{"agents", "claude"},
+			req: CreateRequest{Dir: other, Name: "crew", Width: 240, Height: 60, Launch: LaunchOptions{Teams: true}},
+		},
+		{
+			name: "a team keeps the layout it names", wantName: "crew-solo", wantRoles: []string{"claude"},
+			req: CreateRequest{Dir: other, Name: "crew-solo", Layout: layout.Solo, Launch: LaunchOptions{Teams: true}},
+		},
+		{
 			name: "custom layout with a command pane", wantName: "tests", wantRoles: []string{"claude", "command"},
 			req: CreateRequest{Dir: other, Name: "tests", Layout: "tests"},
 			setup: func(t *testing.T) {
@@ -438,6 +475,123 @@ func TestCreateWorkspaceRequests(t *testing.T) {
 			}
 			if st.check != nil {
 				st.check(t, res)
+			}
+		})
+	}
+}
+
+// TestServerPlanRailWidth gives every rail a plan carries the configured
+// width, and the lead the share that width leaves: the team layout's, the one
+// a workspace that always carries the rail puts in front of its layout, and one
+// a custom layout places itself.
+func TestServerPlanRailWidth(t *testing.T) {
+	custom := config.Layout{Panes: []config.Pane{{Role: "claude"}, {Role: "agents", Split: "right", Size: 30}}}
+	cases := []struct {
+		name    string
+		sidebar string
+		width   int
+		req     CreateRequest
+		// wantRail is the width the plan gives its rail, and wantLead the
+		// share of the window the pane beside a rail the plan put in front
+		// keeps, zero where the plan put none there.
+		wantRail int
+		wantLead int
+	}{
+		{
+			name: "the team layout at the default width", sidebar: config.SidebarAuto, width: layout.RailWidth,
+			req: CreateRequest{Launch: LaunchOptions{Teams: true}, Width: 200}, wantRail: layout.RailWidth, wantLead: 86,
+		},
+		{
+			name: "the team layout at a wider rail", sidebar: config.SidebarAuto, width: 60,
+			req: CreateRequest{Launch: LaunchOptions{Teams: true}, Width: 200}, wantRail: 60, wantLead: 70,
+		},
+		{
+			name: "a workspace that always carries it", sidebar: config.SidebarAlways, width: 40,
+			req: CreateRequest{Layout: layout.Duo, Width: 200}, wantRail: 40, wantLead: 80,
+		},
+		{
+			name: "a custom layout that places its own", sidebar: config.SidebarAuto, width: 44,
+			req: CreateRequest{Layout: "watch", Width: 200}, wantRail: 44,
+		},
+		{
+			name: "a layout without a rail carries the width for none", sidebar: config.SidebarAuto, width: 44,
+			req: CreateRequest{Layout: layout.Duo, Width: 200}, wantRail: 44,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := config.Default()
+			cfg.UI.AgentsSidebar, cfg.UI.SidebarWidth = tc.sidebar, tc.width
+			cfg.Layouts = map[string]config.Layout{"watch": custom}
+			p, err := (&Server{Config: cfg}).plan(tc.req, "api")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if p.RailWidth != tc.wantRail {
+				t.Fatalf("the plan gives its rail %d cells, want %d", p.RailWidth, tc.wantRail)
+			}
+			if tc.wantLead == 0 {
+				return
+			}
+			if p.Panes[0].Role != layout.RoleAgents || p.Panes[1].Size != tc.wantLead {
+				t.Fatalf("the plan is %+v, want the rail first and the lead at %d%%", p.Panes, tc.wantLead)
+			}
+		})
+	}
+}
+
+// TestCreateOpensTheRailAtItsWidth reads ui.sidebar_width from the
+// configuration file and opens the rail a workspace starts with at it, on a
+// real server.
+func TestCreateOpensTheRailAtItsWidth(t *testing.T) {
+	cases := []struct {
+		name   string
+		config string
+		req    CreateRequest
+		want   int
+	}{
+		{
+			name: "the team layout with no width configured",
+			req:  CreateRequest{Launch: LaunchOptions{Teams: true}}, want: layout.RailWidth,
+		},
+		{
+			name: "the team layout at the configured width", config: "[ui]\nsidebar_width = 50\n",
+			req: CreateRequest{Launch: LaunchOptions{Teams: true}}, want: 50,
+		},
+		{
+			name: "a workspace that always carries it", config: "[ui]\nagents_sidebar = \"always\"\nsidebar_width = 36\n",
+			req: CreateRequest{Layout: layout.Duo}, want: 36,
+		},
+		{
+			name:   "a custom layout that places its own",
+			config: "[ui]\nsidebar_width = 44\n\n[layouts.watch]\npanes = [{ role = \"claude\" }, { role = \"agents\", split = \"right\", size = 30 }]\n",
+			req:    CreateRequest{Layout: "watch"}, want: 44,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newCreateEnv(t)
+			if tc.config != "" {
+				e.writeConfig(t, tc.config)
+			}
+			s := openServer(t, e.testHost)
+			req := tc.req
+			req.Dir, req.Name, req.Width, req.Height = e.project, "rail", 240, 60
+			if _, err := s.Create(tmuxtest.Context(t), e.Host, req); err != nil {
+				t.Fatal(err)
+			}
+			panes, err := s.Client.ListPanes(tmuxtest.Context(t), tmux.ExactSession("rail"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var rails []tmux.Pane
+			for _, p := range panes {
+				if p.Role == tmux.RoleAgents {
+					rails = append(rails, p)
+				}
+			}
+			if len(rails) != 1 || rails[0].Width != tc.want {
+				t.Fatalf("the rails are %+v, want one %d cells wide", rails, tc.want)
 			}
 		})
 	}

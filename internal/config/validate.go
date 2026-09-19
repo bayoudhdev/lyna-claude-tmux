@@ -11,6 +11,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/claudecfg"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/layout"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/review"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/session"
@@ -27,10 +28,12 @@ var choices = map[string][]string{
 	"ui.icons":               {"auto", "unicode", "nerd", "ascii"},
 	"ui.color":               {"auto", "truecolor", "256", "16"},
 	"ui.status_position":     {"top", "bottom"},
+	"ui.agents_sidebar":      {SidebarAuto, SidebarAlways, SidebarKey, SidebarOff},
 	"workspace.layout":       layout.Names(),
 	"claude.effort":          {"low", "medium", "high", "xhigh", "max", "ultracode"},
 	"claude.permission_mode": {"default", "manual", "acceptEdits", "plan", "auto", "dontAsk", "bypassPermissions"},
 	"claude.statusline":      {"auto", "lyna", "off"},
+	"claude.teammate_mode":   claudecfg.TeammateModes(),
 	"claude.worktree_base":   {"fresh", "head"},
 	"claude.workflow_size":   {"small", "medium", "large", "unrestricted"},
 	"sandbox.profile":        {"standard", "strict", "off"},
@@ -106,6 +109,10 @@ func (c Config) Validate() error {
 	v.choice("ui.icons", c.UI.Icons)
 	v.choice("ui.color", c.UI.Color)
 	v.choice("ui.status_position", c.UI.StatusPosition)
+	v.choice("ui.agents_sidebar", c.UI.AgentsSidebar)
+	if w := c.UI.SidebarWidth; w < layout.MinRailWidth || w > layout.MaxRailWidth {
+		v.add("ui.sidebar_width", "must be between %d and %d cells (got %d)", layout.MinRailWidth, layout.MaxRailWidth, w)
+	}
 
 	c.validateWorkspace(v)
 	c.validateClaude(v)
@@ -154,6 +161,9 @@ func (c Config) validateWorkspace(v *validator) {
 	if w.SplitRatio < 20 || w.SplitRatio > 80 {
 		v.add("workspace.split_ratio", "must be between 20 and 80 (got %d)", w.SplitRatio)
 	}
+	if w.AgentPanes < 0 || w.AgentPanes > layout.MaxAgentPanes {
+		v.add("workspace.agent_panes", "must be between 0 and %d (got %d)", layout.MaxAgentPanes, w.AgentPanes)
+	}
 	if w.HistoryLimit < 1000 || w.HistoryLimit > 2000000 {
 		v.add("workspace.history_limit", "must be between 1000 and 2000000 (got %d)", w.HistoryLimit)
 	}
@@ -177,6 +187,7 @@ func (c Config) validateClaude(v *validator) {
 	v.choice("claude.effort", cl.Effort)
 	v.choice("claude.permission_mode", cl.PermissionMode)
 	v.choice("claude.statusline", cl.Statusline)
+	v.choice("claude.teammate_mode", cl.TeammateMode)
 	v.choice("claude.worktree_base", cl.WorktreeBase)
 	v.choice("claude.workflow_size", cl.WorkflowSize)
 	v.paths("claude.add_dirs", cl.AddDirs)

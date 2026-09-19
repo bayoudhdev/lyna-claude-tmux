@@ -1,0 +1,44 @@
+# The rail while a team works: the agent of the workspace, the agents it runs
+# beside it, the shared task list, and one of their transcripts being read.
+#
+# This is the one scene that talks to the agent, because those rows only exist
+# once it has started something. Both agents are asked to read and report,
+# never to change a file.
+title lmux team
+size 140 38
+pre lmux kill --all
+pre rm -rf .devcontainer
+run lmux team . --nested
+wait 8
+frame 1.6
+type Start two agents in parallel: one describes internal/gateway in five lines, the other describes the README in five lines. Neither changes a file.
+enter
+wait 20
+frame 2.4
+film 3 1.4
+# The rail is open by now, with a row per agent. Focusing it gives the keys
+# below to the rail rather than to the agent.
+keys M-[
+wait 1.5
+frame 2
+# The shared task list of the team, and back to the rail.
+keys t
+wait 3
+frame 2.6
+keys q
+wait 1.4
+# The transcript of one of them: what it was asked, what it answered, and the
+# tools it called. The rows are the lead section, the lead, the agents section
+# and then the agents, so three moves land on the first of them.
+keys Down
+wait 0.5
+keys Down
+wait 0.5
+keys Down
+wait 0.8
+keys r
+wait 3.5
+frame 2.6
+keys q
+wait 1.4
+frame 2

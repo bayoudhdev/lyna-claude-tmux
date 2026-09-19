@@ -182,6 +182,48 @@ func TestBranchOption(t *testing.T) {
 	}
 }
 
+func TestAgentOption(t *testing.T) {
+	long := strings.Repeat("a", MaxAgentRunes)
+	cases := []struct {
+		name, in, want string
+	}{
+		{"a teammate name", "review-api", "review-api"},
+		{"a name with a hash", "fix/#12", "fix/##12"},
+		{"style markup escaped", "#[fg=red]x", "##[fg=red]x"},
+		{"controls removed", "a\x1b[31mb\x07c", "a[31mbc"},
+		{"exactly max", long, long},
+		{"a name longer than the border allows", long + "xyz", long + "..."},
+		{"no name", "", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := AgentOption(tc.in); got != tc.want {
+				t.Fatalf("AgentOption(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
+func FuzzAgentOption(f *testing.F) {
+	for _, s := range []string{"review-api", "#[x]", "\x1b]52;c;x\x07", strings.Repeat("#", 40)} {
+		f.Add(s)
+	}
+	f.Fuzz(func(t *testing.T, in string) {
+		got := AgentOption(in)
+		for _, r := range got {
+			if r < 0x20 || r == 0x7f || r >= 0x80 && r < 0xa0 {
+				t.Fatalf("control %U kept in %q", r, got)
+			}
+		}
+		if strings.Count(strings.ReplaceAll(got, "##", ""), "#") != 0 {
+			t.Fatalf("unpaired # in %q", got)
+		}
+		if n := len([]rune(strings.ReplaceAll(strings.TrimSuffix(got, "..."), "##", "#"))); n > MaxAgentRunes {
+			t.Fatalf("%d runes drawn, max %d", n, MaxAgentRunes)
+		}
+	})
+}
+
 func FuzzBranchOption(f *testing.F) {
 	for _, s := range []string{"main", "#[x]", "\x1b]52;c;x\x07", strings.Repeat("#", 40)} {
 		f.Add(s)

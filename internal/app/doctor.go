@@ -60,9 +60,15 @@ func DoctorRun(ctx context.Context, h Host, sys doctor.Deps, dir string, src Rev
 	sys.ClaudeHome = xdg.ClaudeHome(h.Getenv, h.Home)
 	sys.ClaudeMinVersion = claude.MinVersion.String()
 	sys.AltKeys = cfg.UI.AltKeys
+	sys.NoAgentsRail = !cfg.UI.RailKey()
 	sys.Prefix = cfg.Workspace.Prefix
 	sys.SandboxProfile = cfg.Sandbox.Profile
 	sys.Isolation = cfg.Sandbox.Isolation
+	sys.Teams = cfg.Claude.Teams
+	sys.TeammateMode = cfg.Claude.TeammateMode
+	if pathsErr == nil {
+		sys.LogFile = paths.LogFile()
+	}
 	sys.Home = h.Home
 	if dir != "" {
 		// Claude Code records trust for the directory it starts in, which for

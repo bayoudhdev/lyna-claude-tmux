@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-20
+
+### Added
+
+- Every teammate of an agent team opens as a pane of the workspace: labeled with its name, drawn with the workspace's own border and state, placed by a pane policy, and listed on the agents rail. `claude.teammate_mode` chooses this or one of the ways Claude Code opens teammates itself. A team never fails to start over this: if the launcher cannot be written or the pane cannot be taken over, the agent runs exactly where Claude Code put it and the reason goes to the diagnostic log.
+- The agents rail, a pane listing every agent the workspace can see, grouped into the lead, its teammates, the subagents they run and the agents of other workspaces on the server, each with its state, what it is running and the task it holds. It opens with the first teammate and closes with the last (`ui.agents_sidebar`), or with `Alt+A` and `A` after the prefix. Rows are redrawn on the hooks the agents fire, with a reading every ten seconds for what no hook reports, so an idle rail costs nothing.
+- `lmux spawn`, and `s` on the rail, start an agent from the workspace: the agent definitions the project and your own configuration offer, a model, an effort, a worktree of its own or the project directory, and a prompt. It either asks the lead, typing the exact sentence it showed you into the lead's pane, or opens a session of its own in a new window.
+- The `team` layout, the agents rail beside the lead with the room its teammates open into, which `lmux team` now opens by default.
+- `lmux message` and `lmux stop`, and `m` and `x` on the rail, steer a team without typing at the lead: a message is shown exactly as it will be typed before it is sent, and a teammate is stopped by asking its lead or, after its name is typed out, by closing its pane. Each checks the agent again when the form opens and again before it acts, so a pane that changed hands in between is left alone.
+- `lmux transcript`, and `r` on the rail, follow what an agent is writing, a subagent of a pane included, and `lmux tasks`, `t` on the rail, shows the shared task list with what each task is blocked by. The footer of the rail counts the list and what the agents of the workspace have spent between them, read from the transcripts Claude Code writes.
+- `workspace.agent_panes` (how many teammates share the lead's window before the next one opens as a window of its own), `ui.agents_sidebar` (when the rail is on screen, `off` installing no key for it at all), `ui.sidebar_width` (how wide the rail opens, 20 to 60 cells) and `claude.agent_worktree` (the answer the spawn form starts the worktree question on).
+- `lmux doctor` reports how teammates open: whether teams are on, whether the workspace opens them in panes of its own, and how the last teammate actually opened, read from the line the launcher wrote for it.
+- [docs/agents.md](docs/agents.md), how a team runs in the workspace, with every key and every configuration key.
+
+### Fixed
+
+- Text typed into an agent's pane is folded onto one line with every control sequence removed. A prompt carrying the end of a bracketed paste would have had the rest of it read as key presses.
+- The configuration reference documented neither `claude.teammate_mode` nor `workspace.agent_panes`, and the template it printed was no longer the file `lmux config init` writes. Tests now hold the reference to the configuration: a row for every key the file takes, every accepted value named, and the template byte for byte.
+- A window that still holds the rail or another teammate is arranged for the agents that stay when one of them moves to a window of its own. It was given back the arrangement it had with no agent in it, which no longer fits its panes, so the window kept the agent's own layout and the teammate was reported as unplaced although its pane had moved.
+- The teammate launcher hands lyna-tmux the pane's server in a variable of its own and starts it with `TMUX` cleared, putting it back for the agent. A terminal library reads `TMUX` while the process starts and asks that server what colors it supports, which on a team Claude Code opened on a server of its own was a command sent to a server lyna-tmux did not create.
+- `lmux review` reports a download stopped part way as the cancelation it was, instead of as a file whose checksum does not match the pinned release. A server that stops writing when it sees the request canceled ends the body cleanly, so the bytes that did arrive were read as the whole file.
+
 ## [1.0.1] - 2026-09-17
 
 ### Added
@@ -49,6 +71,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Release archives for Linux and macOS (amd64, arm64) with shell completions and a man page, deb, rpm and apk packages, SPDX SBOMs, checksums and build provenance attestations.
 - `scripts/bench.sh` start-up benchmarks.
 
-[Unreleased]: https://github.com/bayoudhdev/lyna-claude-tmux/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/bayoudhdev/lyna-claude-tmux/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/bayoudhdev/lyna-claude-tmux/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/bayoudhdev/lyna-claude-tmux/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/bayoudhdev/lyna-claude-tmux/releases/tag/v1.0.0

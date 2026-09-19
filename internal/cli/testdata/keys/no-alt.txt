@@ -17,6 +17,7 @@ After the prefix Ctrl+b
     w               Sessions and windows
   TOOLS
     a               Agents
+    A               Agents rail
     g               Review changes
     S               Scratch shell
     Space           Menu
