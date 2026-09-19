@@ -315,6 +315,30 @@ for step in ${steps[@]+"${steps[@]}"}; do
 done
 tmux -L "$socket" kill-server >/dev/null 2>&1 || true
 
+# A scene that captured the command line's own error banner is a scene that no
+# longer matches the tool it records, and the picture would ship the error
+# instead of the screen. The frames are read before anything is drawn, so such
+# a scene fails here rather than in the documentation.
+if ! bad=$(python3 - "$work"/frames/*.ansi <<'PY'
+import pathlib
+import re
+import sys
+
+# The same escapes the redaction strips: what is left is what the screen says.
+escape = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b.")
+bad = []
+for path in sys.argv[1:]:
+    text = escape.sub("", pathlib.Path(path).read_text("utf-8", "replace"))
+    if any(line.strip() == "ERROR" for line in text.splitlines()):
+        bad.append(pathlib.Path(path).name)
+if bad:
+    print(", ".join(bad))
+    sys.exit(1)
+PY
+); then
+  fail "the command failed on screen in $bad: the scene no longer matches the tool it records"
+fi
+
 # ------------------------------------------------------------------ rendering
 
 # Chrome starts once per frame, so frames render in batches rather than one

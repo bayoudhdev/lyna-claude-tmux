@@ -7,7 +7,7 @@ pre lmux kill --all
 pre git config log.excludeDecoration refs/heads/worktree-*
 pre rm -rf .devcontainer
 pre lmux create . --layout solo --detach
-run lmux create .
+run lmux create . --nested
 wait 4
 frame 1.6
 keys M-\

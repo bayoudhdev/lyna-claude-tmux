@@ -5,7 +5,7 @@ title s on the rail starts an agent
 size 120 34
 pre lmux kill --all
 pre rm -rf .devcontainer
-run lmux create . --layout duo
+run lmux create . --layout duo --nested
 wait 6
 keys M-A
 wait 2.5

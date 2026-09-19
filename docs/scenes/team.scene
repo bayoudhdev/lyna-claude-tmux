@@ -8,7 +8,7 @@ title lmux team
 size 140 38
 pre lmux kill --all
 pre rm -rf .devcontainer
-run lmux team .
+run lmux team . --nested
 wait 8
 frame 1.6
 type Open two teammates: name the first api-review, ask it to describe internal/gateway, and name the second docs-pass, ask it to describe the README. Do not change any file.

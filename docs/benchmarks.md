@@ -1,8 +1,14 @@
-Measured with hyperfine 1.20.0 on Darwin arm64, go1.27.1, lyna-tmux dev (none 2026-09-16T03:12:33Z) darwin/arm64.
+Measured with hyperfine 1.20.0 on Darwin arm64, go1.27.1, lmux v1.1.0 (f40f7e9 2026-09-19T21:20:26Z) darwin/arm64.
 
 | Command | Mean [ms] | Min [ms] | Max [ms] | User [ms] | System [ms] | Relative |
 |:---|---:|---:|---:|---:|---:|---:|
-| `go hello world` | 2.6 ± 0.2 | 2.1 | 3.2 | 1.1 | 1.0 | 1.00 |
-| `lmux version` | 6.4 ± 0.3 | 5.5 | 7.5 | 3.4 | 2.3 | 2.43 |
-| `lmux hook Stop` | 6.4 ± 0.3 | 5.5 | 8.0 | 3.4 | 2.3 | 2.43 |
-| `lmux statusline` | 6.7 ± 0.6 | 5.6 | 13.7 | 3.6 | 2.4 | 2.56 |
+| `go hello world` | 2.2 ± 0.2 | 1.9 | 3.0 | 1.0 | 0.9 | 1.00 |
+| `lmux version` | 5.9 ± 0.5 | 5.2 | 7.8 | 3.4 | 2.0 | 2.62 |
+| `lmux hook Stop` | 5.6 ± 0.3 | 5.1 | 6.8 | 3.3 | 1.9 | 2.51 |
+| `lmux statusline` | 5.7 ± 0.3 | 5.3 | 7.8 | 3.3 | 1.9 | 2.55 |
+
+| Inside a workspace | Mean [ms] |
+|:---|---:|
+| `agents rail redraw, 40 agents` | 0.3 |
+| `agents rail, one reading` | 0.3 |
+| `teammate pane taken over` | 24.7 |

@@ -311,6 +311,57 @@ frame 1.5
 // TestRecordRedacts covers what keeps a recording made in a real account
 // publishable: the captured screen is rewritten before it is drawn, so the
 // image cannot hold what the rule replaced.
+// TestRecordRefusesAnErrorScreen holds the recorder to what it captured: a
+// frame showing the command line's own error banner ends the recording, and a
+// line that merely carries the word does not.
+func TestRecordRefusesAnErrorScreen(t *testing.T) {
+	cases := []struct {
+		name string
+		// print is the shell the recorded command runs, and wantExit what the
+		// recorder does with the screen it drew.
+		print    string
+		wantExit int
+		wantErr  string
+	}{
+		{
+			name: "the command failed",
+			// The banner as the command line draws it: the word alone on its
+			// line, in a badge, with the message under it.
+			print:    `printf '\n       \033[1;41m ERROR \033[0m\n       the workspace name is taken\n'`,
+			wantExit: 1,
+			wantErr:  "the command failed on screen in 0001.ansi",
+		},
+		{
+			name:  "a line that carries the word",
+			print: `printf 'ERROR rate limited, retrying\n'`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newRecordEnv(t)
+			writeExecutable(t, filepath.Join(e.bin, "scene-command"), "#!/bin/sh\n"+tc.print+"\n")
+			scene := e.scene(t, `title A recorded scene
+size 44 8
+run scene-command
+wait 0.4
+frame 0.5
+`)
+			still := filepath.Join(e.dir, "assets", "demo.png")
+			stdout, stderr, exit := runRecord(t, e.env(t), "--scene", scene, "--still", still)
+			if exit != tc.wantExit || !strings.Contains(stderr, tc.wantErr) {
+				t.Fatalf("exit %d (want %d)\nstdout:\n%s\nstderr:\n%s", exit, tc.wantExit, stdout, stderr)
+			}
+			_, err := os.Stat(still)
+			if tc.wantExit == 0 && err != nil {
+				t.Fatalf("no picture was written: %v", err)
+			}
+			if tc.wantExit != 0 && err == nil {
+				t.Fatal("a picture was written for a screen that shows a failure")
+			}
+		})
+	}
+}
+
 func TestRecordRedacts(t *testing.T) {
 	cases := []struct {
 		name   string
