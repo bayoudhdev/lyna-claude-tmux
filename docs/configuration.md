@@ -170,6 +170,7 @@ How Claude Code is launched in managed panes.
 | `worktree_base` | string | `fresh`, `head`, or `""` | `""` | Written as `worktree.baseRef` in the per-launch settings: `fresh` bases new worktrees on the origin default branch, `head` on the current `HEAD`. Empty leaves the setting out. |
 | `workflow_size` | string | `small`, `medium`, `large`, `unrestricted`, or `""` | `""` | Size guideline written into the per-launch settings for dynamic workflows. Empty leaves it out. |
 | `bell` | boolean | `true`, `false` | `true` | Rings the terminal bell when Claude finishes or needs you, and turns tmux `monitor-bell` on so the window tab marks it. |
+| `agent_worktree` | boolean | `true`, `false` | `false` | The answer the spawn form (`lmux spawn`, `s` on the agents rail) starts the worktree question on. Off, an agent started from the workspace works in the project directory; on, it gets a git worktree and a branch of its own. |
 | `add_dirs` | list of paths | absolute, or starting with `~/` | none | One `--add-dir=` per entry, with `~/` expanded. |
 | `mcp_config` | list of paths | absolute, or starting with `~/` | none | One `--mcp-config=` per entry, with `~/` expanded. |
 | `plugin_dirs` | list of paths | absolute, or starting with `~/` | none | One `--plugin-dir=` per entry, with `~/` expanded. |
@@ -319,6 +320,9 @@ worktree_base = ""
 workflow_size = ""
 # Ring the terminal bell when Claude finishes or needs you.
 bell = true
+# Give an agent started from the workspace a git worktree of its own, rather
+# than the project directory. The spawn form starts on this answer.
+agent_worktree = false
 # add_dirs = ["~/src/shared-lib"]
 # mcp_config = ["~/.config/mcp/servers.json"]
 # plugin_dirs = ["~/src/my-plugins"]

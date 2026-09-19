@@ -78,6 +78,9 @@ worktree_base = ""
 workflow_size = ""
 # Ring the terminal bell when Claude finishes or needs you.
 bell = true
+# Give an agent started from the workspace a git worktree of its own, rather
+# than the project directory. The spawn form starts on this answer.
+agent_worktree = false
 # add_dirs = ["~/src/shared-lib"]
 # mcp_config = ["~/.config/mcp/servers.json"]
 # plugin_dirs = ["~/src/my-plugins"]

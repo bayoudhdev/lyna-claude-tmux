@@ -71,9 +71,13 @@ type Claude struct {
 	WorktreeBase   string   `toml:"worktree_base"`
 	WorkflowSize   string   `toml:"workflow_size"`
 	Bell           bool     `toml:"bell"`
-	AddDirs        []string `toml:"add_dirs,omitempty"`
-	MCPConfig      []string `toml:"mcp_config,omitempty"`
-	PluginDirs     []string `toml:"plugin_dirs,omitempty"`
+	// AgentWorktree is the answer the spawn form starts the worktree question
+	// on. Off, agents work in the project directory the way the agent runs
+	// them itself, and a worktree of their own is something you ask for.
+	AgentWorktree bool     `toml:"agent_worktree"`
+	AddDirs       []string `toml:"add_dirs,omitempty"`
+	MCPConfig     []string `toml:"mcp_config,omitempty"`
+	PluginDirs    []string `toml:"plugin_dirs,omitempty"`
 }
 
 // Sandbox selects the sandbox profile, the isolation level and user additions
