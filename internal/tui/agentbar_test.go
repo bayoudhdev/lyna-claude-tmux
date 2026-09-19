@@ -240,6 +240,55 @@ func TestAgentBarKeys(t *testing.T) {
 	}
 }
 
+// TestAgentBarSpawns covers the key that asks for one more agent: it belongs
+// to the workspace, so it works wherever the cursor is, and a rail that was
+// given no way to start one does nothing with it.
+func TestAgentBarSpawns(t *testing.T) {
+	cases := []struct {
+		name  string
+		msgs  []tea.Msg
+		offer bool
+		want  int
+	}{
+		{name: "on a section", msgs: []tea.Msg{press("s")}, offer: true, want: 1},
+		{name: "on an agent", msgs: []tea.Msg{press("down"), press("s")}, offer: true, want: 1},
+		{name: "a rail that starts nothing", msgs: []tea.Msg{press("s")}},
+		{name: "typed into the filter", msgs: []tea.Msg{press("/"), press("s")}, offer: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			asked := 0
+			opts := AgentBarOptions{Width: 30, Height: 20}
+			if tc.offer {
+				opts.Actions.Spawn = func() tea.Cmd { asked++; return nil }
+			}
+			m := newBar(t, opts, barView())
+			drive(t, m, nil, tc.msgs...)
+			if asked != tc.want {
+				t.Fatalf("the form was asked for %d times, want %d", asked, tc.want)
+			}
+		})
+	}
+}
+
+// TestAgentBarOffersSpawn checks the footer: a rail wide enough to draw its
+// keys offers the one that starts an agent, and only when it has one.
+func TestAgentBarOffersSpawn(t *testing.T) {
+	for _, offer := range []bool{true, false} {
+		t.Run(map[bool]string{true: "with a way to start one", false: "without"}[offer], func(t *testing.T) {
+			opts := AgentBarOptions{Width: 72, Height: 20}
+			if offer {
+				opts.Actions.Spawn = func() tea.Cmd { return nil }
+			}
+			m := newBar(t, opts, barView())
+			drive(t, m, nil)
+			if got := strings.Contains(plain(m), "spawn"); got != offer {
+				t.Fatalf("the footer offers spawn %v, want %v:\n%s", got, offer, plain(m))
+			}
+		})
+	}
+}
+
 // TestAgentBarMouse drives the pointer: a click selects the line under it, a
 // double click on an agent focuses its pane and one on a section folds it.
 func TestAgentBarMouse(t *testing.T) {

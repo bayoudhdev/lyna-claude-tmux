@@ -34,6 +34,10 @@ type AgentBarActions struct {
 	Focus  func(row team.Row) tea.Cmd
 	Zoom   func(row team.Row) tea.Cmd
 	Window func(row team.Row) tea.Cmd
+	// Spawn asks for a new agent. It belongs to the workspace rather than to a
+	// row: an agent is started whether or not one is selected, and a rail that
+	// is itself a popup has none, since a popup would close itself opening it.
+	Spawn func() tea.Cmd
 }
 
 // AgentBarOptions configure the agents rail.
@@ -108,7 +112,7 @@ type barItem struct {
 // agentBarKeys are the keys of the rail beyond the movement it shares with
 // the other list views.
 type agentBarKeys struct {
-	Focus, Zoom, Window, Fold, Filter, Quit key.Binding
+	Focus, Zoom, Window, Spawn, Fold, Filter, Quit key.Binding
 }
 
 // AgentBarModel is the agents rail: every agent of the workspace, grouped,
@@ -179,6 +183,7 @@ func NewAgentBar(opts AgentBarOptions) *AgentBarModel {
 			Focus:  key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "focus")),
 			Zoom:   key.NewBinding(key.WithKeys("z"), key.WithHelp("z", "zoom")),
 			Window: key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "window")),
+			Spawn:  key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "spawn")),
 			Fold:   key.NewBinding(key.WithKeys(" ", "space"), key.WithHelp("space", "fold")),
 			Filter: key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
 			Quit:   key.NewBinding(key.WithKeys("q", "esc"), key.WithHelp("q", "close")),
@@ -478,6 +483,11 @@ func (m *AgentBarModel) key(msg tea.KeyPressMsg) tea.Cmd {
 		return m.act(m.opts.Actions.Zoom)
 	case key.Matches(msg, m.keys.Window):
 		return m.act(m.opts.Actions.Window)
+	case key.Matches(msg, m.keys.Spawn):
+		if m.opts.Actions.Spawn == nil {
+			return nil
+		}
+		return m.opts.Actions.Spawn()
 	}
 	return nil
 }
@@ -843,6 +853,9 @@ func (m *AgentBarModel) helpKeys() []key.Binding {
 		if m.opts.Actions.Window != nil {
 			keys = append(keys, m.keys.Window)
 		}
+	}
+	if m.opts.Actions.Spawn != nil {
+		keys = append(keys, m.keys.Spawn)
 	}
 	if m.opts.Popup {
 		keys = append(keys, m.keys.Quit)

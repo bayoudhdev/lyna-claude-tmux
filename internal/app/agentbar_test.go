@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -241,6 +242,75 @@ func TestAgentBarActs(t *testing.T) {
 	}
 	if got, err := s.Client.Display(ctx, scene.window, "#{window_layout}"); err != nil || got != scene.remembered {
 		t.Fatalf("the window it left is %q, %v; want %q", got, err, scene.remembered)
+	}
+}
+
+// TestAgentBarSpawnAction covers which rail offers to start an agent: a rail
+// drawn in a pane of the workspace opens the form in a popup over itself, and
+// no other rail does.
+func TestAgentBarSpawnAction(t *testing.T) {
+	cases := []struct {
+		name  string
+		popup bool
+		// where is the server the rail runs in: ours, one of the user's own,
+		// or none, for a rail following the workspace from outside tmux.
+		where string
+		noExe bool
+		want  bool
+	}{
+		{name: "a rail in a pane of the workspace", where: "ours", want: true},
+		{name: "a rail that is itself a popup", popup: true, where: "ours"},
+		{name: "a rail on a tmux server of the user's own", where: "theirs"},
+		{name: "a rail following the workspace from outside", where: "none"},
+		{name: "a rail with no binary to run", where: "ours", noExe: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newTestHost(t)
+			// The scene leaves the host in a pane of the workspace.
+			openTeammateScene(t, h, openServer(t, h), 240, 60)
+			switch tc.where {
+			case "theirs":
+				// A server of the user's own, running a session named like
+				// the workspace on ours.
+				theirs := tmuxtest.Start(t)
+				ctx := tmuxtest.Context(t)
+				if _, err := theirs.Client.Run(ctx, "new-session", "-d", "-s", "api", "sleep 3600"); err != nil {
+					t.Fatal(err)
+				}
+				pane, err := theirs.Client.Display(ctx, tmux.ExactSession("api"), "#{pane_id}")
+				if err != nil {
+					t.Fatal(err)
+				}
+				h.env["TMUX"], h.env["TMUX_PANE"] = tmuxtest.SocketPath(theirs.Name)+",1,0", pane
+			case "none":
+				h.env["TMUX"], h.env["TMUX_PANE"] = "", ""
+			}
+			if tc.noExe {
+				h.Exe = ""
+			}
+			h.refreshEnviron()
+			view, err := OpenAgentBar(tmuxtest.Context(t), h.Host, AgentBarRequest{Session: "api", Popup: tc.popup})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := view.Options.Actions.Spawn != nil; got != tc.want {
+				t.Fatalf("the rail offers to start an agent %v, want %v", got, tc.want)
+			}
+		})
+	}
+	// The popup runs our own binary over the rail's own pane, for the
+	// workspace the rail follows, and stays on screen when the spawn fails.
+	cmd, err := (&agentBar{session: "api", exe: "/opt/lmux", pane: "%4"}).spawnPopup()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := tmux.Command{
+		"display-popup", "-t", "%4", "-E", "-E", "-w", agentBarSpawnWidth, "-h", agentBarSpawnHeight,
+		"-T", " spawn ", "--", "/opt/lmux", "spawn", "--session", "api",
+	}
+	if !slices.Equal(cmd, want) {
+		t.Fatalf("the popup is\n%q\nwant\n%q", cmd, want)
 	}
 }
 

@@ -118,6 +118,9 @@ func OpenAgentBar(ctx context.Context, h Host, req AgentBarRequest) (AgentBarVie
 		return AgentBarView{}, err
 	}
 	bar := &agentBar{client: client, session: name, claudeHome: claudes, inside: inside}
+	if agentBarSpawns(h, req, target) {
+		bar.exe, bar.pane = h.Exe, target
+	}
 	return AgentBarView{
 		Options: tui.AgentBarOptions{
 			Styles:         tui.NewStyles(look),
@@ -128,6 +131,22 @@ func OpenAgentBar(ctx context.Context, h Host, req AgentBarRequest) (AgentBarVie
 		Read:   bar.read,
 		Signal: watch.TmuxAgentsSignal(client, target),
 	}, nil
+}
+
+// agentBarSpawns reports a rail that offers to start an agent.
+//
+// The form opens in a popup over the rail's own pane and starts the agent in
+// the workspace of that name on the lyna-tmux server, so the rail has to be a
+// pane of that server: on a server of the user's own, a session of the same
+// name on ours is a different workspace. A rail that is itself a popup has
+// no pane to open the form over, and a display-popup run from inside a popup
+// replaces that popup rather than opening another.
+func agentBarSpawns(h Host, req AgentBarRequest, target string) bool {
+	if req.Popup || h.Exe == "" || !tmux.ValidPaneID(target) {
+		return false
+	}
+	name, err := serverSocketName(h)
+	return err == nil && insideServer(h, name)
 }
 
 // agentBarEnviron is the environment the rail's tmux commands run with: the
@@ -151,6 +170,9 @@ type agentBar struct {
 	// inside reports a rail running in a pane of the server it reads, where a
 	// jump switches the client it runs on.
 	inside bool
+	// exe is the lyna-tmux binary the spawn popup runs and pane the pane it is
+	// drawn over. Both are empty for a rail that opens no popup.
+	exe, pane string
 }
 
 // read takes one reading: the panes of the server, and the team Claude Code
@@ -203,13 +225,56 @@ func agentBarTeam(in team.Input) string {
 	return ""
 }
 
-// actions are what the rail's keys do to an agent.
+// actions are what the rail's keys do to an agent, and what the workspace
+// does when the rail asks for one more.
 func (b *agentBar) actions() tui.AgentBarActions {
-	return tui.AgentBarActions{
+	a := tui.AgentBarActions{
 		Focus:  b.focus,
 		Zoom:   b.zoom,
 		Window: b.window,
 	}
+	if b.exe != "" && b.pane != "" {
+		a.Spawn = b.spawn
+	}
+	return a
+}
+
+// Size of the spawn popup the rail opens, as tmux reads it.
+const (
+	agentBarSpawnWidth  = "80%"
+	agentBarSpawnHeight = "80%"
+)
+
+// popupSpawnTitle is drawn on the border of the spawn popup.
+const popupSpawnTitle = "spawn"
+
+// spawn opens the form that starts an agent, in a popup over the rail.
+//
+// The command runs with no deadline of its own: display-popup returns when the
+// popup closes, and the form is open for as long as the user is answering it.
+// It ends with the rail, which is the process it runs in.
+func (b *agentBar) spawn() tea.Cmd {
+	return func() tea.Msg {
+		cmd, err := b.spawnPopup()
+		if err != nil {
+			return tui.AgentBarNote(err.Error())
+		}
+		if _, err := b.client.Batch(context.Background(), cmd); err != nil {
+			return tui.AgentBarNote(err.Error())
+		}
+		return nil
+	}
+}
+
+// spawnPopup is the popup the rail opens: our own binary, asking for an agent
+// of the workspace the rail follows, drawn over the rail's own pane. A spawn
+// that fails keeps the popup open, since the error it printed is the only
+// place the failure is reported.
+func (b *agentBar) spawnPopup() (tmux.Command, error) {
+	return tmux.PopupSpec{
+		Pane: b.pane, Width: agentBarSpawnWidth, Height: agentBarSpawnHeight, Title: popupSpawnTitle,
+		Argv: []string{b.exe, "spawn", "--session", b.session}, KeepOnFailure: true,
+	}.Command()
 }
 
 // focus brings the client to the agent's pane.

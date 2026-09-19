@@ -68,11 +68,9 @@ func OpenServer(ctx context.Context, h Host) (*Server, error) {
 	if !v.Supported() {
 		return nil, fmt.Errorf("%w: found %s, lyna-tmux needs %d.%d or newer", ErrTmuxTooOld, v, tmux.MinMajor, tmux.MinMinor)
 	}
-	socket := h.Getenv(session.EnvSocketName)
-	if socket == "" {
-		socket = tmux.DefaultSocketName
-	} else if err := session.Validate(socket); err != nil {
-		return nil, fmt.Errorf("%s: %w", session.EnvSocketName, err)
+	socket, err := serverSocketName(h)
+	if err != nil {
+		return nil, err
 	}
 	opts, err := confOptions(cfg, v, h, paths)
 	if err != nil {
@@ -90,6 +88,19 @@ func OpenServer(ctx context.Context, h Host) (*Server, error) {
 		Version:     v,
 		Fingerprint: tmux.ConfFingerprint(conf),
 	}, nil
+}
+
+// serverSocketName is the -L name of the lyna-tmux server: the one the
+// environment names, or the default.
+func serverSocketName(h Host) (string, error) {
+	socket := h.Getenv(session.EnvSocketName)
+	if socket == "" {
+		return tmux.DefaultSocketName, nil
+	}
+	if err := session.Validate(socket); err != nil {
+		return "", fmt.Errorf("%s: %w", session.EnvSocketName, err)
+	}
+	return socket, nil
 }
 
 // LoadConfig resolves the lyna-tmux directories and loads the configuration
