@@ -5,12 +5,15 @@
 # a PNG of its last frame, so a page can show either. The recordings run
 # against a real project, with the real binary: build it first, or pass --bin.
 #
-# The home directory of whoever records is never in the result: every capture
-# has it rewritten to a neutral one before it is drawn. A scene whose first
-# lines contain "# fixtures: off" runs without the fixture binaries on PATH.
+# Nothing that names whoever records reaches the result: the home directory,
+# the account name and the address git commits under are rewritten to neutral
+# ones of the same length before a capture is drawn, and --redact takes
+# anything else that must go. A scene whose first lines contain
+# "# fixtures: off" runs without the fixture binaries on PATH.
 #
 # Usage: scripts/record-docs.sh --project DIR [--bin PATH] [--assets DIR]
-#                               [--home NAME] [--only NAME]... [--dry-run]
+#                               [--home NAME] [--redact FROM=TO]...
+#                               [--only NAME]... [--dry-run]
 set -euo pipefail
 
 fail() {
@@ -25,7 +28,7 @@ usage_error() {
 }
 
 usage() {
-  sed -n '2,13p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,15p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -38,10 +41,11 @@ scenes=$root/docs/scenes
 record=$here/record.sh
 demo_home=""
 only=()
+extra_redactions=()
 dry_run=0
 while (($# > 0)); do
   case $1 in
-  --project | --bin | --assets | --scenes | --record | --only | --home)
+  --project | --bin | --assets | --scenes | --record | --only | --home | --redact)
     (($# >= 2)) || usage_error "$1 needs a value"
     case $1 in
     --project) project=$2 ;;
@@ -51,6 +55,10 @@ while (($# > 0)); do
     --record) record=$2 ;;
     --only) only+=("$2") ;;
     --home) demo_home=$2 ;;
+    --redact)
+      [[ $2 == *=* ]] || usage_error "--redact takes FROM=TO"
+      extra_redactions+=(--redact "$2")
+      ;;
     esac
     shift 2
     ;;
@@ -75,7 +83,7 @@ if [[ -n $bin ]]; then
   PATH=$(cd "$(dirname "$bin")" && pwd):$PATH
   export PATH
 fi
-command -v lyna-tmux >/dev/null 2>&1 || fail "lyna-tmux is not on PATH; build it or pass --bin"
+command -v lmux >/dev/null 2>&1 || fail "lmux is not on PATH; build it or pass --bin"
 
 # The fixtures answer for a machine that is not the recorder's; each one is
 # inert unless the scene that needs it asks, so this is safe for every scene.
@@ -128,11 +136,35 @@ demo_dir=$(dirname "$HOME")/$demo_home
 # parent is rewritten rather than the project, so a scene that lists a sibling
 # project reads the same way. Rules are applied longest first, so this one wins
 # over the home directory it starts with.
+# neutral_like is a replacement for text that must not be published, as long
+# as the text itself: a screen is laid out in columns, and a shorter or longer
+# replacement would pull every status bar and box border out of line.
+neutral_like() {
+  local want=${#1} out=$2
+  while ((${#out} < want)); do out+=x; done
+  printf '%s' "${out:0:want}"
+}
+
 redact=(
   --redact "$(dirname "$project")=$demo_dir/src"
   --redact "$HOME=$demo_dir"
   --redact "$account=$demo_home"
 )
+
+# The address git commits under is on screen wherever a recording shows a
+# commit or a status line that names one, and it is the recorder's own. Every
+# address git would use is rewritten, the repository's over the global one.
+for address in \
+  "$(git -C "$project" config --get user.email 2>/dev/null || true)" \
+  "${GIT_AUTHOR_EMAIL-}" "${GIT_COMMITTER_EMAIL-}" "${EMAIL-}"; do
+  [[ -n $address && $address != *=* ]] || continue
+  case " ${redact[*]} " in
+  *" --redact $address="*) continue ;;
+  esac
+  redact+=(--redact "$address=$(neutral_like "$address" dev@example.com)")
+done
+
+redact+=(${extra_redactions[@]+"${extra_redactions[@]}"})
 
 # wanted is true when the scene was asked for, or when none was.
 wanted() {

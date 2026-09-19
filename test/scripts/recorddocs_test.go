@@ -35,7 +35,7 @@ echo "record $* cwd=$PWD path=$PATH shell=$SHELL" >> "$DOCS_LOG"
 `
 
 const fakeLyna = `#!/bin/sh
-echo "lyna-tmux $*" >> "$DOCS_LOG"
+echo "lmux $*" >> "$DOCS_LOG"
 `
 
 type docsEnv struct {
@@ -63,7 +63,7 @@ func newDocsEnv(t *testing.T, scenes map[string]string) docsEnv {
 		}
 	}
 	writeExecutable(t, e.record, fakeRecord)
-	writeExecutable(t, filepath.Join(e.bin, "lyna-tmux"), fakeLyna)
+	writeExecutable(t, filepath.Join(e.bin, "lmux"), fakeLyna)
 	for name, body := range scenes {
 		if err := os.WriteFile(filepath.Join(e.scenes, name+".scene"), []byte(body), 0o644); err != nil {
 			t.Fatal(err)
@@ -236,6 +236,67 @@ func TestRecordDocsRedactsTheAccount(t *testing.T) {
 	}
 }
 
+// TestRecordDocsRedactsTheAddress pins the other half of that promise: the
+// address git commits under is on screen wherever a recording shows a commit,
+// and it is the recorder's own.
+func TestRecordDocsRedactsTheAddress(t *testing.T) {
+	const address = "someone@example.invalid"
+	cases := []struct {
+		name     string
+		env      []string
+		args     []string
+		want     []string
+		wantErr  string
+		wantExit int
+	}{
+		{
+			name: "the address git would commit under is rewritten",
+			env:  []string{"GIT_AUTHOR_EMAIL=" + address},
+			want: []string{"--redact " + address + "=dev@example.comxxxxxxxx"},
+		},
+		{
+			name: "every address git reads is rewritten once",
+			env:  []string{"GIT_AUTHOR_EMAIL=" + address, "GIT_COMMITTER_EMAIL=" + address, "EMAIL=other@example.invalid"},
+			want: []string{"--redact " + address + "=", "--redact other@example.invalid="},
+		},
+		{
+			name: "anything else the recorder names goes too",
+			args: []string{"--redact", "acme-internal=demo-project"},
+			want: []string{"--redact acme-internal=demo-project"},
+		},
+		{
+			name:     "a redaction that is not a pair is refused",
+			args:     []string{"--redact", "acme-internal"},
+			wantErr:  "--redact takes FROM=TO",
+			wantExit: 2,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newDocsEnv(t, map[string]string{"doctor": "frames: 1\n"})
+			_, stderr, exit := runRecordDocs(t, append(e.env(), tc.env...), e.args(tc.args...)...)
+			if exit != tc.wantExit {
+				t.Fatalf("exit %d, want %d\nstderr:\n%s", exit, tc.wantExit, stderr)
+			}
+			if tc.wantExit != 0 {
+				if !strings.Contains(stderr, tc.wantErr) {
+					t.Fatalf("stderr does not report %q:\n%s", tc.wantErr, stderr)
+				}
+				return
+			}
+			log := string(mustRead(t, e.log))
+			for _, want := range tc.want {
+				if !strings.Contains(log, want) {
+					t.Fatalf("the recorder was not called with %q:\n%s", want, log)
+				}
+			}
+			if strings.Count(log, "--redact "+address+"=") > 1 {
+				t.Fatalf("%s is rewritten more than once:\n%s", address, log)
+			}
+		})
+	}
+}
+
 // TestRecordDocsFixtures pins which scenes see the fixture binaries: they
 // answer for every scene by default, and a scene that prints the path of a
 // real installation opts out of them.
@@ -324,13 +385,13 @@ func TestRecordDocsArguments(t *testing.T) {
 		},
 		{name: "no scene matches", args: []string{"--only", "nothing"}, wantExit: 1, wantErr: "no scene matched"},
 		{name: "a dry run records nothing", args: []string{"--dry-run"}, wantOut: "split: 6 frames"},
-		{name: "lyna-tmux must be on PATH", noLyna: true, wantExit: 1, wantErr: "lyna-tmux is not on PATH"},
+		{name: "the binary must be on PATH", noLyna: true, wantExit: 1, wantErr: "lmux is not on PATH"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			e := newDocsEnv(t, map[string]string{"doctor": "frames: 1\n", "split": "frames: 6\n"})
 			if tc.noLyna {
-				if err := os.Remove(filepath.Join(e.bin, "lyna-tmux")); err != nil {
+				if err := os.Remove(filepath.Join(e.bin, "lmux")); err != nil {
 					t.Fatal(err)
 				}
 			}
