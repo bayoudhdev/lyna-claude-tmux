@@ -86,11 +86,21 @@ func TestTasksReadsTheTeam(t *testing.T) {
 		t.Fatal("the list asked for as a popup does not close like one")
 	}
 	tasksDir := filepath.Join(h.root, ".claude", "tasks", "session-8f3c1d2a")
+	aside := tasksDir + " aside"
 	// The steps below take the directory away and give it back, so the list is
-	// read as unreadable over more than one reading. The directory is put back
-	// when the whole test ends, not when the step that took it away does, or
-	// the step after it would read a list that is there again.
-	t.Cleanup(func() { _ = os.Chmod(tasksDir, 0o700) })
+	// read as unreadable over more than one reading. It is taken away by
+	// putting a file where the directory was rather than by taking the
+	// permission off it: root reads a directory whatever its mode says, and
+	// the suite runs as root in a container. The directory is put back when
+	// the whole test ends, not when the step that took it away does, or the
+	// step after it would read a list that is there again.
+	t.Cleanup(func() {
+		if _, err := os.Stat(aside); err != nil {
+			return
+		}
+		_ = os.Remove(tasksDir)
+		_ = os.Rename(aside, tasksDir)
+	})
 
 	steps := []struct {
 		name string
@@ -124,7 +134,10 @@ func TestTasksReadsTheTeam(t *testing.T) {
 			name: "the list cannot be read",
 			change: func(t *testing.T) {
 				t.Helper()
-				if err := os.Chmod(tasksDir, 0); err != nil {
+				if err := os.Rename(tasksDir, aside); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(tasksDir, []byte("not the directory it was"), 0o600); err != nil {
 					t.Fatal(err)
 				}
 			},
@@ -135,7 +148,10 @@ func TestTasksReadsTheTeam(t *testing.T) {
 			name: "it can again",
 			change: func(t *testing.T) {
 				t.Helper()
-				if err := os.Chmod(tasksDir, 0o700); err != nil {
+				if err := os.Remove(tasksDir); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Rename(aside, tasksDir); err != nil {
 					t.Fatal(err)
 				}
 			},
