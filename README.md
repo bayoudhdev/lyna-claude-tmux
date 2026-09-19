@@ -194,6 +194,8 @@ and the agents of the other workspaces on the server. `enter` focuses one, `z` z
 it a window of its own, `/` filters, and `s` starts a new agent. It opens with the first teammate
 and closes with the last, or on `Alt+A`.
 
+![The agents rail](docs/assets/rail.gif)
+
 The team is steered from there rather than by typing at the lead: `m` sends a message to one agent
 after showing the exact text it will type, `x` stops a teammate through its lead or, once you have
 typed its name out, by closing its pane, `r` reads what an agent is writing, subagents included,
@@ -201,9 +203,13 @@ and `t` shows the shared task list with what each task is waiting on. The footer
 and what the agents have spent between them. Each is a command of its own as well:
 `lmux message`, `lmux stop`, `lmux transcript` and `lmux tasks`.
 
+![The task list and a transcript, read from the rail](docs/assets/team.gif)
+
 `lmux spawn`, the same form as `s`, asks for an agent: which definition it runs, on which model and
 effort, in the project directory or a git worktree of its own. It either asks the lead, typing the
 exact sentence it just showed you, or opens a session of its own in a new window.
+
+![Starting an agent from the workspace](docs/assets/spawn.gif)
 
 [docs/agents.md](docs/agents.md) has the whole picture, every key and every setting.
 
