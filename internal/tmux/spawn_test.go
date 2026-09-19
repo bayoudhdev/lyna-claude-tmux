@@ -32,6 +32,19 @@ func TestPasteLine(t *testing.T) {
 				{"send-keys", "-t", "%0", "Enter"},
 			},
 		},
+		{
+			// A paste that carried the sequence ending a bracketed paste would
+			// have the rest of it read as keys; lines would be submitted one by
+			// one.
+			name: "text that would break out of the paste", pane: "%3",
+			text: "fix the router\x1b[201~\x03rm -rf ~\n\u009b31mnow\r",
+			want: []tmux.Command{
+				{"set-buffer", "-b", "lyna-tmux-spawn", "--", "fix the routerrm -rf ~ now"},
+				{"paste-buffer", "-d", "-p", "-b", "lyna-tmux-spawn", "-t", "%3"},
+				{"send-keys", "-t", "%3", "Enter"},
+			},
+		},
+		{name: "nothing left to type", pane: "%3", text: " \x1b[2J\n\t"},
 		{name: "a pane named instead of identified", pane: "api", text: "hello"},
 		{name: "a pane selected by pattern", pane: "%", text: "hello"},
 		{name: "no pane at all", text: "hello"},

@@ -1,5 +1,7 @@
 package tmux
 
+import "github.com/bayoudhdev/lyna-claude-tmux/internal/sanitize"
+
 // spawnBuffer names the paste buffer a message goes through. It is reused, so
 // a message replaces the one before it instead of piling up in the buffer
 // stack, and the paste deletes it.
@@ -15,11 +17,18 @@ const spawnBuffer = "lyna-tmux-spawn"
 // itself, and the Enter is sent after the paste because a bracketed paste
 // carries no submit.
 //
+// The text is typed as one line of printable text and nothing else. A control
+// sequence inside a paste is read by the program as keys, and one of them ends
+// the bracketed paste, after which the rest would be typed a key at a time; a
+// newline would submit what came before it. Line folds and strips all of them,
+// and text with nothing left to type is refused.
+//
 // The target is a pane id and nothing else: a name or a pattern is resolved by
 // tmux against whatever is running now, and text typed into the wrong pane is
 // text typed at whatever that pane runs. An unidentified pane is refused.
 func PasteLine(pane, text string) []Command {
-	if !ValidPaneID(pane) {
+	text = sanitize.Line(text)
+	if !ValidPaneID(pane) || text == "" {
 		return nil
 	}
 	return []Command{
