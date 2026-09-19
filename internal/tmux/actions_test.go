@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/keys"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/theme"
 )
 
 func TestActionSeq(t *testing.T) {
@@ -107,6 +108,24 @@ func TestAgentsRailSeq(t *testing.T) {
 				`kill-pane -t #{s/ .*//:#{P:#{?#{==:#{@lt_role},agents},#{pane_id} ,}}},` +
 				`split-window -b -h -l 28 -t #{s/ .*//:#{P:#{pane_id} }} ` +
 				`/opt/a#,b/lmux agents --rail --auto` +
+				` ; set-option -p @lt_role agents ; last-pane}'`,
+		},
+		{
+			"the width the workspace asks for",
+			Env{Bin: "/opt/lmux", RailWidth: 44},
+			`run-shell -C '#{?#{P:#{?#{==:#{@lt_role},agents},#{pane_id} ,}},` +
+				`kill-pane -t #{s/ .*//:#{P:#{?#{==:#{@lt_role},agents},#{pane_id} ,}}},` +
+				`split-window -b -h -l 44 -t #{s/ .*//:#{P:#{pane_id} }} ` +
+				`/opt/lmux agents --rail --auto` +
+				` ; set-option -p @lt_role agents ; last-pane}'`,
+		},
+		{
+			"a width past the widest rail",
+			Env{Bin: "/opt/lmux", RailWidth: 400},
+			`run-shell -C '#{?#{P:#{?#{==:#{@lt_role},agents},#{pane_id} ,}},` +
+				`kill-pane -t #{s/ .*//:#{P:#{?#{==:#{@lt_role},agents},#{pane_id} ,}}},` +
+				`split-window -b -h -l 60 -t #{s/ .*//:#{P:#{pane_id} }} ` +
+				`/opt/lmux agents --rail --auto` +
 				` ; set-option -p @lt_role agents ; last-pane}'`,
 		},
 	}
@@ -252,6 +271,91 @@ func TestWithMouseTarget(t *testing.T) {
 			}
 			if !slices.EqualFunc(tc.in, in, slices.Equal) {
 				t.Fatalf("input modified: %q", tc.in)
+			}
+		})
+	}
+}
+
+// TestRegistryWithoutTheRailToggle pins what a workspace that never opens the
+// agents rail by itself registers: everything but the rail toggle, and nothing
+// left referring to it.
+func TestRegistryWithoutTheRailToggle(t *testing.T) {
+	cases := []struct {
+		name     string
+		env      Env
+		wantRail bool
+	}{
+		{name: "the rail has a key", env: testEnv(), wantRail: true},
+		{name: "the rail is off", env: railOffEnv(), wantRail: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			registered := map[string]bool{}
+			for _, r := range tc.env.Registry() {
+				registered[r.Name] = true
+			}
+			if got := registered[DoAgentsRail]; got != tc.wantRail {
+				t.Fatalf("%s registered = %v, want %v", DoAgentsRail, got, tc.wantRail)
+			}
+			// Every other command is registered whatever the rail does.
+			for _, name := range []string{DoSplitRight, DoAgents, DoReview, DoSandbox, DoMenuKeys, DoMenuSession, DoMenuWindow, DoMenuPane, DoMenuClaude} {
+				if !registered[name] {
+					t.Errorf("%s is not registered", name)
+				}
+			}
+		})
+	}
+}
+
+// railOffEnv is the installation of a workspace configured never to open the
+// agents rail on its own: no key for it, and no toggle to register.
+func railOffEnv() Env {
+	e := testEnv()
+	e.Bindings = keys.Defaults(keys.Options{AltKeys: true, Prefix: "C-b", NoAgentsRail: true})
+	e.NoAgentsRail = true
+	return e
+}
+
+// TestGeneratedConfWithoutTheRailKey reads the generated configuration of a
+// workspace that never opens the agents rail by itself: no binding in either
+// table, no entry in the key menu, and no stored toggle for anything to run.
+// With the rail on a key, all three are there.
+func TestGeneratedConfWithoutTheRailKey(t *testing.T) {
+	conf := func(e Env) string {
+		return GenerateConf(ConfOptions{
+			Version: Version{Major: 3, Minor: 7},
+			Look:    Look{Palette: mustPalette(t, "lyna"), Depth: theme.Depth256, Icons: mustIcons(t, "ascii")},
+			Env:     e,
+		})
+	}
+	rail := []string{
+		"bind-key -T root M-A ",
+		"bind-key -T prefix A ",
+		"set-option -g " + DoOption(DoAgentsRail) + " ",
+		"Agents rail",
+	}
+	cases := []struct {
+		name string
+		env  Env
+		want bool
+	}{
+		{name: "the rail has a key", env: testEnv(), want: true},
+		{name: "the rail is off", env: railOffEnv(), want: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			text := conf(tc.env)
+			for _, part := range rail {
+				if got := strings.Contains(text, part); got != tc.want {
+					t.Errorf("conf contains %q = %v, want %v", part, got, tc.want)
+				}
+			}
+			// The picker keeps its own key and its own menu entry: off is about
+			// the rail alone.
+			for _, part := range []string{"bind-key -T root M-a ", "bind-key -T prefix a ", "set-option -g " + DoOption(DoAgents) + " "} {
+				if !strings.Contains(text, part) {
+					t.Errorf("conf lacks %q", part)
+				}
 			}
 		})
 	}

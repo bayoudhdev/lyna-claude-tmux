@@ -18,6 +18,13 @@ type Env struct {
 	PopupWidth, PopupHeight string
 	// Bindings are the installed key bindings, listed by the menu action.
 	Bindings []keys.Binding
+	// RailWidth is ui.sidebar_width, the width in cells the rail toggle opens
+	// the agents rail at; zero opens it at the default width.
+	RailWidth int
+	// NoAgentsRail leaves the rail toggle out of the generated configuration,
+	// for a workspace configured never to open the rail on its own. Nothing
+	// then refers to it: the key it was bound to is gone with it.
+	NoAgentsRail bool
 }
 
 // binCommand renders a lyna-tmux invocation for a shell started by tmux
@@ -57,7 +64,7 @@ func (e Env) AgentsRailSeq() Seq {
 	// The leftmost pane is the first of the window: tmux numbers panes by where
 	// they are on the screen. Its id is used rather than a name such as
 	// {top-left}, which the command parser reads as the start of a block.
-	open := "split-window -b -h -l " + strconv.Itoa(layout.RailWidth) +
+	open := "split-window -b -h -l " + strconv.Itoa(layout.RailCells(e.RailWidth)) +
 		" -t #{s/ .*//:" + windowPaneList + "} " + e.binCommand("agents", "--rail", "--auto") +
 		" ; set-option -p " + OptRole + " " + RoleAgents +
 		" ; last-pane"
@@ -149,13 +156,18 @@ type Registered struct {
 	Seq  Seq
 }
 
-// Registry returns every registered command. Menus opened by mouse bindings
-// target the pane or window under the mouse.
+// Registry returns every registered command, the rail toggle left out of a
+// workspace that never opens the rail on its own. Menus opened by mouse
+// bindings target the pane or window under the mouse.
 func (e Env) Registry() []Registered {
-	return []Registered{
+	out := []Registered{
 		{DoSplitRight, SplitSeq(true)},
 		{DoAgents, e.AgentsSeq()},
-		{DoAgentsRail, e.AgentsRailSeq()},
+	}
+	if !e.NoAgentsRail {
+		out = append(out, Registered{DoAgentsRail, e.AgentsRailSeq()})
+	}
+	return append(out, []Registered{
 		{DoReview, e.ReviewSeq()},
 		{DoSandbox, e.SandboxSeq()},
 		{DoMenuKeys, e.KeysMenu().Seq()},
@@ -163,7 +175,7 @@ func (e Env) Registry() []Registered {
 		{DoMenuWindow, withMouseTarget(e.WindowMenu().Seq())},
 		{DoMenuPane, withMouseTarget(e.PaneMenu().Seq())},
 		{DoMenuClaude, ClaudeMenu().Seq()},
-	}
+	}...)
 }
 
 // ActionSeq maps a binding to its tmux commands.
