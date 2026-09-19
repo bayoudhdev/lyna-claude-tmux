@@ -1,4 +1,4 @@
-package watch
+package vcs
 
 import (
 	"errors"
@@ -9,6 +9,9 @@ import (
 
 // nul joins records the way git -z terminates them.
 func nul(records ...string) []byte {
+	if len(records) == 0 {
+		return nil
+	}
 	return []byte(strings.Join(records, "\x00") + "\x00")
 }
 
@@ -35,7 +38,7 @@ func TestParseStatus(t *testing.T) {
 				"? untracked.txt",
 			),
 			want: Status{
-				Branch: Branch{OID: "bcac0ad9076fa982d7eacc828f7ca40b9dcccb74", Head: "main"},
+				Head: Head{OID: "bcac0ad9076fa982d7eacc828f7ca40b9dcccb74", Name: "main"},
 				Entries: []Entry{
 					{Kind: KindChanged, Index: '.', Worktree: 'M', Path: "keep.txt"},
 					{Kind: KindRenamed, Index: 'R', Worktree: '.', Path: "new name.txt", OrigPath: "old.txt"},
@@ -53,7 +56,7 @@ func TestParseStatus(t *testing.T) {
 				"# branch.ab +3 -12",
 				"# stash 2",
 			),
-			want: Status{Branch: Branch{Initial: true, Head: "feature/x", Upstream: "origin/feature/x", AheadBehind: true, Ahead: 3, Behind: 12}},
+			want: Status{Head: Head{Initial: true, Name: "feature/x", Upstream: "origin/feature/x", AheadBehind: true, Ahead: 3, Behind: 12}},
 		},
 		{
 			name: "detached with copy, conflict and ignored",
@@ -65,7 +68,7 @@ func TestParseStatus(t *testing.T) {
 				"! build/out.bin",
 			),
 			want: Status{
-				Branch: Branch{OID: hashA, Detached: true},
+				Head: Head{OID: hashA, Detached: true},
 				Entries: []Entry{
 					{Kind: KindCopied, Index: 'C', Worktree: '.', Path: "copy.go", OrigPath: "orig.go"},
 					{Kind: KindUnmerged, Index: 'U', Worktree: 'U', Path: "merge me.txt"},
@@ -187,8 +190,8 @@ func FuzzParseStatus(f *testing.F) {
 		if err != nil {
 			return
 		}
-		if st.Branch.Ahead < 0 || st.Branch.Behind < 0 {
-			t.Fatalf("negative ahead/behind: %+v", st.Branch)
+		if st.Head.Ahead < 0 || st.Head.Behind < 0 {
+			t.Fatalf("negative ahead/behind: %+v", st.Head)
 		}
 		for _, e := range st.Entries {
 			validEntryPath(t, e.Path)

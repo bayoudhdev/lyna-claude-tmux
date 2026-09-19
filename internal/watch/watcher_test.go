@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/vcs"
+
 	"github.com/fsnotify/fsnotify"
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/testutil/tmuxtest"
@@ -30,9 +32,9 @@ func (s *countingSource) Repo(context.Context, string) (Repo, error) {
 	return Repo{Root: s.dir, GitDir: s.dir, CommonDir: s.dir}, nil
 }
 
-func (s *countingSource) Changes(context.Context, string) (Changes, error) {
+func (s *countingSource) Changes(context.Context, string) (vcs.Changes, error) {
 	n := s.n.Add(1)
-	return Changes{Branch: Branch{Ahead: int(n)}}, nil
+	return vcs.Changes{Head: vcs.Head{Ahead: int(n)}}, nil
 }
 
 // runWatcher starts w and returns its updates and a stop function that
@@ -114,16 +116,16 @@ func TestWatcherSignalsAndCancellation(t *testing.T) {
 	updates, stop := runWatcher(t, w)
 
 	first := next(t, updates, "initial refresh", func(Update) bool { return true })
-	if first.Changes.Branch.Ahead != 1 || first.Err != nil || first.At.IsZero() {
+	if first.Changes.Head.Ahead != 1 || first.Err != nil || first.At.IsZero() {
 		t.Fatalf("initial update = %+v", first)
 	}
 	signals <- nil
-	next(t, updates, "refresh after signal", func(u Update) bool { return u.Changes.Branch.Ahead >= 2 })
+	next(t, updates, "refresh after signal", func(u Update) bool { return u.Changes.Head.Ahead >= 2 })
 	// A failing signal backs off, then the loop keeps waiting and a later
 	// signal still refreshes.
 	signals <- errors.New("server restarting")
 	signals <- nil
-	next(t, updates, "refresh after recovered signal", func(u Update) bool { return u.Changes.Branch.Ahead >= 3 })
+	next(t, updates, "refresh after recovered signal", func(u Update) bool { return u.Changes.Head.Ahead >= 3 })
 
 	stop()
 	select {
@@ -141,7 +143,7 @@ func TestWatcherIdleFallback(t *testing.T) {
 	src := &countingSource{dir: t.TempDir(), repoErr: ErrNotRepository}
 	w := &Watcher{Dir: src.dir, Source: src, Idle: 5 * time.Millisecond}
 	updates, _ := runWatcher(t, w)
-	next(t, updates, "three idle refreshes", func(u Update) bool { return u.Changes.Branch.Ahead >= 3 })
+	next(t, updates, "three idle refreshes", func(u Update) bool { return u.Changes.Head.Ahead >= 3 })
 }
 
 // TestWatcherIdleResetsOnRefresh proves the fallback is a fallback: a refresh
@@ -168,11 +170,11 @@ func TestWatcherIdleResetsOnRefresh(t *testing.T) {
 
 	time.Sleep(idle * 2 / 3)
 	signals <- nil
-	signaled := next(t, updates, "refresh after the signal", func(u Update) bool { return u.Changes.Branch.Ahead >= 2 })
+	signaled := next(t, updates, "refresh after the signal", func(u Update) bool { return u.Changes.Head.Ahead >= 2 })
 	if gap := signaled.At.Sub(first.At); gap >= idle {
 		t.Fatalf("the signal refresh came %v after the first one, at or past the idle period %v: the fallback may have caused it", gap, idle)
 	}
-	fallback := next(t, updates, "the idle refresh", func(u Update) bool { return u.Changes.Branch.Ahead >= 3 })
+	fallback := next(t, updates, "the idle refresh", func(u Update) bool { return u.Changes.Head.Ahead >= 3 })
 	if gap := fallback.At.Sub(signaled.At); gap < idle*4/5 {
 		t.Errorf("the idle refresh came %v after the signal refresh, less than %v: the fallback was not put off by it", gap, idle*4/5)
 	}
@@ -200,7 +202,7 @@ func TestRelevantEvent(t *testing.T) {
 	}
 }
 
-func hasFile(ch Changes, path string, staged bool) bool {
+func hasFile(ch vcs.Changes, path string, staged bool) bool {
 	for _, f := range ch.Files {
 		if f.Path == path && f.Staged() == staged {
 			return true

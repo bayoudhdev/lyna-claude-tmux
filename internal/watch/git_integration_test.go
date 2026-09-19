@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/vcs"
 )
 
 // testRepo is a git repository in a temporary directory with a hermetic git
@@ -94,15 +96,15 @@ func TestIntegrationChanges(t *testing.T) {
 	cases := []struct {
 		name   string
 		setup  func(r *testRepo)
-		branch func(b Branch) bool
-		want   []File
+		branch func(b vcs.Head) bool
+		want   []vcs.File
 		added  int
 	}{
 		{
 			name:   "clean after commit",
 			setup:  func(r *testRepo) { r.write("a.txt", "a\n"); r.git("add", "."); r.git("commit", "-qm", "init") },
-			branch: func(b Branch) bool { return b.Head == "main" && len(b.OID) >= 40 && !b.Initial },
-			want:   []File{},
+			branch: func(b vcs.Head) bool { return b.Name == "main" && len(b.OID) >= 40 && !b.Initial },
+			want:   []vcs.File{},
 		},
 		{
 			name: "modified, renamed, staged, untracked and unusual names",
@@ -117,20 +119,20 @@ func TestIntegrationChanges(t *testing.T) {
 				r.git("add", "tab\tx.txt")
 				r.write("dir/untracked é.txt", "u\n")
 			},
-			branch: func(b Branch) bool { return b.Head == "main" },
-			want: []File{
-				{Kind: KindUntracked, Path: "dir/", Index: '?', Worktree: '?'},
-				{Kind: KindChanged, Path: "keep.txt", Index: '.', Worktree: 'M', Added: 2, Deleted: 1},
-				{Kind: KindRenamed, Path: "new name.txt", OrigPath: "old.txt", Index: 'R', Worktree: '.'},
-				{Kind: KindChanged, Path: "tab\tx.txt", Index: 'A', Worktree: '.', Added: 1},
+			branch: func(b vcs.Head) bool { return b.Name == "main" },
+			want: []vcs.File{
+				{Kind: vcs.KindUntracked, Path: "dir/", Index: '?', Worktree: '?'},
+				{Kind: vcs.KindChanged, Path: "keep.txt", Index: '.', Worktree: 'M', Added: 2, Deleted: 1},
+				{Kind: vcs.KindRenamed, Path: "new name.txt", OrigPath: "old.txt", Index: 'R', Worktree: '.'},
+				{Kind: vcs.KindChanged, Path: "tab\tx.txt", Index: 'A', Worktree: '.', Added: 1},
 			},
 			added: 3,
 		},
 		{
 			name:   "first commit not made yet",
 			setup:  func(r *testRepo) { r.write("f", "hi\nthere\n"); r.git("add", "f") },
-			branch: func(b Branch) bool { return b.Initial && b.Head == "main" && b.OID == "" },
-			want:   []File{{Kind: KindChanged, Path: "f", Index: 'A', Worktree: '.', Added: 2}},
+			branch: func(b vcs.Head) bool { return b.Initial && b.Name == "main" && b.OID == "" },
+			want:   []vcs.File{{Kind: vcs.KindChanged, Path: "f", Index: 'A', Worktree: '.', Added: 2}},
 			added:  2,
 		},
 		{
@@ -144,8 +146,8 @@ func TestIntegrationChanges(t *testing.T) {
 				r.write("a", "2\n")
 				r.git("commit", "-qam", "two")
 			},
-			branch: func(b Branch) bool { return b.Upstream == "base" && b.AheadBehind && b.Ahead == 1 && b.Behind == 0 },
-			want:   []File{},
+			branch: func(b vcs.Head) bool { return b.Upstream == "base" && b.AheadBehind && b.Ahead == 1 && b.Behind == 0 },
+			want:   []vcs.File{},
 		},
 		{
 			name: "detached head",
@@ -155,8 +157,8 @@ func TestIntegrationChanges(t *testing.T) {
 				r.git("commit", "-qm", "one")
 				r.git("checkout", "-q", "--detach")
 			},
-			branch: func(b Branch) bool { return b.Detached && b.Head == "" },
-			want:   []File{},
+			branch: func(b vcs.Head) bool { return b.Detached && b.Name == "" },
+			want:   []vcs.File{},
 		},
 		{
 			name: "binary file",
@@ -164,8 +166,8 @@ func TestIntegrationChanges(t *testing.T) {
 				r.write("img.bin", "\x00\x01\x02")
 				r.git("add", ".")
 			},
-			branch: func(Branch) bool { return true },
-			want:   []File{{Kind: KindChanged, Path: "img.bin", Index: 'A', Worktree: '.', Binary: true}},
+			branch: func(vcs.Head) bool { return true },
+			want:   []vcs.File{{Kind: vcs.KindChanged, Path: "img.bin", Index: 'A', Worktree: '.', Binary: true}},
 		},
 	}
 	for _, tc := range cases {
@@ -180,8 +182,8 @@ func TestIntegrationChanges(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !tc.branch(ch.Branch) {
-				t.Errorf("branch = %+v", ch.Branch)
+			if !tc.branch(ch.Head) {
+				t.Errorf("branch = %+v", ch.Head)
 			}
 			if !reflect.DeepEqual(ch.Files, tc.want) {
 				t.Errorf("files =\n%+v\nwant\n%+v", ch.Files, tc.want)

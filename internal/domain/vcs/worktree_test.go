@@ -8,14 +8,6 @@ import (
 	"testing"
 )
 
-// nul joins fields the way git terminates them with -z.
-func nul(fields ...string) []byte {
-	if len(fields) == 0 {
-		return nil
-	}
-	return []byte(strings.Join(fields, "\x00") + "\x00")
-}
-
 const wtHead = "ed1be060c5ffb537563aa2b5a6b414e921d7d60b"
 
 func TestParseWorktrees(t *testing.T) {

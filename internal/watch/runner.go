@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/vcs"
 )
 
 // Defaults for Runner.
@@ -80,15 +82,15 @@ func (r Runner) Repo(ctx context.Context, dir string) (Repo, error) {
 	}
 	lines := strings.Split(strings.TrimRight(string(out), "\n"), "\n")
 	if len(lines) != 3 {
-		return Repo{}, fmt.Errorf("%w: rev-parse printed %d lines", ErrMalformed, len(lines))
+		return Repo{}, fmt.Errorf("%w: rev-parse printed %d lines", vcs.ErrMalformed, len(lines))
 	}
 	for _, l := range lines {
 		// A path with a newline would shift the lines; each must stand alone.
 		if !filepath.IsAbs(l) {
-			return Repo{}, fmt.Errorf("%w: rev-parse path %q", ErrMalformed, l)
+			return Repo{}, fmt.Errorf("%w: rev-parse path %q", vcs.ErrMalformed, l)
 		}
 		if info, err := os.Stat(l); err != nil || !info.IsDir() {
-			return Repo{}, fmt.Errorf("%w: rev-parse path %q is not a directory", ErrMalformed, l)
+			return Repo{}, fmt.Errorf("%w: rev-parse path %q is not a directory", vcs.ErrMalformed, l)
 		}
 	}
 	return Repo{Root: lines[0], GitDir: lines[1], CommonDir: lines[2]}, nil
@@ -96,7 +98,7 @@ func (r Runner) Repo(ctx context.Context, dir string) (Repo, error) {
 
 // Changes reads the status and both line counts of the working tree
 // containing dir. The three git commands run concurrently; they only read.
-func (r Runner) Changes(ctx context.Context, dir string) (Changes, error) {
+func (r Runner) Changes(ctx context.Context, dir string) (vcs.Changes, error) {
 	var (
 		wg                           sync.WaitGroup
 		statusOut, unstaged, staged  []byte
@@ -113,23 +115,23 @@ func (r Runner) Changes(ctx context.Context, dir string) (Changes, error) {
 		// Report the status failure alone when there is one: it names the
 		// cause (not a repository) that also broke the diffs.
 		if statusErr != nil {
-			return Changes{}, statusErr
+			return vcs.Changes{}, statusErr
 		}
-		return Changes{}, err
+		return vcs.Changes{}, err
 	}
-	st, err := ParseStatus(statusOut)
+	st, err := vcs.ParseStatus(statusOut)
 	if err != nil {
-		return Changes{}, err
+		return vcs.Changes{}, err
 	}
-	un, err := ParseNumstat(unstaged)
+	un, err := vcs.ParseNumstat(unstaged)
 	if err != nil {
-		return Changes{}, err
+		return vcs.Changes{}, err
 	}
-	sg, err := ParseNumstat(staged)
+	sg, err := vcs.ParseNumstat(staged)
 	if err != nil {
-		return Changes{}, err
+		return vcs.Changes{}, err
 	}
-	return Build(st, un, sg), nil
+	return vcs.Build(st, un, sg), nil
 }
 
 // git runs one command. Global options make the run side-effect free and safe

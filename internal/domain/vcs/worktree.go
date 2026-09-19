@@ -1,6 +1,7 @@
-// Package vcs is the git a workspace reads, parsed: the worktrees of a
-// project, and the names the workspace is allowed to give the ones it makes.
-// Nothing here runs a command or touches a file: bytes in, values out.
+// Package vcs is the git a workspace reads, parsed and modelled: the status of
+// a working tree and the files changed in it, the worktrees of a project and
+// its branches. Nothing here runs a command or touches a file: bytes in,
+// values out.
 package vcs
 
 import (
@@ -121,32 +122,4 @@ func ParseWorktrees(data []byte) ([]Worktree, error) {
 	}
 	end()
 	return list, nil
-}
-
-// splitNUL splits NUL-terminated fields, dropping the trailing empty field the
-// last terminator leaves.
-func splitNUL(data []byte) []string {
-	s := string(data)
-	if s == "" {
-		return nil
-	}
-	fields := strings.Split(s, "\x00")
-	if last := len(fields) - 1; fields[last] == "" {
-		fields = fields[:last]
-	}
-	return fields
-}
-
-// isHex reports a non-empty lowercase hexadecimal object name.
-func isHex(s string) bool {
-	if s == "" {
-		return false
-	}
-	for i := range len(s) {
-		c := s[i]
-		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
-			return false
-		}
-	}
-	return true
 }

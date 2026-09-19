@@ -10,6 +10,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/vcs"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/testutil/tmuxtest"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tui"
@@ -52,8 +53,8 @@ func (s fakeSource) Repo(context.Context, string) (watch.Repo, error) {
 	return watch.Repo{Root: s.root, GitDir: filepath.Join(s.root, ".git"), CommonDir: filepath.Join(s.root, ".git")}, nil
 }
 
-func (s fakeSource) Changes(context.Context, string) (watch.Changes, error) {
-	return watch.Changes{}, s.err
+func (s fakeSource) Changes(context.Context, string) (vcs.Changes, error) {
+	return vcs.Changes{}, s.err
 }
 
 func TestWatchReviewOpen(t *testing.T) {

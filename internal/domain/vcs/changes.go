@@ -1,4 +1,4 @@
-package watch
+package vcs
 
 import (
 	"cmp"
@@ -40,7 +40,7 @@ func (f File) Unstaged() bool {
 
 // Changes is the state of a working tree.
 type Changes struct {
-	Branch Branch
+	Head Head
 	// Files are sorted by path (then original path), so the order is stable
 	// across refreshes.
 	Files   []File
@@ -79,7 +79,7 @@ func Build(st Status, unstaged, staged []NumStat) Changes {
 			byPath[ns.Path] = c
 		}
 	}
-	ch := Changes{Branch: st.Branch, Files: make([]File, 0, len(st.Entries))}
+	ch := Changes{Head: st.Head, Files: make([]File, 0, len(st.Entries))}
 	for _, e := range st.Entries {
 		f := File{Kind: e.Kind, Path: e.Path, OrigPath: e.OrigPath, Index: e.Index, Worktree: e.Worktree}
 		if c, ok := byPath[e.Path]; ok {

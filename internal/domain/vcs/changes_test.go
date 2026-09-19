@@ -1,4 +1,4 @@
-package watch
+package vcs
 
 import (
 	"reflect"
@@ -6,7 +6,7 @@ import (
 )
 
 func TestBuild(t *testing.T) {
-	branch := Branch{Head: "main", OID: hashA}
+	head := Head{Name: "main", OID: hashA}
 	cases := []struct {
 		name     string
 		status   Status
@@ -16,7 +16,7 @@ func TestBuild(t *testing.T) {
 	}{
 		{
 			name: "staged and unstaged counts add up, sorted by path",
-			status: Status{Branch: branch, Entries: []Entry{
+			status: Status{Head: head, Entries: []Entry{
 				{Kind: KindUntracked, Index: '?', Worktree: '?', Path: "z.txt"},
 				{Kind: KindChanged, Index: 'M', Worktree: 'M', Path: "b.go"},
 				{Kind: KindRenamed, Index: 'R', Worktree: '.', Path: "a new.go", OrigPath: "a.go"},
@@ -25,7 +25,7 @@ func TestBuild(t *testing.T) {
 			unstaged: []NumStat{{Path: "b.go", Added: 2, Deleted: 1}, {Path: "img.png", Binary: true}},
 			staged:   []NumStat{{Path: "b.go", Added: 10}, {Path: "a new.go", OrigPath: "a.go", Added: 1, Deleted: 1}},
 			want: Changes{
-				Branch: branch,
+				Head: head,
 				Files: []File{
 					{Kind: KindRenamed, Path: "a new.go", OrigPath: "a.go", Index: 'R', Worktree: '.', Added: 1, Deleted: 1},
 					{Kind: KindChanged, Path: "b.go", Index: 'M', Worktree: 'M', Added: 12, Deleted: 1},
@@ -38,8 +38,8 @@ func TestBuild(t *testing.T) {
 		},
 		{
 			name:   "clean tree",
-			status: Status{Branch: branch},
-			want:   Changes{Branch: branch, Files: []File{}},
+			status: Status{Head: head},
+			want:   Changes{Head: head, Files: []File{}},
 		},
 		{
 			name: "same path twice keeps both in stable order",

@@ -1,3 +1,8 @@
+// Package watch keeps the changes of a working tree current: a runner that
+// executes git safely, a refresh loop, and a watcher that redraws on file
+// events, on the tmux signal the edit hooks of an agent send, and on an
+// interval when nothing else says anything. What it reads is parsed and
+// modelled in internal/domain/vcs.
 package watch
 
 import (
@@ -11,6 +16,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/vcs"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
 )
 
@@ -31,12 +37,12 @@ const (
 // Source reads a working tree. Runner implements it.
 type Source interface {
 	Repo(ctx context.Context, dir string) (Repo, error)
-	Changes(ctx context.Context, dir string) (Changes, error)
+	Changes(ctx context.Context, dir string) (vcs.Changes, error)
 }
 
 // Update is one refresh result.
 type Update struct {
-	Changes Changes
+	Changes vcs.Changes
 	// Err is set when the refresh failed; Changes is then empty.
 	Err error
 	At  time.Time

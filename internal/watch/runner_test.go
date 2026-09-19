@@ -12,6 +12,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/vcs"
 )
 
 // fakeGit answers by subcommand and records every call. The runner runs its
@@ -25,6 +27,19 @@ type fakeGit struct {
 	calls  [][]string
 	limits []int64
 }
+
+// nul joins records the way git -z terminates them.
+func nul(records ...string) []byte {
+	if len(records) == 0 {
+		return nil
+	}
+	return []byte(strings.Join(records, "\x00") + "\x00")
+}
+
+const (
+	hashA = "422c2b7ab3b3c668038da977e4e93a5fc623169c"
+	zero  = "0000000000000000000000000000000000000000"
+)
 
 func (f *fakeGit) key(args []string) string {
 	// argv is --no-pager -c core.fsmonitor=false -C <dir> <subcommand> ...
@@ -67,16 +82,16 @@ func TestRunnerChangesFake(t *testing.T) {
 		err     error
 		block   bool
 		timeout time.Duration
-		want    Changes
+		want    vcs.Changes
 		wantErr error
 		errText string
 	}{
 		{
 			name:    "joined result",
 			outputs: okOutputs,
-			want: Changes{
-				Branch:  Branch{OID: hashA, Head: "main"},
-				Files:   []File{{Kind: KindChanged, Path: "a.go", Index: 'M', Worktree: 'M', Added: 4, Deleted: 1}},
+			want: vcs.Changes{
+				Head:    vcs.Head{OID: hashA, Name: "main"},
+				Files:   []vcs.File{{Kind: vcs.KindChanged, Path: "a.go", Index: 'M', Worktree: 'M', Added: 4, Deleted: 1}},
 				Added:   4,
 				Deleted: 1,
 			},
@@ -99,21 +114,21 @@ func TestRunnerChangesFake(t *testing.T) {
 			outputs: map[string]Result{
 				"status": {Stdout: nul("9 nonsense")}, "diff": okOutputs["diff"], "diff --cached": okOutputs["diff --cached"],
 			},
-			wantErr: ErrMalformed,
+			wantErr: vcs.ErrMalformed,
 		},
 		{
 			name: "malformed unstaged numstat",
 			outputs: map[string]Result{
 				"status": okOutputs["status"], "diff": {Stdout: nul("x")}, "diff --cached": okOutputs["diff --cached"],
 			},
-			wantErr: ErrMalformed,
+			wantErr: vcs.ErrMalformed,
 		},
 		{
 			name: "malformed staged numstat",
 			outputs: map[string]Result{
 				"status": okOutputs["status"], "diff": okOutputs["diff"], "diff --cached": {Stdout: nul("x")},
 			},
-			wantErr: ErrMalformed,
+			wantErr: vcs.ErrMalformed,
 		},
 	}
 	for _, tc := range cases {
@@ -202,9 +217,9 @@ func TestRunnerRepoFake(t *testing.T) {
 		wantErr error
 	}{
 		{name: "three directories", out: dir + "\n" + dir + "/.\n" + dir + "\n", want: Repo{Root: dir, GitDir: dir + "/.", CommonDir: dir}},
-		{name: "two lines", out: dir + "\n" + dir + "\n", wantErr: ErrMalformed},
-		{name: "relative line", out: dir + "\n.git\n" + dir + "\n", wantErr: ErrMalformed},
-		{name: "missing directory", out: dir + "\n" + dir + "/nope\n" + dir + "\n", wantErr: ErrMalformed},
+		{name: "two lines", out: dir + "\n" + dir + "\n", wantErr: vcs.ErrMalformed},
+		{name: "relative line", out: dir + "\n.git\n" + dir + "\n", wantErr: vcs.ErrMalformed},
+		{name: "missing directory", out: dir + "\n" + dir + "/nope\n" + dir + "\n", wantErr: vcs.ErrMalformed},
 		{name: "not a repository", code: 128, wantErr: ErrNotRepository},
 	}
 	for _, tc := range cases {

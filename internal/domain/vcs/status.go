@@ -1,20 +1,11 @@
-// Package watch reads the working tree changes of a git repository and keeps
-// them current: parsers for git's machine formats, a runner that executes git
-// safely, the change model the changes pane draws, and a watcher that refreshes
-// on file events, on the tmux signal Claude's edit hooks send, and on an
-// optional interval.
-package watch
+package vcs
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 )
-
-// ErrMalformed reports git output that does not follow the documented format.
-var ErrMalformed = errors.New("watch: malformed git output")
 
 // Kind classifies a status entry.
 type Kind int
@@ -52,12 +43,13 @@ type Entry struct {
 	OrigPath string
 }
 
-// Branch is the branch header of `git status --branch`.
-type Branch struct {
+// Head is what `git status --branch` says of HEAD: the commit it is on, the
+// branch it follows and how far that branch is from its upstream.
+type Head struct {
 	// OID is the HEAD commit, "" before the first commit.
 	OID string
-	// Head is the branch name, "" when HEAD is detached.
-	Head     string
+	// Name is the branch name, "" when HEAD is detached.
+	Name     string
 	Detached bool
 	// Initial is true before the first commit.
 	Initial bool
@@ -72,7 +64,7 @@ type Branch struct {
 
 // Status is a parsed `git status --porcelain=v2 -z --branch` output.
 type Status struct {
-	Branch  Branch
+	Head    Head
 	Entries []Entry
 }
 
@@ -90,7 +82,7 @@ func ParseStatus(data []byte) (Status, error) {
 		var err error
 		switch rec[0] {
 		case '#':
-			err = st.Branch.parseHeader(rec)
+			err = st.Head.parseHeader(rec)
 		case '1':
 			err = st.addEntry(rec, KindChanged, 9, "")
 		case '2':
@@ -113,7 +105,7 @@ func ParseStatus(data []byte) (Status, error) {
 	return st, nil
 }
 
-func (b *Branch) parseHeader(rec string) error {
+func (b *Head) parseHeader(rec string) error {
 	key, value, _ := strings.Cut(strings.TrimPrefix(rec, "# "), " ")
 	switch key {
 	case "branch.oid":
@@ -133,7 +125,7 @@ func (b *Branch) parseHeader(rec string) error {
 		if value == "" {
 			return fmt.Errorf("%w: empty branch head", ErrMalformed)
 		}
-		b.Head = value
+		b.Name = value
 	case "branch.upstream":
 		b.Upstream = value
 	case "branch.ab":
@@ -199,6 +191,8 @@ func statusCode(c byte) bool {
 	return strings.IndexByte(".MTADRCU", c) >= 0
 }
 
+// isHex reports an object name: hexadecimal, and never shorter than the four
+// characters git abbreviates one to.
 func isHex(s string) bool {
 	if len(s) < 4 {
 		return false
