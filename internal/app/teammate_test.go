@@ -13,6 +13,7 @@ import (
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/config"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/layout"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/session"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/hook"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/testutil/tmuxtest"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
 )
@@ -88,10 +89,12 @@ func TestTeammateAdoptsItsPane(t *testing.T) {
 	s := openServer(t, h)
 	pane := openTeammateScene(t, h, s, 240, 60).pane
 
-	run, err := Teammate(ctx, h.Host, TeammateRequest{ClaudePath: "/bin/sh", Args: spawnArgs, AgentPanes: 3})
+	log := filepath.Join(t.TempDir(), "lyna-tmux.log")
+	run, err := Teammate(ctx, h.Host, TeammateRequest{ClaudePath: "/bin/sh", Args: spawnArgs, AgentPanes: 3, LogPath: log})
 	if err != nil {
 		t.Fatalf("Teammate: %v", err)
 	}
+	assertTeammateLog(t, log, hook.LogTeammate, "review-api opened in workspace api")
 	if run.Path != "/bin/sh" || !slices.Equal(run.Argv, append([]string{"/bin/sh"}, spawnArgs...)) {
 		t.Fatalf("the agent is %s %q", run.Path, run.Argv)
 	}
@@ -364,14 +367,67 @@ func TestTeammateStartsAnyway(t *testing.T) {
 					t.Fatalf("a pane that is not ours was written to: %q", args)
 				}
 			}
-			data, err := os.ReadFile(log)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !strings.Contains(string(data), tc.wantLog) {
-				t.Fatalf("log %q, want it to name %q", data, tc.wantLog)
-			}
+			assertTeammateLog(t, log, hook.LogTeammateFallback, "review-api opens the way the agent opens it: ", tc.wantLog)
 		})
+	}
+}
+
+// TestTeammateKeepsAPaneItCannotPlace covers a teammate labeled as a pane of
+// the workspace whose window cannot be arranged: the pane stays ours, with
+// the workspace's environment, and the log says it stays where it opened.
+func TestTeammateKeepsAPaneItCannotPlace(t *testing.T) {
+	h := Host{
+		Getenv: func(k string) string {
+			return map[string]string{"TMUX": "/tmp/tmux-501/lyna-tmux,1,0", "TMUX_PANE": "%3"}[k]
+		},
+		Environ: []string{"PATH=/usr/bin"},
+	}
+	log := filepath.Join(t.TempDir(), "lyna-tmux.log")
+	req := TeammateRequest{
+		ClaudePath: "/opt/claude", Args: spawnArgs, LogPath: log, AgentPanes: 3,
+		Tmux: func(sock tmux.Socket) *tmux.Client {
+			return tmux.New(tmux.Options{Socket: sock, Executor: tmux.ExecutorFunc(
+				func(_ context.Context, _ string, args []string) (tmux.Result, error) {
+					switch cmd := strings.Join(args, " "); {
+					case strings.Contains(cmd, "display-message"):
+						return tmux.Result{Stdout: []byte(tmux.FieldSep("1", "api", "@1", "200", "50", ""))}, nil
+					case strings.Contains(cmd, "list-panes"):
+						return tmux.Result{Stderr: []byte("can't find window: @1"), ExitCode: 1}, nil
+					}
+					return tmux.Result{}, nil
+				})})
+		},
+	}
+	run, err := Teammate(context.Background(), h, req)
+	if err != nil {
+		t.Fatalf("Teammate: %v", err)
+	}
+	if !slices.Contains(run.Env, session.EnvSession+"=api") {
+		t.Fatalf("the pane was not claimed for the workspace: %q", run.Env)
+	}
+	assertTeammateLog(t, log, hook.LogTeammateUnplaced,
+		"review-api opened in workspace api and stays where the agent put it: ", "can't find window")
+}
+
+// assertTeammateLog reads the last line the launcher logged about a teammate
+// and checks how it says the teammate opened.
+func assertTeammateLog(t *testing.T, path, name string, parts ...string) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, ok := hook.LastLogEntry(data, hook.LogTeammate, hook.LogTeammateUnplaced, hook.LogTeammateFallback)
+	if !ok || got.Name != name {
+		t.Fatalf("last teammate line %+v, %v; want one logged as %s in\n%s", got, ok, name, data)
+	}
+	if !strings.HasPrefix(got.Message, parts[0]) {
+		t.Fatalf("message %q, want it to start with %q", got.Message, parts[0])
+	}
+	for _, part := range parts[1:] {
+		if !strings.Contains(got.Message, part) {
+			t.Fatalf("message %q, want it to name %q", got.Message, part)
+		}
 	}
 }
 

@@ -67,19 +67,28 @@ var ErrTeammateAgent = errors.New("teammate: the agent to run is named with --cl
 // Nothing here can keep a teammate from starting. The pane is labeled when it
 // is a pane of a workspace of ours and the server answers; every other case,
 // from a teammate opened outside a workspace to a tmux that does not reply,
-// leaves the pane as Claude Code prepared it, writes the reason to the
-// diagnostic log and returns the same agent with the same arguments. The one
-// error is a launcher that names no agent, which is a launcher lyna-tmux did
-// not write.
+// leaves the pane as Claude Code prepared it and returns the same agent with
+// the same arguments. Either way one line of the diagnostic log says how the
+// teammate opened, which is what doctor reports. The one error is a launcher
+// that names no agent, which is a launcher lyna-tmux did not write.
 func Teammate(ctx context.Context, h Host, req TeammateRequest) (TeammateRun, error) {
 	if !filepath.IsAbs(req.ClaudePath) || strings.ContainsAny(req.ClaudePath, "\n\x00") {
 		return TeammateRun{}, fmt.Errorf("%w (got %q)", ErrTeammateAgent, sanitize.Line(req.ClaudePath))
 	}
 	env := h.Environ
-	ws, err := adoptTeammatePane(ctx, h, req)
-	if err != nil {
-		hook.Log(req.LogPath, req.now(), "teammate", "the pane keeps the look Claude Code gave it: %v", err)
-	} else {
+	spawn := team.ParseSpawn(req.Args)
+	who := teammateName(spawn)
+	ws, err := adoptTeammatePane(ctx, h, req, spawn)
+	switch {
+	case err != nil:
+		hook.Log(req.LogPath, req.now(), hook.LogTeammateFallback, "%s opens the way the agent opens it: %v", who, err)
+	case ws.unplaced != nil:
+		hook.Log(req.LogPath, req.now(), hook.LogTeammateUnplaced,
+			"%s opened in workspace %s and stays where the agent put it: %v", who, ws.session, ws.unplaced)
+	default:
+		hook.Log(req.LogPath, req.now(), hook.LogTeammate, "%s opened in workspace %s", who, ws.session)
+	}
+	if err == nil {
 		// The teammate is a pane of the workspace, so its own hooks, status
 		// line and commands reach the server the way the lead's do.
 		env = withEnv(env,
@@ -95,10 +104,23 @@ func Teammate(ctx context.Context, h Host, req TeammateRequest) (TeammateRun, er
 	}, nil
 }
 
+// teammateName is what the log calls a teammate: the name it was spawned
+// under, when Claude Code gave one.
+func teammateName(spawn team.Spawn) string {
+	if spawn.Name == "" {
+		return "a teammate"
+	}
+	return spawn.Name
+}
+
 // teammateWorkspace is what the pane answered about the workspace it is in.
 type teammateWorkspace struct {
 	socket  string
 	session string
+	// unplaced is why the pane stays where Claude Code opened it, nil when the
+	// pane policy placed it. The pane is ours either way: a window that cannot
+	// be arranged is not a teammate that failed to open.
+	unplaced error
 }
 
 // teammatePaneFields are what one display-message asks about the pane the
@@ -115,7 +137,7 @@ var teammatePaneFields = []string{
 
 // adoptTeammatePane labels the pane the teammate runs in, and returns the
 // workspace it belongs to.
-func adoptTeammatePane(ctx context.Context, h Host, req TeammateRequest) (teammateWorkspace, error) {
+func adoptTeammatePane(ctx context.Context, h Host, req TeammateRequest, spawn team.Spawn) (teammateWorkspace, error) {
 	pane := h.Getenv("TMUX_PANE")
 	socket, inTmux := tmux.SocketFromEnv(h.Getenv("TMUX"))
 	if !inTmux || !tmux.ValidPaneID(pane) {
@@ -138,26 +160,23 @@ func adoptTeammatePane(ctx context.Context, h Host, req TeammateRequest) (teamma
 	if len(fields) != len(teammatePaneFields) || fields[0] != "1" {
 		return teammateWorkspace{}, errors.New("the pane is not in a workspace of ours")
 	}
-	spawn := team.ParseSpawn(req.Args)
 	cmds := tmux.AdoptTeammate(tmux.Teammate{
 		Pane: pane, Agent: spawn.Name, AgentType: spawn.AgentType, Team: spawn.Team,
 	})
 	if _, err := client.Batch(ctx, cmds...); err != nil {
 		return teammateWorkspace{}, err
 	}
-	ws := teammateWorkspace{socket: socket.Path, session: fields[1]}
-	// The pane is ours from here on: where it belongs is a question of its
-	// own, and a window that cannot be arranged is not a teammate that failed
-	// to open.
+	// The pane is ours from here on, and where it belongs is a question of its
+	// own.
 	place := teammatePlace{
 		pane: pane, window: fields[2], remembered: fields[5], agent: spawn.Name,
 		size: layout.AgentWindow{Width: cells(fields[3]), Height: cells(fields[4]), Max: req.AgentPanes},
 		rail: railProcess(h.Exe, req.Sidebar),
 	}
-	if err := placeTeammatePane(ctx, client, place); err != nil {
-		hook.Log(req.LogPath, req.now(), "teammate", "the pane stays where Claude Code opened it: %v", err)
-	}
-	return ws, nil
+	return teammateWorkspace{
+		socket: socket.Path, session: fields[1],
+		unplaced: placeTeammatePane(ctx, client, place),
+	}, nil
 }
 
 // teammatePlace is one teammate's pane and the window it was opened in.

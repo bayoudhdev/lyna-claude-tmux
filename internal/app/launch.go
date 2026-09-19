@@ -222,7 +222,7 @@ func (s *Server) teammateLauncher(h Host, claudePath string, display []string) s
 			return path
 		}
 	}
-	hook.Log(s.Paths.LogFile(), time.Now(), "teammate", "no launcher, teammates open the way the agent opens them: %v", err)
+	hook.Log(s.Paths.LogFile(), time.Now(), hook.LogTeammateFallback, "no launcher was written, so every teammate opens the way the agent opens it: %v", err)
 	return ""
 }
 

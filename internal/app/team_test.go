@@ -10,6 +10,7 @@ import (
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/layout"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/session"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/hook"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
 )
 
@@ -181,7 +182,7 @@ func TestLaunchTeammateLauncherFallback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(log), "teammate: no launcher") {
+	if !strings.Contains(string(log), hook.LogTeammateFallback+": no launcher was written") {
 		t.Fatalf("the reason was not logged: %s", log)
 	}
 }
