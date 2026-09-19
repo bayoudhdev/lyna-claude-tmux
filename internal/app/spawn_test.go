@@ -278,6 +278,10 @@ func TestStartSpawnOpensItsOwn(t *testing.T) {
 // TestStartSpawnRefuses covers every request the workspace will not carry out.
 func TestStartSpawnRefuses(t *testing.T) {
 	asked := tui.SpawnRequest{Target: tui.SpawnLead, Agent: "api-developer", Prompt: "read the router"}
+	// The form never sends a request with nothing to ask. Its text would end
+	// on a space the pane is never typed, which the typing refuses: what is
+	// typed at the lead is exactly what was shown.
+	empty := tui.SpawnRequest{Target: tui.SpawnLead, Agent: "api-developer"}
 	cases := []struct {
 		name string
 		res  tui.SpawnResult
@@ -296,6 +300,11 @@ func TestStartSpawnRefuses(t *testing.T) {
 		{
 			name: "a request with no message at all",
 			res:  tui.SpawnResult{Request: asked, Sent: true},
+			want: "the text shown is not the text that would be sent",
+		},
+		{
+			name: "a request with nothing to ask",
+			res:  tui.SpawnResult{Request: empty, Message: tui.SpawnMessage(empty), Sent: true},
 			want: "the text shown is not the text that would be sent",
 		},
 	}

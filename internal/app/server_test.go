@@ -22,7 +22,7 @@ type testHost struct {
 	root string
 }
 
-func newTestHost(t *testing.T) *testHost {
+func newTestHost(t testing.TB) *testHost {
 	t.Helper()
 	bin := tmuxtest.Require(t)
 	root, err := filepath.EvalSymlinks(t.TempDir())
@@ -63,7 +63,7 @@ func (h *testHost) writeConfig(t *testing.T, body string) {
 	}
 }
 
-func openServer(t *testing.T, h *testHost) *Server {
+func openServer(t testing.TB, h *testHost) *Server {
 	t.Helper()
 	s, err := OpenServer(tmuxtest.Context(t), h.Host)
 	if err != nil {

@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/claude"
-	"github.com/bayoudhdev/lyna-claude-tmux/internal/hook"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tui"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/xdg"
@@ -139,35 +138,27 @@ func (s *Server) startSpawn(ctx context.Context, h Host, spot wsSpot, res tui.Sp
 	return SpawnOutcome{Session: win.Session, Window: win}, nil
 }
 
-// askTheLead types the message into the lead's pane and submits it.
+// askTheLead types the message into the lead's pane and submits it, through
+// typeLine, which reads the lead again and leaves one waiting on the user
+// alone.
 //
 // The message sent is the message the form showed: nothing reaches an agent
 // that the user has not read, so a result whose text is not the text of its
-// own request is refused rather than rebuilt. The lead is read again here
-// because the form was on screen while the workspace kept running.
+// own request is refused rather than rebuilt.
 func (s *Server) askTheLead(ctx context.Context, spot wsSpot, res tui.SpawnResult) (SpawnOutcome, error) {
 	name := spot.pane.Session
 	if res.Message != tui.SpawnMessage(res.Request) {
 		return SpawnOutcome{}, fmt.Errorf("%w: the text shown is not the text that would be sent", ErrSpawn)
 	}
-	lead, ok, err := s.spawnLead(ctx, spot)
+	lead, err := s.typeLine(ctx, lineTyping{
+		session: name,
+		text:    res.Message,
+		pick:    leadPick(spot, ErrSpawn),
+		refused: ErrSpawn,
+		waiting: "the agent of workspace " + name + " is waiting on you; answer it, then ask again",
+	})
 	if err != nil {
 		return SpawnOutcome{}, err
-	}
-	if !ok {
-		return SpawnOutcome{}, fmt.Errorf("%w: workspace %s runs no agent to ask", ErrSpawn, name)
-	}
-	// An agent waiting on the user is showing a question or a permission
-	// prompt, and the Enter that submits the message would answer it.
-	if lead.State == hook.StateWaiting {
-		return SpawnOutcome{}, fmt.Errorf("%w: the agent of workspace %s is waiting on you; answer it, then ask again", ErrSpawn, name)
-	}
-	cmds := tmux.PasteLine(lead.ID, res.Message)
-	if len(cmds) == 0 {
-		return SpawnOutcome{}, fmt.Errorf("%w: %s is not a pane this workspace can type into", ErrSpawn, lead.ID)
-	}
-	if _, err := s.Client.Batch(ctx, cmds...); err != nil {
-		return SpawnOutcome{}, workspaceErr(name, err)
 	}
 	return SpawnOutcome{Session: name, Lead: lead.ID}, nil
 }

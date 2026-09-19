@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -47,6 +48,25 @@ func writeTeam(t *testing.T, h *testHost, name, config string, tasks map[string]
 	for file, body := range tasks {
 		write(filepath.Join(home, "tasks", name), file, body)
 	}
+}
+
+// writeTeammateTranscript writes a transcript under the Claude configuration
+// directory of the test and names it on a pane, the way the hooks name it, and
+// returns the path the pane carries.
+func writeTeammateTranscript(t *testing.T, h *testHost, s *Server, pane, body string) string {
+	t.Helper()
+	dir := filepath.Join(h.root, ".claude", "projects", "-work-api")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "teammate.jsonl")
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Client.Run(tmuxtest.Context(t), "set-option", "-p", "-t", pane, tmux.OptTranscript, path); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }
 
 // rowNamed finds a row of the view by its name.
@@ -132,6 +152,9 @@ func TestAgentBarReadsTheWorkspace(t *testing.T) {
 		"1.json": `{"id":"1","subject":"review the router","owner":"review-api","status":"in_progress"}`,
 		"2.json": `{"id":"2","subject":"write the tests","owner":"build-api","status":"pending"}`,
 	})
+	// The transcript the hooks name on the teammate's pane, which is what the
+	// rail reads the usage of that agent from.
+	transcriptPath := writeTeammateTranscript(t, h, s, scene.pane, usageLine("m1", 5)+usageLine("m2", 7))
 
 	view, err := OpenAgentBar(ctx, h.Host, AgentBarRequest{})
 	if err != nil {
@@ -157,6 +180,17 @@ func TestAgentBarReadsTheWorkspace(t *testing.T) {
 	}
 	if mate.Type != "api-developer" || mate.State != team.StateBusy || mate.Task != "review the router" {
 		t.Fatalf("the teammate row is %+v", mate)
+	}
+	// The row names the transcript of its pane and carries what that transcript
+	// says the agent has spent: two messages, twelve tokens of output.
+	if mate.Transcript != transcriptPath {
+		t.Fatalf("the teammate row reads transcript %q, want %q", mate.Transcript, transcriptPath)
+	}
+	if mate.Usage.Sum.Output != 12 || mate.Usage.Last.Output != 7 {
+		t.Fatalf("the teammate spent %+v, want the two messages of its transcript", mate.Usage)
+	}
+	if lead.Usage.Sum.Total() != 0 {
+		t.Fatalf("the lead names no transcript and spent %+v", lead.Usage.Sum)
 	}
 	// The member Claude Code started in the lead's own process runs in no pane
 	// of this server, and is still on the rail.
@@ -245,9 +279,9 @@ func TestAgentBarActs(t *testing.T) {
 	}
 }
 
-// TestAgentBarSpawnAction covers which rail offers to start an agent: a rail
-// drawn in a pane of the workspace opens the form in a popup over itself, and
-// no other rail does.
+// TestAgentBarSpawnAction covers which rail opens forms, the one that starts
+// an agent and the ones that message and stop one: a rail drawn in a pane of
+// the workspace opens them in a popup over itself, and no other rail does.
 func TestAgentBarSpawnAction(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -294,23 +328,121 @@ func TestAgentBarSpawnAction(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got := view.Options.Actions.Spawn != nil; got != tc.want {
-				t.Fatalf("the rail offers to start an agent %v, want %v", got, tc.want)
+			a := view.Options.Actions
+			for name, got := range map[string]bool{"spawn": a.Spawn != nil, "message": a.Message != nil, "stop": a.Stop != nil} {
+				if got != tc.want {
+					t.Fatalf("the rail offers %s %v, want %v", name, got, tc.want)
+				}
 			}
 		})
 	}
-	// The popup runs our own binary over the rail's own pane, for the
-	// workspace the rail follows, and stays on screen when the spawn fails.
-	cmd, err := (&agentBar{session: "api", exe: "/opt/lmux", pane: "%4"}).spawnPopup()
-	if err != nil {
-		t.Fatal(err)
+}
+
+// TestAgentBarPopups pins the popups the rail opens: our own binary over the
+// rail's own pane, for the workspace the rail follows, kept on screen when the
+// form fails so its error can be read.
+func TestAgentBarPopups(t *testing.T) {
+	bar := &agentBar{session: "api", exe: "/opt/lmux", pane: "%4"}
+	head := func(title string) tmux.Command {
+		return tmux.Command{
+			"display-popup", "-t", "%4", "-E", "-E", "-w", agentBarPopupWidth, "-h", agentBarPopupHeight,
+			"-T", " " + title + " ", "--", "/opt/lmux",
+		}
 	}
-	want := tmux.Command{
-		"display-popup", "-t", "%4", "-E", "-E", "-w", agentBarSpawnWidth, "-h", agentBarSpawnHeight,
-		"-T", " spawn ", "--", "/opt/lmux", "spawn", "--session", "api",
+	cases := []struct {
+		name  string
+		popup func() (tmux.Command, error)
+		want  tmux.Command
+	}{
+		{name: "spawn", popup: bar.spawnPopup, want: append(head("spawn"), "spawn", "--session", "api")},
+		{
+			name:  "message",
+			popup: func() (tmux.Command, error) { return bar.steerPopup(popupMessageTitle, "%7") },
+			want:  append(head("message"), "message", "--session", "api", "--to", "%7"),
+		},
+		{
+			name:  "stop",
+			popup: func() (tmux.Command, error) { return bar.steerPopup(popupStopTitle, "%7") },
+			want:  append(head("stop"), "stop", "--session", "api", "--to", "%7"),
+		},
+		{name: "tasks", popup: bar.tasksPopup, want: append(head("tasks"), "tasks", "--session", "api", "--popup")},
+		{
+			name:  "transcript",
+			popup: func() (tmux.Command, error) { return bar.transcriptPopup("%7", "") },
+			want:  append(head("transcript"), "transcript", "--session", "api", "--to", "%7"),
+		},
+		{
+			name:  "the transcript of a subagent",
+			popup: func() (tmux.Command, error) { return bar.transcriptPopup("%7", "a3f2e1d0c9b8a7f6e") },
+			want: append(head("transcript"),
+				"transcript", "--session", "api", "--to", "%7", "--agent", "a3f2e1d0c9b8a7f6e"),
+		},
 	}
-	if !slices.Equal(cmd, want) {
-		t.Fatalf("the popup is\n%q\nwant\n%q", cmd, want)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd, err := tc.popup()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(cmd, tc.want) {
+				t.Fatalf("the popup is\n%q\nwant\n%q", cmd, tc.want)
+			}
+		})
+	}
+	// A rail with no pane of its own opens nothing, and says why.
+	if _, err := (&agentBar{session: "api", exe: "/opt/lmux"}).steerPopup(popupMessageTitle, "%7"); err == nil {
+		t.Fatal("a popup opened over no pane")
+	}
+}
+
+// TestAgentBarOpensItsPopups runs the actions the rail hands its keys and
+// reads what reached tmux: each key opens its own form, about the row it was
+// pressed on.
+func TestAgentBarOpensItsPopups(t *testing.T) {
+	row := team.Row{Group: team.GroupTeammates, Name: "review-api", Pane: "%7"}
+	cases := []struct {
+		name string
+		run  func(a tui.AgentBarActions) tea.Cmd
+		want []string
+	}{
+		{name: "s", run: func(a tui.AgentBarActions) tea.Cmd { return a.Spawn() }, want: []string{"spawn", "--session", "api"}},
+		{name: "m", run: func(a tui.AgentBarActions) tea.Cmd { return a.Message(row) }, want: []string{"message", "--session", "api", "--to", "%7"}},
+		{name: "x", run: func(a tui.AgentBarActions) tea.Cmd { return a.Stop(row) }, want: []string{"stop", "--session", "api", "--to", "%7"}},
+		{name: "t", run: func(a tui.AgentBarActions) tea.Cmd { return a.Tasks() }, want: []string{"tasks", "--session", "api", "--popup"}},
+		{
+			name: "r", run: func(a tui.AgentBarActions) tea.Cmd { return a.Transcript(row) },
+			want: []string{"transcript", "--session", "api", "--to", "%7"},
+		},
+		{
+			name: "r on a subagent",
+			run: func(a tui.AgentBarActions) tea.Cmd {
+				return a.Transcript(team.Row{
+					Group: team.GroupSubagents, Name: "explore", Pane: "%7", AgentID: "a3f2e1d0c9b8a7f6e",
+				})
+			},
+			want: []string{"transcript", "--session", "api", "--to", "%7", "--agent", "a3f2e1d0c9b8a7f6e"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var got []string
+			client := tmux.New(tmux.Options{Executor: tmux.ExecutorFunc(func(_ context.Context, _ string, args []string) (tmux.Result, error) {
+				got = args
+				return tmux.Result{}, nil
+			})})
+			bar := &agentBar{client: client, session: "api", exe: "/opt/lmux", pane: "%4"}
+			if n := note(t, tc.run(bar.actions())); n != "" {
+				t.Fatalf("the popup reported %q", n)
+			}
+			i := slices.Index(got, "display-popup")
+			end := slices.Index(got, "--")
+			if i < 0 || end < i {
+				t.Fatalf("no popup reached tmux: %q", got)
+			}
+			if !slices.Equal(got[end+1:], append([]string{"/opt/lmux"}, tc.want...)) {
+				t.Fatalf("the popup runs %q, want %q", got[end+1:], tc.want)
+			}
+		})
 	}
 }
 
@@ -318,7 +450,7 @@ func TestAgentBarSpawnAction(t *testing.T) {
 // rather than a pane of this server: every action says so, and none of them
 // sends tmux a target it would have to guess at.
 func TestAgentBarActsOnNoPane(t *testing.T) {
-	bar := &agentBar{}
+	bar := &agentBar{session: "api", exe: "/opt/lmux", pane: "%4"}
 	row := team.Row{Name: "write-docs"}
 	for _, action := range []struct {
 		name string
@@ -327,6 +459,8 @@ func TestAgentBarActsOnNoPane(t *testing.T) {
 		{"focus", bar.focus},
 		{"zoom", bar.zoom},
 		{"window", bar.window},
+		{"message", bar.message},
+		{"stop", bar.stop},
 	} {
 		t.Run(action.name, func(t *testing.T) {
 			if got := note(t, action.cmd(row)); got != "write-docs runs in no pane of this server" {
@@ -408,7 +542,7 @@ func TestAgentBarPanes(t *testing.T) {
 		ID: "%3", SessionName: "api", WindowID: "@2", WindowName: "claude",
 		Role: "claude", State: "busy", Agent: "team-lead", AgentType: "team-lead",
 		Team: "session-8f3c1d2a", Subagents: "2", Running: "a1=explore,b2=review",
-		Active: true, WindowActive: true,
+		Active: true, WindowActive: true, Transcript: "/work/.claude/projects/-work-api/s1.jsonl",
 	}, {
 		// An active pane of a window nobody is on is not the pane the user is
 		// on, and a count that is not a number is a count nothing wrote.
@@ -423,6 +557,10 @@ func TestAgentBarPanes(t *testing.T) {
 	}
 	if first.Subagents != 2 || len(first.Running) != 2 || first.Running[1].Type != "review" || !first.Active {
 		t.Fatalf("the subagents of the pane are %d %+v", first.Subagents, first.Running)
+	}
+	// Without the transcript the rows carry no usage, whatever the agents spend.
+	if first.Transcript != "/work/.claude/projects/-work-api/s1.jsonl" {
+		t.Fatalf("the transcript of the pane is %q", first.Transcript)
 	}
 	if second := got[1]; second.Active || second.Subagents != 0 || !second.Dead {
 		t.Fatalf("the second pane is %+v", second)

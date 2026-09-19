@@ -24,6 +24,7 @@ var inheritedOnly = []string{
 	session.EnvSocket,
 	session.EnvSession,
 	session.EnvSandbox,
+	session.EnvClient,
 	"CLAUDECODE",
 	"CLAUDE_PID",
 	"CLAUDE_CODE_ENTRYPOINT",
