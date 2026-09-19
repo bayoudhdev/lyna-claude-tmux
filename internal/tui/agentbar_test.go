@@ -11,6 +11,7 @@ import (
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/team"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/theme"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/transcript"
 )
 
 // barView is the team a rail is drawn from in these tests: a lead, two
@@ -285,6 +286,344 @@ func TestAgentBarOffersSpawn(t *testing.T) {
 			if got := strings.Contains(plain(m), "spawn"); got != offer {
 				t.Fatalf("the footer offers spawn %v, want %v:\n%s", got, offer, plain(m))
 			}
+		})
+	}
+}
+
+// TestAgentBarSteers drives m and x over every kind of row: the lead and the
+// teammates of the workspace are handed to the action, and every other row is
+// refused with the reason under the rows.
+func TestAgentBarSteers(t *testing.T) {
+	// The rows of barView, in drawing order: lead 0, api 1, teammates 2,
+	// build-api 3, review-api 4, write-docs 5 (no pane), subagents 6,
+	// security-auditor 7, elsewhere 8, web 9.
+	down := func(n int) []tea.Msg {
+		msgs := make([]tea.Msg, n)
+		for i := range msgs {
+			msgs[i] = press("down")
+		}
+		return msgs
+	}
+	cases := []struct {
+		name string
+		msgs []tea.Msg
+		// wantAction is the action the keys asked for, wantRow the agent it was
+		// asked for, and wantNote what the rail said instead.
+		wantAction, wantRow, wantNote string
+	}{
+		{name: "m messages the lead", msgs: append(down(1), press("m")), wantAction: "message", wantRow: "api"},
+		{name: "m messages a teammate", msgs: append(down(3), press("m")), wantAction: "message", wantRow: "build-api"},
+		{name: "x stops a teammate", msgs: append(down(4), press("x")), wantAction: "stop", wantRow: "review-api"},
+		{
+			name: "x leaves the lead alone", msgs: append(down(1), press("x")),
+			wantNote: "api leads the workspace; only a teammate is stopped from here",
+		},
+		{
+			name: "m on a subagent names the agent to message", msgs: append(down(7), press("m")),
+			wantNote: "a subagent takes no messages; message the agent that runs it",
+		},
+		{
+			name: "x on a subagent", msgs: append(down(7), press("x")),
+			wantNote: "a subagent is not stopped from here; message the agent that runs it",
+		},
+		{
+			name: "m on an agent of another workspace", msgs: []tea.Msg{press("G"), press("m")},
+			wantNote: "web is an agent of workspace web; steer it from that workspace",
+		},
+		{
+			name: "x on an agent of another workspace", msgs: []tea.Msg{press("G"), press("x")},
+			wantNote: "web is an agent of workspace web; steer it from that workspace",
+		},
+		{
+			name: "m on a teammate that runs in no pane", msgs: append(down(5), press("m")),
+			wantNote: "write-docs runs in no pane of this server",
+		},
+		{
+			name: "x on a teammate that runs in no pane", msgs: append(down(5), press("x")),
+			wantNote: "write-docs runs in no pane of this server",
+		},
+		{name: "r reads a teammate", msgs: append(down(4), press("r")), wantAction: "transcript", wantRow: "review-api"},
+		{
+			name: "r reads the subagent of a pane", msgs: append(down(7), press("r")),
+			wantAction: "transcript", wantRow: "security-auditor",
+		},
+		{
+			name: "r on an agent of another workspace", msgs: []tea.Msg{press("G"), press("r")},
+			wantNote: "web is an agent of workspace web; steer it from that workspace",
+		},
+		{
+			name: "r on a teammate that runs in no pane", msgs: append(down(5), press("r")),
+			wantNote: "write-docs runs in no pane of this server",
+		},
+		{name: "a section is no agent", msgs: []tea.Msg{press("m"), press("x"), press("r")}},
+		{name: "typed into the filter", msgs: []tea.Msg{press("/"), press("m"), press("x"), press("r")}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var gotAction, gotRow string
+			act := func(name string) func(team.Row) tea.Cmd {
+				return func(r team.Row) tea.Cmd {
+					gotAction, gotRow = name, r.Name
+					return nil
+				}
+			}
+			m := newBar(t, AgentBarOptions{
+				Width: 72, Height: 20,
+				Actions: AgentBarActions{Message: act("message"), Stop: act("stop"), Transcript: act("transcript")},
+			}, barView())
+			drive(t, m, nil, tc.msgs...)
+			if gotAction != tc.wantAction || gotRow != tc.wantRow {
+				t.Fatalf("action %q on %q, want %q on %q", gotAction, gotRow, tc.wantAction, tc.wantRow)
+			}
+			if m.note != tc.wantNote {
+				t.Fatalf("note %q, want %q", m.note, tc.wantNote)
+			}
+			if tc.wantNote != "" && !strings.Contains(plain(m), tc.wantNote) {
+				t.Fatalf("the note is not drawn:\n%s", plain(m))
+			}
+		})
+	}
+}
+
+// TestTokenCount pins how a count is drawn at each of the sizes the rail has
+// to fit into its footer.
+func TestTokenCount(t *testing.T) {
+	cases := []struct {
+		name string
+		n    int64
+		want string
+	}{
+		{name: "nothing", n: 0, want: "0"},
+		{name: "hundreds", n: 947, want: "947"},
+		{name: "a thousand", n: 1000, want: "1.0k"},
+		{name: "thousands with a decimal", n: 9499, want: "9.5k"},
+		{name: "ten thousand", n: 10_000, want: "10k"},
+		{name: "thousands", n: 124_800, want: "124k"},
+		{name: "a million", n: 1_000_000, want: "1.0M"},
+		{name: "millions with a decimal", n: 2_450_000, want: "2.5M"},
+		{name: "millions", n: 12_400_000, want: "12M"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tokenCount(tc.n); got != tc.want {
+				t.Fatalf("tokenCount(%d) = %q, want %q", tc.n, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestAgentBarDrawsWhatTheTeamSpent adds up the agents of the workspace and
+// leaves the agents of other workspaces out: what they spend is their own
+// rail's to show.
+func TestAgentBarDrawsWhatTheTeamSpent(t *testing.T) {
+	spent := func(rows []team.Row, out int64) []team.Row {
+		for i := range rows {
+			rows[i].Usage.Sum = transcript.Usage{Output: out}
+		}
+		return rows
+	}
+	cases := []struct {
+		name string
+		rows func(v team.View) team.View
+		want string
+	}{
+		{name: "no transcript read", rows: func(v team.View) team.View { return v }},
+		{
+			name: "the agents of the workspace",
+			rows: func(v team.View) team.View {
+				v.Rows = spent(v.Rows, 1000)
+				return v
+			},
+			// Five rows of the workspace, and the agent elsewhere left out.
+			want: "5.0k tokens",
+		},
+		{
+			name: "an agent of another workspace alone",
+			rows: func(v team.View) team.View {
+				for i := range v.Rows {
+					if v.Rows[i].Group == team.GroupElsewhere {
+						v.Rows[i].Usage.Sum = transcript.Usage{Output: 5000}
+					}
+				}
+				return v
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newBar(t, AgentBarOptions{Width: 60, Height: 20}, tc.rows(barView()))
+			footer := plain(m)[strings.LastIndex(plain(m), "\n")+1:]
+			if tc.want == "" {
+				if strings.Contains(footer, "tokens") {
+					t.Fatalf("the footer counts tokens nothing spent: %q", footer)
+				}
+				return
+			}
+			if !strings.Contains(footer, tc.want) {
+				t.Fatalf("footer %q, want %q in it", footer, tc.want)
+			}
+		})
+	}
+}
+
+// TestAgentBarSteersNothingWithoutActions keeps m and x quiet on a rail that
+// opens no form: it has nothing to refuse either.
+func TestAgentBarSteersNothingWithoutActions(t *testing.T) {
+	m := newBar(t, AgentBarOptions{Width: 72, Height: 20}, barView())
+	drive(t, m, nil, press("down"), press("m"), press("x"), press("r"), press("t"), press("G"), press("m"))
+	if m.note != "" {
+		t.Fatalf("a rail with no form to open said %q", m.note)
+	}
+}
+
+// TestAgentBarShowsTheTasks covers the one key that is about the team rather
+// than about a row: it opens the task list wherever the cursor is, a section
+// and a filter being edited included.
+func TestAgentBarShowsTheTasks(t *testing.T) {
+	cases := []struct {
+		name string
+		msgs []tea.Msg
+		want int
+	}{
+		{name: "on a section", msgs: []tea.Msg{press("t")}, want: 1},
+		{name: "on an agent", msgs: []tea.Msg{press("down"), press("t")}, want: 1},
+		{name: "twice", msgs: []tea.Msg{press("t"), press("t")}, want: 2},
+		{name: "typed into the filter", msgs: []tea.Msg{press("/"), press("t")}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			opened := 0
+			m := newBar(t, AgentBarOptions{
+				Width: 72, Height: 20,
+				Actions: AgentBarActions{Tasks: func() tea.Cmd {
+					opened++
+					return nil
+				}},
+			}, barView())
+			drive(t, m, nil, tc.msgs...)
+			if opened != tc.want {
+				t.Fatalf("the task list opened %d times, want %d", opened, tc.want)
+			}
+			if m.note != "" {
+				t.Fatalf("note %q, want none", m.note)
+			}
+		})
+	}
+}
+
+// TestSteerRefusals pins which rows each action applies to. A subagent row and
+// an agent elsewhere carry a pane like any other row, which is why the section
+// is read before the pane.
+func TestSteerRefusals(t *testing.T) {
+	cases := []struct {
+		name                       string
+		row                        team.Row
+		message, stopping, reading string
+	}{
+		{name: "the lead", row: team.Row{Group: team.GroupLead, Name: "api", Pane: "%1"}, stopping: "api leads the workspace; only a teammate is stopped from here"},
+		{name: "a teammate", row: team.Row{Group: team.GroupTeammates, Name: "review-api", Pane: "%2"}},
+		{
+			name: "a teammate whose agent stopped", row: team.Row{Group: team.GroupTeammates, Name: "review-api", Pane: "%2", State: team.StateFailed},
+			message: "review-api has stopped and takes no messages",
+		},
+		{
+			name: "a teammate that runs in no pane", row: team.Row{Group: team.GroupTeammates, Name: "write-docs", State: team.StateGone},
+			message: "write-docs runs in no pane of this server", stopping: "write-docs runs in no pane of this server",
+			reading: "write-docs runs in no pane of this server",
+		},
+		{
+			name: "a subagent", row: team.Row{Group: team.GroupSubagents, Name: "security-auditor", Pane: "%2"},
+			message:  "a subagent takes no messages; message the agent that runs it",
+			stopping: "a subagent is not stopped from here; message the agent that runs it",
+		},
+		{
+			name: "an agent of another workspace", row: team.Row{Group: team.GroupElsewhere, Name: "web", Session: "web", Pane: "%9"},
+			message:  "web is an agent of workspace web; steer it from that workspace",
+			stopping: "web is an agent of workspace web; steer it from that workspace",
+			reading:  "web is an agent of workspace web; steer it from that workspace",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := messageRefusal(tc.row); got != tc.message {
+				t.Fatalf("messageRefusal = %q, want %q", got, tc.message)
+			}
+			if got := stopRefusal(tc.row); got != tc.stopping {
+				t.Fatalf("stopRefusal = %q, want %q", got, tc.stopping)
+			}
+			if got := transcriptRefusal(tc.row); got != tc.reading {
+				t.Fatalf("transcriptRefusal = %q, want %q", got, tc.reading)
+			}
+		})
+	}
+}
+
+// TestAgentBarOffersSteer checks the footer offers m and x on the rows they
+// apply to and on no other.
+func TestAgentBarOffersSteer(t *testing.T) {
+	cases := []struct {
+		name                string
+		moves               int
+		message, stop, read bool
+	}{
+		{name: "a section", moves: 0},
+		{name: "the lead", moves: 1, message: true, read: true},
+		{name: "a teammate", moves: 3, message: true, stop: true, read: true},
+		{name: "a teammate with no pane", moves: 5},
+		{name: "a subagent", moves: 7, read: true},
+		{name: "an agent elsewhere", moves: 9},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newBar(t, AgentBarOptions{
+				Width: 100, Height: 20,
+				Actions: AgentBarActions{
+					Message:    func(team.Row) tea.Cmd { return nil },
+					Stop:       func(team.Row) tea.Cmd { return nil },
+					Transcript: func(team.Row) tea.Cmd { return nil },
+					Tasks:      func() tea.Cmd { return nil },
+				},
+			}, barView())
+			for range tc.moves {
+				drive(t, m, nil, press("down"))
+			}
+			footer := plain(m)[strings.LastIndex(plain(m), "\n")+1:]
+			if got := strings.Contains(footer, "m message"); got != tc.message {
+				t.Fatalf("the footer offers message %v, want %v: %q", got, tc.message, footer)
+			}
+			if got := strings.Contains(footer, "x stop"); got != tc.stop {
+				t.Fatalf("the footer offers stop %v, want %v: %q", got, tc.stop, footer)
+			}
+			if got := strings.Contains(footer, "r read"); got != tc.read {
+				t.Fatalf("the footer offers read %v, want %v: %q", got, tc.read, footer)
+			}
+			// The task list is about the team, so it is offered on every row.
+			if !strings.Contains(footer, "t tasks") {
+				t.Fatalf("the footer does not offer the task list: %q", footer)
+			}
+		})
+	}
+}
+
+// TestAgentBarSteerFrames pins the rail as it steers: the keys a teammate
+// offers, and the reason a subagent is not messaged.
+func TestAgentBarSteerFrames(t *testing.T) {
+	actions := AgentBarActions{
+		Message: func(team.Row) tea.Cmd { return nil },
+		Stop:    func(team.Row) tea.Cmd { return nil },
+	}
+	cases := []struct {
+		name string
+		msgs []tea.Msg
+	}{
+		{name: "rail-steer", msgs: []tea.Msg{press("down"), press("down"), press("down")}},
+		{name: "rail-refused", msgs: []tea.Msg{press("G"), press("up"), press("up"), press("m")}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newBar(t, AgentBarOptions{Width: 72, Height: 16, Actions: actions}, barView())
+			drive(t, m, nil, tc.msgs...)
+			assertFrame(t, tc.name, m, 72, 16, false)
 		})
 	}
 }

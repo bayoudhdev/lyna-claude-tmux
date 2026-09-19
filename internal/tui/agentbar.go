@@ -38,6 +38,18 @@ type AgentBarActions struct {
 	// row: an agent is started whether or not one is selected, and a rail that
 	// is itself a popup has none, since a popup would close itself opening it.
 	Spawn func() tea.Cmd
+	// Message types a message at the agent, and Stop stops a teammate. Like
+	// Spawn they open a form, so a rail that is itself a popup has neither.
+	// The rail only hands them the rows they apply to: see messageRefusal and
+	// stopRefusal.
+	Message func(row team.Row) tea.Cmd
+	Stop    func(row team.Row) tea.Cmd
+	// Tasks shows the shared task list of the team. Like Spawn it belongs to
+	// the workspace rather than to a row.
+	Tasks func() tea.Cmd
+	// Transcript reads what one agent is writing, the subagents of a pane
+	// included. See transcriptRefusal for the rows it is not given.
+	Transcript func(row team.Row) tea.Cmd
 }
 
 // AgentBarOptions configure the agents rail.
@@ -112,7 +124,8 @@ type barItem struct {
 // agentBarKeys are the keys of the rail beyond the movement it shares with
 // the other list views.
 type agentBarKeys struct {
-	Focus, Zoom, Window, Spawn, Fold, Filter, Quit key.Binding
+	Focus, Zoom, Window, Message, Stop, Spawn key.Binding
+	Tasks, Transcript, Fold, Filter, Quit     key.Binding
 }
 
 // AgentBarModel is the agents rail: every agent of the workspace, grouped,
@@ -180,13 +193,17 @@ func NewAgentBar(opts AgentBarOptions) *AgentBarModel {
 		folds:  map[team.Group]foldAnim{},
 		filter: lineInput{limit: 64},
 		keys: agentBarKeys{
-			Focus:  key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "focus")),
-			Zoom:   key.NewBinding(key.WithKeys("z"), key.WithHelp("z", "zoom")),
-			Window: key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "window")),
-			Spawn:  key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "spawn")),
-			Fold:   key.NewBinding(key.WithKeys(" ", "space"), key.WithHelp("space", "fold")),
-			Filter: key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
-			Quit:   key.NewBinding(key.WithKeys("q", "esc"), key.WithHelp("q", "close")),
+			Focus:      key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "focus")),
+			Zoom:       key.NewBinding(key.WithKeys("z"), key.WithHelp("z", "zoom")),
+			Window:     key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "window")),
+			Message:    key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "message")),
+			Stop:       key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "stop")),
+			Spawn:      key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "spawn")),
+			Tasks:      key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "tasks")),
+			Transcript: key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "read")),
+			Fold:       key.NewBinding(key.WithKeys(" ", "space"), key.WithHelp("space", "fold")),
+			Filter:     key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
+			Quit:       key.NewBinding(key.WithKeys("q", "esc"), key.WithHelp("q", "close")),
 		},
 	}
 }
@@ -483,11 +500,22 @@ func (m *AgentBarModel) key(msg tea.KeyPressMsg) tea.Cmd {
 		return m.act(m.opts.Actions.Zoom)
 	case key.Matches(msg, m.keys.Window):
 		return m.act(m.opts.Actions.Window)
+	case key.Matches(msg, m.keys.Message):
+		return m.steer(m.opts.Actions.Message, messageRefusal)
+	case key.Matches(msg, m.keys.Stop):
+		return m.steer(m.opts.Actions.Stop, stopRefusal)
+	case key.Matches(msg, m.keys.Transcript):
+		return m.steer(m.opts.Actions.Transcript, transcriptRefusal)
 	case key.Matches(msg, m.keys.Spawn):
 		if m.opts.Actions.Spawn == nil {
 			return nil
 		}
 		return m.opts.Actions.Spawn()
+	case key.Matches(msg, m.keys.Tasks):
+		if m.opts.Actions.Tasks == nil {
+			return nil
+		}
+		return m.opts.Actions.Tasks()
 	}
 	return nil
 }
@@ -519,6 +547,87 @@ func (m *AgentBarModel) act(run func(team.Row) tea.Cmd) tea.Cmd {
 		return nil
 	}
 	return run(row)
+}
+
+// steer runs an action that types at an agent or stops one, on the selected
+// agent. A row the action does not apply to is not handed to it: the rail says
+// why under the rows instead, since a key that does nothing on a row the user
+// can see reads as a key that is broken.
+func (m *AgentBarModel) steer(run func(team.Row) tea.Cmd, refusal func(team.Row) string) tea.Cmd {
+	row, ok := m.selected()
+	if !ok || run == nil {
+		return nil
+	}
+	if why := refusal(row); why != "" {
+		// The note takes a line from the rows, which keeps the cursor on one.
+		m.note = sanitize.Line(why)
+		m.clampList()
+		return nil
+	}
+	return run(row)
+}
+
+// messageRefusal is why a row takes no message from this rail, empty for the
+// lead and the teammates of this workspace running in a pane.
+//
+// A subagent row carries the pane of the agent that runs it, so a message
+// typed there would reach that agent instead: the section decides before the
+// pane does. An agent of another workspace is steered from its own rail, which
+// is where the form it opens is for.
+func messageRefusal(r team.Row) string {
+	switch r.Group {
+	case team.GroupSubagents:
+		return "a subagent takes no messages; message the agent that runs it"
+	case team.GroupElsewhere:
+		return elsewhereRefusal(r)
+	}
+	if _, ok := r.Target(); !ok {
+		return r.Name + " runs in no pane of this server"
+	}
+	if r.State == team.StateFailed {
+		return r.Name + " has stopped and takes no messages"
+	}
+	return ""
+}
+
+// stopRefusal is why a row is not stopped from this rail, empty for a
+// teammate of this workspace running in a pane. The lead is the conversation
+// the workspace was opened for, and it is closed in its own pane or not at all.
+func stopRefusal(r team.Row) string {
+	switch r.Group {
+	case team.GroupLead:
+		return r.Name + " leads the workspace; only a teammate is stopped from here"
+	case team.GroupSubagents:
+		return "a subagent is not stopped from here; message the agent that runs it"
+	case team.GroupElsewhere:
+		return elsewhereRefusal(r)
+	}
+	if _, ok := r.Target(); !ok {
+		return r.Name + " runs in no pane of this server"
+	}
+	return ""
+}
+
+// transcriptRefusal is why a row is not read from this rail, empty for an
+// agent of this workspace, a subagent included: a subagent writes a transcript
+// of its own, which is read through the pane of the agent that runs it.
+//
+// An agent of another workspace is read from that workspace, where the reader
+// reaches the panes the rows name.
+func transcriptRefusal(r team.Row) string {
+	if r.Group == team.GroupElsewhere {
+		return elsewhereRefusal(r)
+	}
+	if _, ok := r.Target(); !ok {
+		return r.Name + " runs in no pane of this server"
+	}
+	return ""
+}
+
+// elsewhereRefusal is what the rail says about steering an agent of another
+// workspace.
+func elsewhereRefusal(r team.Row) string {
+	return r.Name + " is an agent of workspace " + r.Session + "; steer it from that workspace"
 }
 
 // fold closes or opens the section the cursor is in, heading or agent alike.
@@ -824,6 +933,11 @@ func (m *AgentBarModel) footer() string {
 			segs = append(segs, seg("  "+strconv.Itoa(t.Blocked)+" blocked", s.Warning))
 		}
 	}
+	if m.update.Err == nil || !m.have {
+		if spent := teamTokens(m.update.View.Rows); spent > 0 {
+			segs = append(segs, seg("  "+tokenCount(spent)+" tokens", s.Muted))
+		}
+	}
 	if m.closed {
 		segs = append(segs, seg("  watcher stopped", s.Warning))
 	}
@@ -839,6 +953,36 @@ func (m *AgentBarModel) footer() string {
 	return s.line(m.width-hw, &s.Bar, segs...) + help
 }
 
+// teamTokens is what the agents of this workspace have spent between them, the
+// subagents included. The agents of other workspaces are counted on their own
+// rail, where what they spend is their workspace's to watch.
+func teamTokens(rows []team.Row) int64 {
+	var total int64
+	for _, r := range rows {
+		if r.Group != team.GroupElsewhere {
+			total += r.Usage.Sum.Total()
+		}
+	}
+	return total
+}
+
+// tokenCount draws a token count in the few cells a rail has for it: hundreds
+// as they are, thousands as k and millions as M, with one decimal below ten of
+// either so a count that is growing is seen to grow.
+func tokenCount(n int64) string {
+	switch {
+	case n < 1000:
+		return strconv.FormatInt(n, 10)
+	case n < 10_000:
+		return strconv.FormatFloat(float64(n)/1000, 'f', 1, 64) + "k"
+	case n < 1_000_000:
+		return strconv.FormatInt(n/1000, 10) + "k"
+	case n < 10_000_000:
+		return strconv.FormatFloat(float64(n)/1_000_000, 'f', 1, 64) + "M"
+	}
+	return strconv.FormatInt(n/1_000_000, 10) + "M"
+}
+
 // helpKeys are the keys the footer offers: the ones that do something here and
 // now, so a rail with no agent in it offers nothing to do to one.
 func (m *AgentBarModel) helpKeys() []key.Binding {
@@ -846,16 +990,28 @@ func (m *AgentBarModel) helpKeys() []key.Binding {
 	if len(m.items) > 1 {
 		keys = append(keys, m.nav.Down)
 	}
-	if _, ok := m.selected(); ok {
+	if row, ok := m.selected(); ok {
 		if m.opts.Actions.Focus != nil {
 			keys = append(keys, m.keys.Focus)
 		}
 		if m.opts.Actions.Window != nil {
 			keys = append(keys, m.keys.Window)
 		}
+		if m.opts.Actions.Message != nil && messageRefusal(row) == "" {
+			keys = append(keys, m.keys.Message)
+		}
+		if m.opts.Actions.Stop != nil && stopRefusal(row) == "" {
+			keys = append(keys, m.keys.Stop)
+		}
+		if m.opts.Actions.Transcript != nil && transcriptRefusal(row) == "" {
+			keys = append(keys, m.keys.Transcript)
+		}
 	}
 	if m.opts.Actions.Spawn != nil {
 		keys = append(keys, m.keys.Spawn)
+	}
+	if m.opts.Actions.Tasks != nil {
+		keys = append(keys, m.keys.Tasks)
 	}
 	if m.opts.Popup {
 		keys = append(keys, m.keys.Quit)
