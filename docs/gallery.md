@@ -3,7 +3,7 @@
 Every screen lyna-tmux draws, captured from a real terminal. Each picture is the last frame of the
 scene named beside it, and the animations of the same scenes are in the
 [README](../README.md). The scenes themselves, and how to record them again, are in
-[scenes](scenes/README.md).
+[scenes](scenes/README.md), and the whole tool in motion is the [demonstration film](video.md).
 
 ## The workspace
 

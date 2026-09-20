@@ -33,7 +33,8 @@ that keeps your credentials out of reach of the tools Claude runs.
 
 Every picture and animation on this page is a real terminal, recorded from the scenes in
 [docs/scenes](docs/scenes) by `scripts/record.sh`. Nothing is mocked up, and every screen is in the
-[gallery](docs/gallery.md).
+[gallery](docs/gallery.md). Every feature end to end, example by example with English subtitles, is
+the eight minute demonstration film: [docs/video.md](docs/video.md).
 
 ## Why
 

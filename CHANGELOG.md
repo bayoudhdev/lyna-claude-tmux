@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A demonstration film, `docs/assets/demo.mp4`: every feature, example by example, in eight minutes, with English subtitles that carry the command as it is typed and what it does. It is recorded from real terminals by `scripts/record-video.sh`, one scene per chapter under `docs/video`, and each chapter also stands alone as `docs/assets/demo-<chapter>.mp4`. The chapter list with its timestamps is in `docs/video.md`.
+- `scripts/record.sh` records a film as well as a picture: `caption` writes the subtitle every frame after it carries, `chapter` opens a title card and a chapter mark, and `--srt` writes the same captions as a sidecar track. The caption is drawn in a band under the terminal, so a scene that captions anything keeps one size for the whole film.
+
+### Fixed
+
+- A path the screen cut short is rewritten in a recording as well: every prefix of the home directory has a rule of its own, so a truncated path no longer carries the first letters of the account that recorded it.
+- `lmux doctor` no longer breaks the Option as Meta advice mid-word: the guidance names the terminal's setting, and what lyna-tmux offers instead is the line under it, which the report wraps.
+- `scripts/record-docs.sh` resolves the paths it is given before it runs the recorder from the project directory, where a relative one named something else.
+
 ## [1.3.0] - 2026-09-20
 
 ### Added
