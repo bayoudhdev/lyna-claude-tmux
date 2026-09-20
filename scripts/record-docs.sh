@@ -218,16 +218,15 @@ if ((dry_run == 0)); then
   # from the same rule a terminal with such a font follows, which is what a
   # reader of the pictures gets by installing the font and nothing else.
   config_file=$(lmux config path) || fail "could not find the recording configuration"
-  python3 - "$config_file" <<'EDIT' || fail "could not set the icon set of the recording configuration"
-import io
-import sys
-
-path = sys.argv[1]
-text = io.open(path, encoding="utf-8").read()
-if 'icons = "auto"' not in text:
-    sys.exit("the configuration template no longer sets icons")
-io.open(path, "w", encoding="utf-8").write(text.replace('icons = "auto"', 'icons = "nerd"', 1))
-EDIT
+  grep -q '^icons = "auto"$' "$config_file" ||
+    fail "the configuration template no longer sets the icon set"
+  edited=$config_file.icons
+  if ! {
+    sed 's/^icons = "auto"$/icons = "nerd"/' "$config_file" >"$edited" &&
+      mv "$edited" "$config_file"
+  }; then
+    fail "could not set the icon set of the recording configuration"
+  fi
   # A scene that opens a review needs the plugin a review runs, and a machine
   # without it would be recorded showing the warning instead of the editor.
   lmux review status >/dev/null 2>&1 ||
