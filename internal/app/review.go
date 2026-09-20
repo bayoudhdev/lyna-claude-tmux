@@ -201,6 +201,7 @@ func ReviewLaunch(ctx context.Context, h Host, src ReviewPlugin, req ReviewReque
 		}
 		if _, err := review.Prepare(paths, domain.InitOptions{
 			Colors:    domain.ColorsFromPalette(look.Palette),
+			Scheme:    domain.SchemeFromPalette(look.Palette),
 			Icons:     icons,
 			TrueColor: look.Depth == theme.DepthTrue,
 			Light:     !look.Palette.Dark,

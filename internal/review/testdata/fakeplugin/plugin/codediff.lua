@@ -17,7 +17,17 @@ vim.api.nvim_create_user_command("CodeDiff", function(opts)
     error("fake CodeDiff failure")
   end
   if vim.env.LYNA_TMUX_TEST_STATE then
+    -- The groups the generated colorscheme sets, read back as Neovim
+    -- resolved them, so a test sees the colors a review is drawn with.
+    local groups = {}
+    for _, name in ipairs({ "Normal", "Comment", "Keyword", "DiffAdd", "@keyword", "@function", "@string", "@type" }) do
+      local ok, hl = pcall(vim.api.nvim_get_hl, 0, { name = name })
+      if ok and hl then
+        groups[name] = { fg = hl.fg or vim.NIL, bg = hl.bg or vim.NIL, bold = hl.bold or false, italic = hl.italic or false }
+      end
+    end
     write(vim.env.LYNA_TMUX_TEST_STATE, vim.json.encode({
+      highlight_groups = groups,
       setup = require("codediff").options or vim.NIL,
       runtimepath = vim.opt.runtimepath:get(),
       packpath = vim.opt.packpath:get(),

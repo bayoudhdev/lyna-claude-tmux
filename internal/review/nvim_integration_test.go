@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -144,18 +145,50 @@ type editorState struct {
 			Icons         map[string]string `json:"icons"`
 		} `json:"explorer"`
 	} `json:"setup"`
-	RuntimePath      []string `json:"runtimepath"`
-	PackPath         []string `json:"packpath"`
-	TermGUIColors    bool     `json:"termguicolors"`
-	Background       string   `json:"background"`
-	Modeline         bool     `json:"modeline"`
-	Exrc             bool     `json:"exrc"`
-	Swapfile         bool     `json:"swapfile"`
-	Shadafile        string   `json:"shadafile"`
-	NoAutoInstall    *string  `json:"no_auto_install"`
-	NoWatcherInstall *string  `json:"no_watcher_install"`
-	WatcherPath      *string  `json:"watcher_path"`
-	Cwd              string   `json:"cwd"`
+	Highlights       map[string]highlightState `json:"highlight_groups"`
+	RuntimePath      []string                  `json:"runtimepath"`
+	PackPath         []string                  `json:"packpath"`
+	TermGUIColors    bool                      `json:"termguicolors"`
+	Background       string                    `json:"background"`
+	Modeline         bool                      `json:"modeline"`
+	Exrc             bool                      `json:"exrc"`
+	Swapfile         bool                      `json:"swapfile"`
+	Shadafile        string                    `json:"shadafile"`
+	NoAutoInstall    *string                   `json:"no_auto_install"`
+	NoWatcherInstall *string                   `json:"no_watcher_install"`
+	WatcherPath      *string                   `json:"watcher_path"`
+	Cwd              string                    `json:"cwd"`
+}
+
+// highlightState is one highlight group as Neovim resolved it; fg and bg are
+// the 24-bit colors it reports, absent when the group leaves them unset.
+type highlightState struct {
+	Fg     *int `json:"fg"`
+	Bg     *int `json:"bg"`
+	Bold   bool `json:"bold"`
+	Italic bool `json:"italic"`
+}
+
+// String renders a group the way the generated file writes it, so a failure
+// names colors rather than pointers.
+func (h highlightState) String() string {
+	var parts []string
+	for name, c := range map[string]*int{"fg": h.Fg, "bg": h.Bg} {
+		if c != nil {
+			parts = append(parts, fmt.Sprintf("%s=#%06x", name, *c))
+		}
+	}
+	slices.Sort(parts)
+	if h.Bold {
+		parts = append(parts, "bold")
+	}
+	if h.Italic {
+		parts = append(parts, "italic")
+	}
+	if len(parts) == 0 {
+		return "unset"
+	}
+	return strings.Join(parts, " ")
 }
 
 func readJSON(t *testing.T, path string, v any) {
@@ -167,6 +200,17 @@ func readJSON(t *testing.T, path string, v any) {
 	if err := json.Unmarshal(data, v); err != nil {
 		t.Fatalf("decode %s: %v\n%s", path, err, data)
 	}
+}
+
+// hexColor turns "#rrggbb" into the 24-bit number Neovim reports.
+func hexColor(t *testing.T, hex string) *int {
+	t.Helper()
+	c, err := theme.ParseHex(hex)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := int(c.R)<<16 | int(c.G)<<8 | int(c.B)
+	return &n
 }
 
 func TestNeovimLaunch(t *testing.T) {
@@ -192,7 +236,10 @@ func TestNeovimLaunch(t *testing.T) {
 			req: domain.Request{Layout: domain.LayoutInline, Paths: []string{
 				"dir with spaces/a b.go", "x|echo 1", `q"uote`, `back\slash`, "!touch pwned", "%self", "it's", "日本.go",
 			}},
-			init: domain.InitOptions{Colors: domain.ColorsFromPalette(lyna), Icons: domain.IconsASCII, TrueColor: true, Layout: domain.LayoutSideBySide},
+			init: domain.InitOptions{
+				Colors: domain.ColorsFromPalette(lyna), Scheme: domain.SchemeFromPalette(lyna),
+				Icons: domain.IconsASCII, TrueColor: true, Layout: domain.LayoutSideBySide,
+			},
 			check: func(t *testing.T, s *nvimSandbox, paths xdg.Paths, dir string, st editorState) {
 				if len(st.RuntimePath) == 0 || st.RuntimePath[0] != PluginDir(paths) {
 					t.Errorf("runtimepath starts with %q, want the plugin directory", st.RuntimePath)
@@ -218,6 +265,22 @@ func TestNeovimLaunch(t *testing.T) {
 				if st.Setup.Highlights["line_insert"] != "#163b24" || st.Setup.Highlights["conflict_sign_rejected"] != "#ff5f56" {
 					t.Errorf("highlights = %v", st.Setup.Highlights)
 				}
+				// The generated colorscheme reached Neovim: the chrome, a
+				// syntax group and the capture nvim-treesitter sets for the
+				// same thing all carry the palette.
+				wantHL := map[string]highlightState{
+					"Normal":    {Fg: hexColor(t, lyna.Text.Hex()), Bg: hexColor(t, lyna.Bg.Hex())},
+					"Keyword":   {Fg: hexColor(t, lyna.Waiting.Hex())},
+					"@keyword":  {Fg: hexColor(t, lyna.Waiting.Hex())},
+					"@function": {Fg: hexColor(t, lyna.Accent.Hex())},
+					"@string":   {Fg: hexColor(t, lyna.Warning.Hex())},
+					"@type":     {Fg: hexColor(t, lyna.Accent2.Hex()), Italic: true},
+				}
+				for name, want := range wantHL {
+					if got := st.Highlights[name]; !reflect.DeepEqual(got, want) {
+						t.Errorf("highlight %s = %s, want %s", name, got, want)
+					}
+				}
 				if st.Setup.Diff["layout"] != "side-by-side" || st.Setup.Diff["filler_text"] != "/" {
 					t.Errorf("diff options = %v", st.Setup.Diff)
 				}
@@ -241,6 +304,10 @@ func TestNeovimLaunch(t *testing.T) {
 			init: domain.InitOptions{Icons: domain.IconsUnicode, Light: true},
 			env:  []string{"CODEDIFF_WATCHER_PATH=/usr/local/bin/codediff-watcher"},
 			check: func(t *testing.T, _ *nvimSandbox, _ xdg.Paths, _ string, st editorState) {
+				// No scheme was passed, so Neovim keeps its own colors.
+				if got := st.Highlights["@keyword"]; got.Fg != nil && *got.Fg == *hexColor(t, lyna.Waiting.Hex()) {
+					t.Errorf("an editor with no scheme took the workspace colors: %+v", got)
+				}
 				if st.Setup.Diff["filler_text"] != "╱" || st.Setup.Explorer.Icons["folder_open"] != "▾" || st.Setup.Highlights != nil {
 					t.Errorf("setup = %+v", st.Setup)
 				}
