@@ -1,0 +1,22 @@
+# A shell in a popup over the workspace, gone when it exits.
+title Alt+s opens a scratch shell
+size 134 36
+pre lmux kill --all
+# The worktree branches another chapter opened would fill the log line with
+# decorations; the branch the pane is on is the one worth showing.
+pre git config log.excludeDecoration refs/heads/worktree-*
+pre rm -rf .devcontainer
+pre lmux create . --layout duo --detach
+run lmux create . --nested
+wait 4
+chapter The scratch shell
+caption Alt+s | a shell over the workspace, without losing the layout
+frame 1.6
+keys M-s
+wait 3
+frame 1.6
+caption git log --oneline -5 | it runs where the workspace is, and closes when it exits
+type git log --oneline -5
+enter
+wait 2.5
+frame 3.5

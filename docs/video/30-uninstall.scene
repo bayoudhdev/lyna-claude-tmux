@@ -1,0 +1,24 @@
+# Everything lyna-tmux wrote, listed before anything is removed, and where to
+# read the rest.
+title lmux uninstall
+size 134 36
+pre lmux kill --all
+run demo-shell
+wait 1
+type clear
+enter
+wait 0.5
+chapter Uninstall
+caption lmux uninstall | everything it wrote, listed before anything is removed
+type lmux uninstall
+enter
+wait 2.5
+frame 4
+keys C-c
+wait 1
+chapter lyna-tmux
+caption lmux --help | the documentation is in docs/, the releases on the repository page
+type clear; lmux --help | head -26
+enter
+wait 1.5
+frame 5

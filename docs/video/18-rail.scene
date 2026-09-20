@@ -1,0 +1,26 @@
+# The rail: the lead, its subagents, and the agents of other workspaces.
+title Alt+A opens the agents rail
+size 134 36
+pre lmux kill --all
+pre rm -rf .devcontainer
+pre lmux create ../acme-web --layout solo --detach
+run lmux create . --layout trio --nested
+wait 6
+chapter The agents rail
+caption Alt+A | the lead, its subagents, and everything else that is running
+frame 1.6
+keys M-A
+wait 2.5
+frame 3
+caption down, space | the rows fold, and a row is a pane away
+keys M-[
+wait 0.8
+keys Down
+wait 0.8
+frame 1.6
+keys Space
+wait 0.9
+frame 2
+keys Space
+wait 0.9
+frame 2.4

@@ -1,0 +1,25 @@
+# Every Claude on the machine, what it is doing, and one key to reach it.
+title Alt+a opens the agent picker
+env LYNA_TMUX_DEMO_AGENTS=1
+size 134 36
+pre lmux kill --all
+pre rm -rf .devcontainer
+pre lmux create . --layout trio --detach
+run lmux create . --nested
+wait 4
+chapter Agents
+caption Alt+a | every agent on the machine, with what it is waiting for
+frame 1.6
+keys M-a
+wait 1.5
+frame 3
+caption down, enter | jump to the one that needs you
+keys Down
+wait 0.7
+frame 1.6
+keys Down
+wait 0.7
+frame 1.6
+keys Enter
+wait 1.5
+frame 2.4

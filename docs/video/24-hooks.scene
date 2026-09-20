@@ -1,0 +1,26 @@
+# The settings file every launch receives, and the state it puts on screen.
+title The hooks and the status line
+size 134 36
+pre lmux kill --all
+pre rm -rf .devcontainer
+run demo-shell
+wait 1
+type clear
+enter
+wait 0.5
+chapter Hooks and state
+caption lmux sandbox show standard | the settings file a launch receives, byte for byte
+type lmux sandbox show standard | head -26
+enter
+wait 2
+frame 4
+caption the workspace reads its own hooks | busy, waiting or idle, on the border and in the bar
+type clear
+enter
+wait 0.4
+type lmux create . --layout trio --nested
+enter
+wait 7
+frame 4
+caption the agent pane | the status line under the agent says the same thing
+frame 4

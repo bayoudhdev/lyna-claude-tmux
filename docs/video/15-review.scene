@@ -1,0 +1,24 @@
+# The side-by-side diff, in a real editor, colored from the workspace palette.
+title Alt+g reviews the changes
+size 134 36
+pre lmux kill --all
+pre rm -rf .devcontainer
+pre lmux create . --layout trio --detach
+run lmux create . --nested
+wait 4
+chapter Review
+caption Alt+g | the working tree, side by side, in Neovim
+frame 1.6
+keys M-g
+wait 4
+frame 3.5
+caption j j j | the files of the change, and the diff of each
+keys j
+keys j
+keys j
+wait 1
+frame 2.4
+keys C-w
+keys l
+wait 1.2
+frame 4

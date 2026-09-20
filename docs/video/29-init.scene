@@ -1,0 +1,21 @@
+# The settings a repository shares with everyone who opens it, and completion.
+title lmux init --project
+size 134 36
+pre lmux kill --all
+pre rm -rf .devcontainer
+run demo-shell
+wait 1
+type clear
+enter
+wait 0.5
+chapter A project's own settings
+caption lmux init --project --dry-run | the sandbox settings a repository shares, shown before they are written
+type lmux init --project --dry-run | head -26
+enter
+wait 2
+frame 4
+caption lmux completion fish | completion for fish, zsh and bash
+type clear; lmux completion fish | head -14
+enter
+wait 1.5
+frame 3.5

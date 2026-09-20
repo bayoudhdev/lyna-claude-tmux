@@ -1,0 +1,20 @@
+# Using lyna-tmux from a tmux setup and a Claude Code you already have.
+title lmux plugin
+size 134 36
+pre lmux kill --all
+run demo-shell
+wait 1
+type clear
+enter
+wait 0.5
+chapter Your own tmux and Claude
+caption lmux plugin tmux | the popup and the agent picker, from your own tmux configuration
+type lmux plugin tmux | head -20
+enter
+wait 1.5
+frame 4
+caption lmux plugin claude | the state of every Claude session, in the sessions you start
+type clear; lmux plugin claude | head -16
+enter
+wait 1.5
+frame 4

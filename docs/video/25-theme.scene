@@ -1,0 +1,38 @@
+# The themes, the preview, and a running workspace restyled in place.
+title lmux theme
+size 134 36
+pre lmux kill --all
+pre rm -rf .devcontainer
+pre lmux create . --layout duo --detach
+run demo-shell
+wait 1
+type clear
+enter
+wait 0.5
+chapter Themes
+caption lmux theme | the themes, with their colors, and the one in use
+type lmux theme
+enter
+wait 1.5
+frame 4
+caption lmux theme preview nord | what a workspace looks like, before switching to it
+type clear; lmux theme preview nord
+enter
+wait 2
+frame 4
+caption lmux theme nord | the workspaces already open are restyled where they stand
+type clear; lmux theme nord
+enter
+wait 2
+frame 2
+type clear; lmux attach acme-api --nested
+enter
+wait 3
+frame 3.5
+keys C-b d
+wait 1.5
+caption lmux theme monokai | back to the one a workspace opens with
+type clear; lmux theme monokai
+enter
+wait 2
+frame 3

@@ -1,0 +1,27 @@
+# Moving between panes and resizing them, without leaving the keyboard.
+title Alt+] and Alt+[ move between panes
+size 134 36
+pre lmux kill --all
+pre rm -rf .devcontainer
+pre lmux create . --layout trio --detach
+run lmux create . --nested
+wait 3
+chapter Panes
+caption Alt+] | the next pane
+frame 1.6
+keys M-]
+wait 0.8
+frame 1.6
+keys M-]
+wait 0.8
+frame 1.6
+caption Alt+Shift+Right | make it wider
+keys M-S-Right
+keys M-S-Right
+keys M-S-Right
+wait 0.8
+frame 2
+caption Alt+c | back to the agent, wherever you are
+keys M-c
+wait 0.8
+frame 2.4

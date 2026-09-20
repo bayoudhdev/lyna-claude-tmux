@@ -1,0 +1,22 @@
+# What the agent is writing, as it writes it.
+title The live changes pane
+size 134 36
+pre lmux kill --all
+pre rm -rf .devcontainer
+pre lmux create . --layout trio --detach
+run lmux create . --nested
+wait 4
+chapter Live changes
+caption the changes pane | the working tree of the project, as the agent writes it
+frame 2
+keys M-]
+keys M-]
+wait 1
+frame 2.4
+caption down, enter | the diff of the file the cursor is on
+keys Down
+wait 0.8
+frame 2
+keys Enter
+wait 2
+frame 4
