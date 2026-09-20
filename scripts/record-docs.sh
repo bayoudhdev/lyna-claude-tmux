@@ -11,9 +11,14 @@
 # anything else that must go. A scene whose first lines contain
 # "# fixtures: off" runs without the fixture binaries on PATH.
 #
+# With --film every scene becomes an MP4 and a subtitle track instead, which
+# is how the chapters of the demonstration film are recorded; the environment
+# a scene runs in is the same either way.
+#
 # Usage: scripts/record-docs.sh --project DIR [--bin PATH] [--assets DIR]
-#                               [--home NAME] [--redact FROM=TO]...
-#                               [--only NAME]... [--dry-run]
+#                               [--scenes DIR] [--home NAME]
+#                               [--redact FROM=TO]... [--only NAME]...
+#                               [--film] [--width PIXELS] [--fps N] [--dry-run]
 set -euo pipefail
 
 fail() {
@@ -28,7 +33,7 @@ usage_error() {
 }
 
 usage() {
-  sed -n '2,15p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,21p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -43,9 +48,12 @@ demo_home=""
 only=()
 extra_redactions=()
 dry_run=0
+film=0
+width=1280
+fps=20
 while (($# > 0)); do
   case $1 in
-  --project | --bin | --assets | --scenes | --record | --only | --home | --redact)
+  --project | --bin | --assets | --scenes | --record | --only | --home | --redact | --width | --fps)
     (($# >= 2)) || usage_error "$1 needs a value"
     case $1 in
     --project) project=$2 ;;
@@ -55,6 +63,8 @@ while (($# > 0)); do
     --record) record=$2 ;;
     --only) only+=("$2") ;;
     --home) demo_home=$2 ;;
+    --width) width=$2 ;;
+    --fps) fps=$2 ;;
     --redact)
       [[ $2 == *=* ]] || usage_error "--redact takes FROM=TO"
       extra_redactions+=(--redact "$2")
@@ -64,6 +74,10 @@ while (($# > 0)); do
     ;;
   --dry-run)
     dry_run=1
+    shift
+    ;;
+  --film)
+    film=1
     shift
     ;;
   -h | --help)
@@ -239,9 +253,16 @@ for scene in "$scenes"/*.scene; do
   wanted "$name" || continue
   frames=$("$record" --scene "$scene" --still /dev/null --dry-run | sed -n 's/^frames: //p')
   [[ -n $frames ]] || fail "$scene: the recorder reported no frame count"
-  args=(--scene "$scene" --still "$assets/$name.png" "${redact[@]}")
-  if ((frames > 1)); then
-    args+=(--out "$assets/$name.gif")
+  if ((film)); then
+    # A chapter is a film and the subtitles that go with it; the still of a
+    # documentation page is not what this pass is for.
+    args=(--scene "$scene" --mp4 "$assets/$name.mp4" --srt "$assets/$name.srt"
+      --width "$width" --fps "$fps" "${redact[@]}")
+  else
+    args=(--scene "$scene" --still "$assets/$name.png" "${redact[@]}")
+    if ((frames > 1)); then
+      args+=(--out "$assets/$name.gif")
+    fi
   fi
   scene_path=$PATH
   if grep -q '^# fixtures: off' "$scene"; then

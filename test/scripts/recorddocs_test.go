@@ -548,3 +548,36 @@ func TestRecordDocsEndsItsWorkspaces(t *testing.T) {
 		})
 	}
 }
+
+// TestRecordDocsFilm covers the other output the driver has: a chapter of the
+// demonstration film is an MP4 and the subtitles that go with it, recorded in
+// the same environment as a picture of the documentation.
+func TestRecordDocsFilm(t *testing.T) {
+	e := newDocsEnv(t, map[string]string{"04-panes": "frames: 5\n"})
+	_, stderr, exit := runRecordDocs(t, e.env(), e.args("--film", "--width", "1280", "--fps", "24")...)
+	if exit != 0 {
+		t.Fatalf("exit %d\nstderr:\n%s", exit, stderr)
+	}
+	log := string(mustRead(t, e.log))
+	cases := []struct {
+		name string
+		want string
+	}{
+		{name: "the chapter is a film", want: "--mp4 " + e.assets + "/04-panes.mp4"},
+		{name: "its subtitles travel with it", want: "--srt " + e.assets + "/04-panes.srt"},
+		{name: "the film is recorded at the size asked for", want: "--width 1280"},
+		{name: "and at the rate asked for", want: "--fps 24"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if !strings.Contains(log, tc.want) {
+				t.Fatalf("the recorder was not called with %q:\n%s", tc.want, log)
+			}
+		})
+	}
+	for _, unwanted := range []string{"--still ", "--out "} {
+		if strings.Contains(log, unwanted) {
+			t.Fatalf("a film pass still wrote a picture (%q):\n%s", unwanted, log)
+		}
+	}
+}

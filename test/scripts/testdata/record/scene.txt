@@ -5,7 +5,8 @@ dir: /src/acme-api
 env: LYNA_TMUX_DEMO=1
 env: TERM_PROGRAM=demo
 run: lmux attach api
-frames: 5
+band: 1
+frames: 7
 step: wait 2
 step: frame
 step: keys M-\\
@@ -14,3 +15,6 @@ step: frame 1.8
 step: type git status
 step: enter
 step: film 3 0.4
+step: chapter Panes and windows
+step: caption lmux split right | a pane beside the agent
+step: frame 1.2
