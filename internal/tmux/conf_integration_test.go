@@ -371,6 +371,15 @@ func TestIntegrationStatusFormats(t *testing.T) {
 			want:    []string{"◎ agents"},
 			notWant: []string{"teammate", "claude", "shell"},
 		},
+		{
+			name: "the git workstation is labeled with the branch icon",
+			setup: []tmux.Command{
+				{"set-option", "-p", "-t", shell, tmux.OptRole, tmux.RoleGit},
+			},
+			target: shell, format: look.BorderFormat(),
+			want:    []string{"⎇ git"},
+			notWant: []string{"agents", "changes", "shell"},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

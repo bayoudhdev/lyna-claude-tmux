@@ -261,6 +261,7 @@ func TestLaunchPaneProcs(t *testing.T) {
 		{Role: layout.RoleReview, Split: layout.SplitDown, Size: 50, Parent: 2},
 		{Role: layout.RoleShell, Split: layout.SplitDown, Size: 50, Parent: 3},
 		{Role: layout.RoleCommand, Split: layout.SplitDown, Size: 50, Parent: 4, Command: "htop"},
+		{Role: layout.RoleGit, Split: layout.SplitDown, Size: 50, Parent: 5},
 	}}
 	if err := plan.Validate(); err != nil {
 		t.Fatal(err)
@@ -279,6 +280,7 @@ func TestLaunchPaneProcs(t *testing.T) {
 		{pane: 3, wantArgv: []string{e.Exe, "review", "--dir", e.project}},
 		{pane: 4},
 		{pane: 5, wantShell: "htop"},
+		{pane: 6, wantArgv: []string{e.Exe, "git", "--dir", e.project}},
 	}
 	for _, tc := range cases {
 		t.Run(string(plan.Panes[tc.pane].Role), func(t *testing.T) {

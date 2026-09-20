@@ -38,8 +38,8 @@ agents_sidebar = "auto"
 sidebar_width = 28
 
 [workspace]
-# Default layout: solo, duo, trio, quad, review, team, auto (picks by terminal size), or
-# the name of a [layouts.<name>] table below.
+# Default layout: solo, duo, trio, quad, review, team, git, auto (picks by terminal size),
+# or the name of a [layouts.<name>] table below.
 layout = "auto"
 # Width of the Claude pane in percent when a layout splits it (20-80).
 split_ratio = 62

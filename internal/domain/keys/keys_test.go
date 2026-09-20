@@ -46,7 +46,7 @@ func TestDefaultsTables(t *testing.T) {
 		wantRoot   int
 		wantPrefix string
 	}{
-		{name: "alt keys on", opts: Options{AltKeys: true}, wantRoot: 27, wantPrefix: "C-b"},
+		{name: "alt keys on", opts: Options{AltKeys: true}, wantRoot: 28, wantPrefix: "C-b"},
 		{name: "alt keys off", opts: Options{AltKeys: false, Prefix: "C-a"}, wantRoot: 0, wantPrefix: "C-a"},
 	}
 	for _, tc := range cases {
@@ -322,6 +322,55 @@ func TestDefaultsWithoutTheRailKey(t *testing.T) {
 			}
 			if c := Conflicts(without); len(c) != 0 {
 				t.Fatalf("conflicts without the rail key: %v", c)
+			}
+		})
+	}
+}
+
+// TestGitWorkstationKeys pins the keys the git workstation pane is opened and
+// closed with: an Alt key that is none of Claude Code's own, and the same
+// action after the prefix for the terminals that send no Meta. It is a tool
+// of its own, so a workspace that drops the agents rail keeps it.
+func TestGitWorkstationKeys(t *testing.T) {
+	type bound struct{ table, key string }
+	cases := []struct {
+		name string
+		opts Options
+		want []bound
+	}{
+		{
+			name: "alt keys on",
+			opts: Options{AltKeys: true, Prefix: "C-b"},
+			want: []bound{{string(TableRoot), "M-G"}, {string(TablePrefix), "G"}},
+		},
+		{
+			name: "alt keys off",
+			opts: Options{Prefix: "C-a"},
+			want: []bound{{string(TablePrefix), "G"}},
+		},
+		{
+			name: "the agents rail is off",
+			opts: Options{AltKeys: true, Prefix: "C-b", NoAgentsRail: true},
+			want: []bound{{string(TableRoot), "M-G"}, {string(TablePrefix), "G"}},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var got []bound
+			for _, b := range Defaults(tc.opts) {
+				if b.Action != ActionGitWork {
+					continue
+				}
+				got = append(got, bound{string(b.Table), b.Key})
+				if b.Group != GroupTools || b.Help != "Git workstation" {
+					t.Errorf("binding %s is %q in %q, want %q in %q", b.Key, b.Help, b.Group, "Git workstation", GroupTools)
+				}
+				if b.Table == TableRoot && IsReserved(b.Key) {
+					t.Errorf("%s takes a key Claude Code binds", b.Key)
+				}
+			}
+			if !slices.Equal(got, tc.want) {
+				t.Fatalf("git workstation bound to %v, want %v", got, tc.want)
 			}
 		})
 	}

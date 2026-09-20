@@ -273,7 +273,7 @@ func paneOptions(target string, role layout.Role, p PaneProcess) []Command {
 // keepsFailure reports whether a dead pane of this role is kept on screen.
 func keepsFailure(role layout.Role) bool {
 	switch role {
-	case layout.RoleClaude, layout.RoleChanges, layout.RoleReview, layout.RoleCommand, layout.RoleAgents:
+	case layout.RoleClaude, layout.RoleChanges, layout.RoleReview, layout.RoleCommand, layout.RoleAgents, layout.RoleGit:
 		return true
 	default:
 		return false

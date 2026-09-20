@@ -21,6 +21,10 @@ type Env struct {
 	// RailWidth is ui.sidebar_width, the width in cells the rail toggle opens
 	// the agents rail at; zero opens it at the default width.
 	RailWidth int
+	// SplitRatio is workspace.split_ratio, the Claude pane's share of the
+	// window width; the git workstation toggle opens on what it leaves, and
+	// zero leaves what the default ratio leaves.
+	SplitRatio int
 	// NoAgentsRail leaves the rail toggle out of the generated configuration,
 	// for a workspace configured never to open the rail on its own. Nothing
 	// then refers to it: the key it was bound to is gone with it.
@@ -53,6 +57,10 @@ const windowPaneList = "#{P:#{pane_id} }"
 // window, each followed by a space. A window has one or none.
 const agentsPaneList = "#{P:#{?#{==:#{" + OptRole + "}," + RoleAgents + "},#{pane_id} ,}}"
 
+// gitPaneList expands to the pane ids of the git workstations in the current
+// window, each followed by a space. A window has one or none.
+const gitPaneList = "#{P:#{?#{==:#{" + OptRole + "}," + RoleGit + "},#{pane_id} ,}}"
+
 // AgentsRailSeq opens the agents rail of the current window, or closes the one
 // that is already there.
 //
@@ -73,6 +81,29 @@ func (e Env) AgentsRailSeq() Seq {
 	// a comma of the installation path would be read as that separator.
 	shut := "kill-pane -t #{s/ .*//:" + agentsPaneList + "}"
 	return Cmd("run-shell", "-C", "#{?"+agentsPaneList+","+shut+","+escapeFormatCommas(open)+"}")
+}
+
+// GitWorkSeq opens the git workstation of the current window, or closes the
+// one that is already there.
+//
+// It opens as a column of its own on the right, whatever the window already
+// holds: the workstation is worked in beside the agent, not glanced at, so it
+// takes a side of the window rather than a corner of one pane. It starts in
+// the directory of the window's first pane, which is the one the workspace was
+// opened in, and reads the repository from there.
+func (e Env) GitWorkSeq() Seq {
+	// -f splits the window instead of the target pane, which is what gives the
+	// workstation the full height of the right side; the target then only says
+	// which directory it starts in. The focus stays on it, because the keys it
+	// was opened with are the keys it is driven by.
+	open := "split-window -h -f -l " + strconv.Itoa(layout.SplitShare(e.SplitRatio)) + "%" +
+		" -t #{s/ .*//:" + windowPaneList + "} " + e.binCommand("git") +
+		" ; set-option -p " + OptRole + " " + RoleGit
+	// The open branch is plain text, where a comma of the installation path
+	// would be read as the separator of the next branch; the close branch is
+	// formats the conditional walks over whole.
+	shut := "kill-pane -t #{s/ .*//:" + gitPaneList + "}"
+	return Cmd("run-shell", "-C", "#{?"+gitPaneList+","+shut+","+escapeFormatCommas(open)+"}")
 }
 
 // SplitSeq splits the current pane and marks the new pane as a shell.
@@ -130,6 +161,7 @@ const (
 	DoSplitRight  = "split_right"
 	DoAgents      = "agents"
 	DoAgentsRail  = "agents_rail"
+	DoGitWork     = "git_work"
 	DoReview      = "review"
 	DoSandbox     = "sandbox"
 	DoMenuKeys    = "menu_keys"
@@ -169,6 +201,7 @@ func (e Env) Registry() []Registered {
 	}
 	return append(out, []Registered{
 		{DoReview, e.ReviewSeq()},
+		{DoGitWork, e.GitWorkSeq()},
 		{DoSandbox, e.SandboxSeq()},
 		{DoMenuKeys, e.KeysMenu().Seq()},
 		{DoMenuSession, withMouseTarget(e.SessionMenu().Seq())},
@@ -213,6 +246,8 @@ func (e Env) ActionSeq(b keys.Binding) Seq {
 		return e.AgentsSeq()
 	case keys.ActionAgentsRail:
 		return DoSeq(DoAgentsRail)
+	case keys.ActionGitWork:
+		return DoSeq(DoGitWork)
 	case keys.ActionReview:
 		return e.ReviewSeq()
 	case keys.ActionScratch:

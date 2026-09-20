@@ -149,6 +149,7 @@ func confOptions(cfg config.Config, v tmux.Version, h Host, paths xdg.Paths) (tm
 			PopupWidth:   cfg.Popup.Width,
 			PopupHeight:  cfg.Popup.Height,
 			RailWidth:    cfg.UI.SidebarWidth,
+			SplitRatio:   cfg.Workspace.SplitRatio,
 			NoAgentsRail: !cfg.UI.RailKey(),
 			Bindings: keys.Defaults(keys.Options{
 				AltKeys:      cfg.UI.AltKeys,

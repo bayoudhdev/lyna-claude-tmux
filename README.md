@@ -156,6 +156,7 @@ exits, and the workspace underneath is untouched.
 | `quad` | four Claude agents, each in its own git worktree |
 | `review` | Claude and the side-by-side diff |
 | `team` | the agents rail, the lead and room for its teammates |
+| `git` | Claude and the git workstation |
 | `auto` | picks one from the size of the terminal |
 
 `lmux layout <name>` opens one in a new window, `lmux split right` adds a pane to the

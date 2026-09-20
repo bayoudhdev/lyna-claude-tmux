@@ -89,6 +89,14 @@ func TestBuiltin(t *testing.T) {
 			},
 		},
 		{
+			name: "git uses ratio", layout: Git, opts: Options{SplitRatio: 70}, wantName: Git,
+			want: []Pane{{Role: RoleClaude}, {Role: RoleGit, Split: SplitRight, Size: 30}},
+		},
+		{
+			name: "git out of range ratio falls back", layout: Git, opts: Options{SplitRatio: 95}, wantName: Git,
+			want: []Pane{{Role: RoleClaude}, {Role: RoleGit, Split: SplitRight, Size: 38}},
+		},
+		{
 			name: "review", layout: Review, wantName: Review,
 			want: []Pane{{Role: RoleClaude}, {Role: RoleReview, Split: SplitRight, Size: 50}},
 		},
@@ -226,6 +234,8 @@ func TestValidate(t *testing.T) {
 		{name: "size too big", plan: Plan{Name: "x", Panes: []Pane{claude, {Role: RoleShell, Split: SplitDown, Size: 95}}}, wantErr: "10 to 90"},
 		{name: "parent forward", plan: Plan{Name: "x", Panes: []Pane{claude, {Role: RoleShell, Split: SplitDown, Size: 30, Parent: 1}}}, wantErr: "earlier pane"},
 		{name: "parent negative", plan: Plan{Name: "x", Panes: []Pane{claude, {Role: RoleShell, Split: SplitDown, Size: 30, Parent: -1}}}, wantErr: "earlier pane"},
+		{name: "git pane", plan: Plan{Name: "x", Panes: []Pane{claude, {Role: RoleGit, Split: SplitRight, Size: 38}}}},
+		{name: "command on a git pane", plan: Plan{Name: "x", Panes: []Pane{claude, {Role: RoleGit, Command: "git log", Split: SplitRight, Size: 38}}}, wantErr: "only command panes"},
 		{name: "worktree on shell", plan: Plan{Name: "x", Panes: []Pane{claude, {Role: RoleShell, Split: SplitDown, Size: 30, Worktree: "w"}}}, wantErr: "only claude panes"},
 		{name: "bad worktree", plan: Plan{Name: "x", Panes: []Pane{{Role: RoleClaude, Worktree: "../x"}}}, wantErr: "worktree name"},
 		{name: "focus out of range", plan: Plan{Name: "x", Panes: []Pane{claude}, Focus: 1}, wantErr: "focus 1"},
@@ -286,6 +296,33 @@ func TestCustom(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, tc.want) {
 				t.Fatalf("Custom() = %+v\nwant %+v", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestSplitShare pins what a pane opened beside the Claude pane is given: the
+// share the configured ratio leaves, and the share the default ratio leaves
+// wherever the ratio is one no window can be split at. The built-in layouts
+// and the git workstation toggle both open on it, so the two cannot drift.
+func TestSplitShare(t *testing.T) {
+	cases := []struct {
+		name  string
+		ratio int
+		want  int
+	}{
+		{name: "default ratio", ratio: 62, want: 38},
+		{name: "no ratio at all", ratio: 0, want: 38},
+		{name: "narrowest claude pane", ratio: 20, want: 80},
+		{name: "widest claude pane", ratio: 80, want: 20},
+		{name: "below the narrowest", ratio: 19, want: 38},
+		{name: "past the widest", ratio: 81, want: 38},
+		{name: "negative", ratio: -30, want: 38},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := SplitShare(tc.ratio); got != tc.want {
+				t.Fatalf("SplitShare(%d) = %d, want %d", tc.ratio, got, tc.want)
 			}
 		})
 	}

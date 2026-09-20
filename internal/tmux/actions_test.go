@@ -37,6 +37,7 @@ func TestActionSeq(t *testing.T) {
 			"new-window -c '#{?#{@lt_project},#{@lt_project},#{pane_current_path}}' ; set-option -p @lt_role shell",
 		},
 		{"agents rail", keys.Binding{Action: keys.ActionAgentsRail}, "run-shell -C '#{@lt_do_agents_rail}'"},
+		{"git workstation", keys.Binding{Action: keys.ActionGitWork}, "run-shell -C '#{@lt_do_git_work}'"},
 		{"window", keys.Binding{Action: keys.ActionWindow, Arg: "3"}, "select-window -t :3"},
 		{"tree", keys.Binding{Action: keys.ActionTree}, "choose-tree -Zs"},
 		{"menu", keys.Binding{Action: keys.ActionMenu}, "run-shell -C '#{@lt_do_menu_keys}'"},
@@ -138,6 +139,55 @@ func TestAgentsRailSeq(t *testing.T) {
 	}
 }
 
+// TestGitWorkSeq pins the toggle text of the git workstation. It is built the
+// way the rail toggle is, so the same reading of the conditional holds: the
+// close branch is formats the conditional walks over whole, and the open
+// branch is plain text where a comma of the installation path would be read as
+// the separator of the branch after it.
+func TestGitWorkSeq(t *testing.T) {
+	const list = `#{P:#{?#{==:#{@lt_role},git},#{pane_id} ,}}`
+	toggle := func(open string) string {
+		return `run-shell -C '#{?` + list + `,kill-pane -t #{s/ .*//:` + list + `},` + open + `}'`
+	}
+	cases := []struct {
+		name string
+		env  Env
+		want string
+	}{
+		{
+			"toggle",
+			testEnv(),
+			toggle(`split-window -h -f -l 38% -t #{s/ .*//:#{P:#{pane_id} }} ` +
+				`'\''/opt/lyna tools/bin/lmux'\'' git ; set-option -p @lt_role git`),
+		},
+		{
+			"comma in the path",
+			Env{Bin: "/opt/a,b/lmux"},
+			toggle(`split-window -h -f -l 38% -t #{s/ .*//:#{P:#{pane_id} }} ` +
+				`/opt/a#,b/lmux git ; set-option -p @lt_role git`),
+		},
+		{
+			"the share the workspace leaves beside the agent",
+			Env{Bin: "/opt/lmux", SplitRatio: 70},
+			toggle(`split-window -h -f -l 30% -t #{s/ .*//:#{P:#{pane_id} }} ` +
+				`/opt/lmux git ; set-option -p @lt_role git`),
+		},
+		{
+			"a ratio no window can be split at",
+			Env{Bin: "/opt/lmux", SplitRatio: 95},
+			toggle(`split-window -h -f -l 38% -t #{s/ .*//:#{P:#{pane_id} }} ` +
+				`/opt/lmux git ; set-option -p @lt_role git`),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.env.GitWorkSeq().String(); got != tc.want {
+				t.Fatalf("GitWorkSeq = %s\nwant          %s", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestRegistry(t *testing.T) {
 	e := testEnv()
 	reg := e.Registry()
@@ -157,6 +207,7 @@ func TestRegistry(t *testing.T) {
 		{DoAgents, "display-popup", false},
 		{DoAgentsRail, "run-shell", false},
 		{DoReview, "display-popup", false},
+		{DoGitWork, "run-shell", false},
 		{DoSandbox, "display-popup", false},
 		{DoMenuKeys, "display-menu", false},
 		{DoMenuSession, "display-menu", true},
@@ -298,7 +349,7 @@ func TestRegistryWithoutTheRailToggle(t *testing.T) {
 				t.Fatalf("%s registered = %v, want %v", DoAgentsRail, got, tc.wantRail)
 			}
 			// Every other command is registered whatever the rail does.
-			for _, name := range []string{DoSplitRight, DoAgents, DoReview, DoSandbox, DoMenuKeys, DoMenuSession, DoMenuWindow, DoMenuPane, DoMenuClaude} {
+			for _, name := range []string{DoSplitRight, DoAgents, DoReview, DoGitWork, DoSandbox, DoMenuKeys, DoMenuSession, DoMenuWindow, DoMenuPane, DoMenuClaude} {
 				if !registered[name] {
 					t.Errorf("%s is not registered", name)
 				}

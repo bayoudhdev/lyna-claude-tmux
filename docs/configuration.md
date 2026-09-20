@@ -103,7 +103,7 @@ ERROR  /home/you/.config/lyna-tmux/config.toml: invalid config: line 3: ui.theme
 
 $ lmux config validate
 ERROR  /home/you/.config/lyna-tmux/config.toml: invalid config:
-workspace.layout: must be one of solo, duo, trio, quad, review, team, auto or a [layouts.<name>] table (got "nope");
+workspace.layout: must be one of solo, duo, trio, quad, review, team, git, auto or a [layouts.<name>] table (got "nope");
 workspace.split_ratio: must be between 20 and 80 (got 95).
 ```
 
@@ -144,8 +144,8 @@ Sessions and panes.
 
 | Key | Type | Values | Default | Effect |
 | --- | --- | --- | --- | --- |
-| `layout` | string | `solo`, `duo`, `trio`, `quad`, `review`, `team`, `auto`, or the name of a `[layouts.<name>]` table | `"auto"` | Layout of the window a workspace opens with. `team` is the agents rail on the left and the lead beside it, with the room its teammates open into; `lmux team` opens it by default. `auto` resolves by client size: 200 by 40 cells or larger gives `trio`, 120 cells or wider gives `duo`, smaller gives `solo`, and an unknown size gives `duo`. |
-| `split_ratio` | integer | 20 to 80 | `62` | The Claude pane's share of the window width, in percent, in the built-in layouts that split it (`duo` and `trio`). `quad` and `review` split evenly. |
+| `layout` | string | `solo`, `duo`, `trio`, `quad`, `review`, `team`, `git`, `auto`, or the name of a `[layouts.<name>]` table | `"auto"` | Layout of the window a workspace opens with. `team` is the agents rail on the left and the lead beside it, with the room its teammates open into; `lmux team` opens it by default. `git` is Claude with the git workstation beside it. `auto` resolves by client size: 200 by 40 cells or larger gives `trio`, 120 cells or wider gives `duo`, smaller gives `solo`, and an unknown size gives `duo`. |
+| `split_ratio` | integer | 20 to 80 | `62` | The Claude pane's share of the window width, in percent, in the built-in layouts that split it (`duo`, `trio` and `git`). `quad` and `review` split evenly. |
 | `agent_panes` | integer | 0 to 8 | `3` | How many teammates share the lead's window before the next one opens in a window of its own, named after it. A teammate also gets a window of its own when the lead's window holds a pane of yours (a shell, the changes view) or when sharing would leave it less than 80 by 14 cells. `0` opens every teammate in a window of its own. |
 | `history_limit` | integer | 1000 to 2000000 | `100000` | Scrollback lines kept per pane (tmux `history-limit`). |
 | `prefix` | string | a tmux key name | `"C-b"` | The tmux prefix key. Press it twice to send it to the program in the pane. The generated configuration sets no second prefix. |
@@ -232,7 +232,7 @@ panes = [
 Rules for the table itself:
 
 - The name is lowercase letters, digits, `_` and `-`, up to 32 characters.
-- A built-in name (`solo`, `duo`, `trio`, `quad`, `review`, `team`, `auto`) cannot be redefined.
+- A built-in name (`solo`, `duo`, `trio`, `quad`, `review`, `team`, `git`, `auto`) cannot be redefined.
 - `panes` lists 1 to 9 panes and needs at least one `claude` pane.
 - The first pane is the window itself and takes no `split`, `size` or `parent`; every later
   pane splits an earlier one.
@@ -242,7 +242,7 @@ Fields of one pane:
 
 | Field | Type | Values | Default | Effect |
 | --- | --- | --- | --- | --- |
-| `role` | string | `claude`, `shell`, `changes`, `review`, `command`, `agents` | required | What runs in the pane: Claude Code with the workspace's per-launch settings, a shell, the live changes view, the review editor, a shell command, or the agents rail. |
+| `role` | string | `claude`, `shell`, `changes`, `review`, `command`, `agents`, `git` | required | What runs in the pane: Claude Code with the workspace's per-launch settings, a shell, the live changes view, the review editor, a shell command, the agents rail, or the git workstation. |
 | `split` | string | `right`, `down` | required except on the first pane | Direction the pane is created in. |
 | `size` | integer | 10 to 90 | omitted, which splits in half | The new pane's share of the pane it splits, in percent. |
 | `parent` | integer | 1 to the index of the previous pane | omitted, which means the previous pane | The 1-based index of the earlier pane to split. |
@@ -295,8 +295,8 @@ agents_sidebar = "auto"
 sidebar_width = 28
 
 [workspace]
-# Default layout: solo, duo, trio, quad, review, team, auto (picks by terminal size), or
-# the name of a [layouts.<name>] table below.
+# Default layout: solo, duo, trio, quad, review, team, git, auto (picks by terminal size),
+# or the name of a [layouts.<name>] table below.
 layout = "auto"
 # Width of the Claude pane in percent when a layout splits it (20-80).
 split_ratio = 62

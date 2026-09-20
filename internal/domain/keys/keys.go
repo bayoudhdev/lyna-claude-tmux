@@ -41,6 +41,7 @@ const (
 	ActionTree        Action = "tree"
 	ActionAgents      Action = "agents"
 	ActionAgentsRail  Action = "agents-rail"
+	ActionGitWork     Action = "git-work"
 	ActionReview      Action = "review"
 	ActionScratch     Action = "scratch"
 	ActionFocusClaude Action = "focus-claude"
@@ -110,6 +111,7 @@ func Defaults(o Options) []Binding {
 			Binding{Key: "M-a", Table: TableRoot, Action: ActionAgents, Group: GroupTools, Help: "Agents"},
 			Binding{Key: "M-A", Table: TableRoot, Action: ActionAgentsRail, Group: GroupTools, Help: "Agents rail"},
 			Binding{Key: "M-g", Table: TableRoot, Action: ActionReview, Group: GroupTools, Help: "Review changes"},
+			Binding{Key: "M-G", Table: TableRoot, Action: ActionGitWork, Group: GroupTools, Help: "Git workstation"},
 			Binding{Key: "M-s", Table: TableRoot, Action: ActionScratch, Group: GroupTools, Help: "Scratch shell"},
 			Binding{Key: "M-Space", Table: TableRoot, Action: ActionMenu, Group: GroupTools, Help: "Menu"},
 		)
@@ -148,6 +150,7 @@ func Defaults(o Options) []Binding {
 		Binding{Key: "a", Table: TablePrefix, Action: ActionAgents, Group: GroupTools, Help: "Agents"},
 		Binding{Key: "A", Table: TablePrefix, Action: ActionAgentsRail, Group: GroupTools, Help: "Agents rail"},
 		Binding{Key: "g", Table: TablePrefix, Action: ActionReview, Group: GroupTools, Help: "Review changes"},
+		Binding{Key: "G", Table: TablePrefix, Action: ActionGitWork, Group: GroupTools, Help: "Git workstation"},
 		Binding{Key: "S", Table: TablePrefix, Action: ActionScratch, Group: GroupTools, Help: "Scratch shell"},
 		Binding{Key: "Space", Table: TablePrefix, Action: ActionMenu, Group: GroupTools, Help: "Menu"},
 		Binding{Key: "r", Table: TablePrefix, Action: ActionReload, Group: GroupSession, Help: "Reload configuration"},

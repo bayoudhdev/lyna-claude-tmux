@@ -156,6 +156,18 @@ func TestSplitPaneCommands(t *testing.T) {
 			}},
 		},
 		{
+			// A workstation whose program failed keeps its pane, so the reason
+			// stays readable; a shell pane is the user's and keeps tmux's own
+			// behavior.
+			name: "the git workstation to the right",
+			spec: SplitSpec{Pane: "%3", Window: "@2", Dir: "/src", Role: layout.RoleGit, Proc: PaneProcess{Argv: []string{"/bin/lmux", "git", "--dir", "/src"}}},
+			want: [][]string{{
+				"split-window", "-t", "%3", "-h", "-c", "/src", "-P", "-F", "#{pane_id}", "--", "/bin/lmux", "git", "--dir", "/src",
+				";", "set-option", "-p", "-t", "@2", OptRole, "git",
+				";", "set-option", "-p", "-t", "@2", "remain-on-exit", "failed",
+			}},
+		},
+		{
 			name: "shell below",
 			spec: SplitSpec{Pane: "%3", Window: "@2", Down: true, Dir: "/src", Role: layout.RoleShell},
 			want: [][]string{{

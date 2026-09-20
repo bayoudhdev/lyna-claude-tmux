@@ -19,6 +19,7 @@ Workspace keys, no prefix (Alt is Option on macOS; enable Option as Meta in your
     Alt+a             Agents
     Alt+A             Agents rail
     Alt+g             Review changes
+    Alt+G             Git workstation
     Alt+s             Scratch shell
     Alt+Space         Menu
 
@@ -43,6 +44,7 @@ After the prefix Ctrl+b
     a                 Agents
     A                 Agents rail
     g                 Review changes
+    G                 Git workstation
     S                 Scratch shell
     Space             Menu
   SESSION

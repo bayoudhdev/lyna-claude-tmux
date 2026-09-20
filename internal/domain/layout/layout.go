@@ -26,13 +26,16 @@ const (
 	// RoleAgents is the rail: every agent of the workspace, what it is doing
 	// and where it runs.
 	RoleAgents Role = "agents"
+	// RoleGit is the git workstation: the state of the repository the
+	// workspace works in and the operations that move it on.
+	RoleGit Role = "git"
 )
 
 // Roles lists every pane role, the Claude role first.
 func Roles() []string {
 	return []string{
 		string(RoleClaude), string(RoleShell), string(RoleChanges),
-		string(RoleReview), string(RoleCommand), string(RoleAgents),
+		string(RoleReview), string(RoleCommand), string(RoleAgents), string(RoleGit),
 	}
 }
 
@@ -82,11 +85,14 @@ const (
 	// Team is the layout a team is run in: the rail on the left, the lead
 	// beside it, and the room the teammates open into.
 	Team = "team"
+	// Git is the agent with the git workstation beside it: the shape of duo,
+	// with the repository in place of the shell.
+	Git  = "git"
 	Auto = "auto"
 )
 
 // Names lists the built-in layouts, auto last.
-func Names() []string { return []string{Solo, Duo, Trio, Quad, Review, Team, Auto} }
+func Names() []string { return []string{Solo, Duo, Trio, Quad, Review, Team, Git, Auto} }
 
 // IsBuiltin reports whether name is a built-in layout.
 func IsBuiltin(name string) bool { return slices.Contains(Names(), name) }
@@ -102,6 +108,19 @@ type Options struct {
 	// RailWidth is ui.sidebar_width, the width of the agents rail of the
 	// layouts that carry one.
 	RailWidth int
+}
+
+// defaultSplitRatio is the Claude pane's share of the window width where the
+// workspace configures none, or configures one no window can be split at.
+const defaultSplitRatio = 62
+
+// SplitShare is the share of the window width, in percent, of the pane that
+// opens beside the Claude pane: what the ratio leaves it.
+func SplitShare(ratio int) int {
+	if ratio < 20 || ratio > 80 {
+		return 100 - defaultSplitRatio
+	}
+	return 100 - ratio
 }
 
 // Size thresholds for auto, in terminal cells.
@@ -136,10 +155,7 @@ var ErrUnknown = errors.New("unknown layout")
 
 // Builtin returns the plan of a built-in layout.
 func Builtin(name string, o Options) (Plan, error) {
-	ratio := o.SplitRatio
-	if ratio < 20 || ratio > 80 {
-		ratio = 62
-	}
+	share := SplitShare(o.SplitRatio)
 	resolved := Resolve(name, o.Width, o.Height)
 	var p Plan
 	switch resolved {
@@ -148,12 +164,12 @@ func Builtin(name string, o Options) (Plan, error) {
 	case Duo:
 		p = Plan{Panes: []Pane{
 			{Role: RoleClaude},
-			{Role: RoleShell, Split: SplitRight, Size: 100 - ratio, Parent: 0},
+			{Role: RoleShell, Split: SplitRight, Size: share, Parent: 0},
 		}}
 	case Trio:
 		p = Plan{Panes: []Pane{
 			{Role: RoleClaude},
-			{Role: RoleShell, Split: SplitRight, Size: 100 - ratio, Parent: 0},
+			{Role: RoleShell, Split: SplitRight, Size: share, Parent: 0},
 			{Role: RoleChanges, Split: SplitDown, Size: 60, Parent: 1},
 		}}
 	case Quad:
@@ -172,6 +188,15 @@ func Builtin(name string, o Options) (Plan, error) {
 		p = Plan{Panes: []Pane{
 			{Role: RoleClaude},
 			{Role: RoleReview, Split: SplitRight, Size: 50, Parent: 0},
+		}}
+	case Git:
+		// The workstation takes the place the shell takes in duo, because the
+		// repository is what the work keeps coming back to: what changed, what
+		// is staged, what is about to be committed, all of it beside the agent
+		// that is writing it.
+		p = Plan{Panes: []Pane{
+			{Role: RoleClaude},
+			{Role: RoleGit, Split: SplitRight, Size: share, Parent: 0},
 		}}
 	case Team:
 		// The rail is the window, and the lead splits it: the rail is then the
@@ -199,7 +224,7 @@ func (p Plan) Validate() error {
 		switch pane.Role {
 		case RoleClaude:
 			claude++
-		case RoleShell, RoleChanges, RoleReview, RoleAgents:
+		case RoleShell, RoleChanges, RoleReview, RoleAgents, RoleGit:
 		case RoleCommand:
 			if pane.Command == "" {
 				return fmt.Errorf("%s: a command pane needs a command", where)

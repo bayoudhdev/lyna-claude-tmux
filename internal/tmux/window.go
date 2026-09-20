@@ -156,7 +156,8 @@ func (s SplitSpec) validate() error {
 		return fmt.Errorf("split: directory %q is not absolute", s.Dir)
 	}
 	switch s.Role {
-	case layout.RoleClaude, layout.RoleShell, layout.RoleChanges, layout.RoleReview, layout.RoleCommand, layout.RoleAgents:
+	case layout.RoleClaude, layout.RoleShell, layout.RoleChanges, layout.RoleReview, layout.RoleCommand,
+		layout.RoleAgents, layout.RoleGit:
 	default:
 		return fmt.Errorf("split: unknown role %q", s.Role)
 	}

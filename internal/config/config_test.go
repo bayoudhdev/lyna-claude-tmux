@@ -589,8 +589,8 @@ func TestChoices(t *testing.T) {
 	}{
 		{"ui.theme", []string{"lyna", "slate", "dusk", "contrast", "nord", "rose", "mono", "solar-dark", "earth-dark", "light", "solar-light", "earth-light", "ansi"}},
 		{"sandbox.profile", []string{"standard", "strict", "off"}},
-		{"workspace.layout", []string{"solo", "duo", "trio", "quad", "review", "team", "auto"}},
-		{"layouts.panes.role", []string{"claude", "shell", "changes", "review", "command", "agents"}},
+		{"workspace.layout", []string{"solo", "duo", "trio", "quad", "review", "team", "git", "auto"}},
+		{"layouts.panes.role", []string{"claude", "shell", "changes", "review", "command", "agents", "git"}},
 		{"review.editor", []string{"isolated", "user"}},
 		{"review.layout", []string{"default", "inline", "side-by-side"}},
 		{"claude.model", nil},
