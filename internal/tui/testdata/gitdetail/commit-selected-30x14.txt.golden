@@ -1,0 +1,14 @@
+ ⎇ commit             a000000
+ every operation reachable
+ from the keys.
+
+ authored by Ada Lovel…1d ago
+ landed by   Grace Hop…1h ago
+ parents     b000000 d000000
+ refs        main v1.2.0
+
+ 4 files  +512 -16
+ internal/tui/git… +420   -12
+ docs/git.md        +88    -0
+ internal/tui/tes…        bin
+ 3/4  a000000       ↓/j down …
