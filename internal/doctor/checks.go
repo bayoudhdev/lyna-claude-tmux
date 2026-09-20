@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/theme"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/termx"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
 )
@@ -164,6 +165,35 @@ func checkTruecolor(_ context.Context, d Deps) []Result {
 	r.Status = StatusWarn
 	r.Detail = "the terminal does not advertise 24-bit color, so lyna-tmux quantizes the theme to 256 colors"
 	r.Fix = `export COLORTERM=truecolor (only when the terminal renders 24-bit color), or set ui.color = "256" in config.toml`
+	return []Result{r}
+}
+
+// checkStatusBar reports how the status bar joins its segments and what the
+// terminal needs to draw it. The separators live in the private use area, so
+// only a patched font has them; doctor cannot read the font in use, and says
+// which setting to change when the glyphs come out as boxes.
+func checkStatusBar(_ context.Context, d Deps) []Result {
+	r := Result{ID: "status-bar", Title: "Status bar"}
+	icons, err := theme.GetIcons(theme.ResolveIcons(d.Icons, d.Getenv))
+	if err != nil {
+		r.Status, r.Detail, r.Fix = StatusFail, err.Error(), `set ui.icons to auto, unicode, nerd or ascii in config.toml`
+		return []Result{r}
+	}
+	style := theme.ResolveStatusStyle(d.StatusStyle, icons)
+	if style != theme.StatusPowerline {
+		r.Status = StatusOK
+		r.Detail = "plain: every segment ends where its background does, which any font draws"
+		return []Result{r}
+	}
+	if icons.Name == "nerd" {
+		r.Status = StatusOK
+		r.Detail = "powerline: pointed separators from the patched font the nerd icon set already needs"
+		return []Result{r}
+	}
+	r.Status = StatusWarn
+	r.Detail = "powerline separators are private use area glyphs and the icon set is " + icons.Name +
+		", so a terminal without a patched font draws a box where each separator should be"
+	r.Fix = `set ui.icons = "nerd" in config.toml once a patched font is installed, or ui.status_style = "plain"`
 	return []Result{r}
 }
 

@@ -131,6 +131,9 @@ type Deps struct {
 	ClaudeMinVersion string
 	// AltKeys mirrors ui.alt_keys: the root-table Alt bindings are installed.
 	AltKeys bool
+	// Icons and StatusStyle mirror ui.icons and ui.status_style: the glyph
+	// set in use and how the status bar joins its segments.
+	Icons, StatusStyle string
 	// NoAgentsRail mirrors ui.agents_sidebar set to off: no key opens the
 	// agents rail, so no key is reported for it and none can collide.
 	NoAgentsRail bool
@@ -183,6 +186,7 @@ func Run(ctx context.Context, d Deps) []Result {
 		checkSandbox,
 		checkSandboxRuntime,
 		checkTruecolor,
+		checkStatusBar,
 		checkClipboard,
 		checkOptionAsMeta,
 		checkShiftEnter,

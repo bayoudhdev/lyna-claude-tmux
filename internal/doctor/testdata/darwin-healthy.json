@@ -49,6 +49,12 @@
       "detail": "24-bit color in Ghostty"
     },
     {
+      "id": "status-bar",
+      "title": "Status bar",
+      "status": "ok",
+      "detail": "plain: every segment ends where its background does, which any font draws"
+    },
+    {
       "id": "clipboard",
       "title": "Clipboard",
       "status": "ok",
@@ -87,7 +93,7 @@
     }
   ],
   "summary": {
-    "ok": 11,
+    "ok": 12,
     "warn": 1,
     "fail": 0,
     "skip": 2
