@@ -220,13 +220,19 @@ func (r Runner) environ() []string {
 		name, _, _ := strings.Cut(kv, "=")
 		switch {
 		case isScrubbed(name), name == "GIT_OPTIONAL_LOCKS", name == "GIT_PAGER", name == "PAGER",
-			name == "GIT_TERMINAL_PROMPT", name == "LC_ALL":
+			name == "GIT_TERMINAL_PROMPT", name == "LC_ALL", name == "GIT_EDITOR", name == "GIT_SEQUENCE_EDITOR",
+			name == "EDITOR", name == "VISUAL":
 			continue
 		}
 		env = append(env, kv)
 	}
 	// LC_ALL=C keeps diagnostics in English so ErrNotRepository is detected.
-	return append(env, "GIT_OPTIONAL_LOCKS=0", "GIT_PAGER=cat", "PAGER=cat", "GIT_TERMINAL_PROMPT=0", "LC_ALL=C")
+	// The editors are commands that exit at once: no command run from here
+	// ever opens one, so a commit or a rebase cannot stop waiting for a
+	// terminal the pane does not have.
+	return append(env,
+		"GIT_OPTIONAL_LOCKS=0", "GIT_PAGER=cat", "PAGER=cat", "GIT_TERMINAL_PROMPT=0", "LC_ALL=C",
+		"GIT_EDITOR=true", "GIT_SEQUENCE_EDITOR=true", "EDITOR=true", "VISUAL=true")
 }
 
 func isScrubbed(name string) bool {

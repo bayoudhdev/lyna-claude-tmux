@@ -89,7 +89,7 @@ func parseStash(f []string) (Stash, error) {
 		return Stash{}, err
 	}
 	s.Index = index
-	if !isHex(s.OID) {
+	if !IsObjectName(s.OID) {
 		return Stash{}, fmt.Errorf("%w: stash object name %q", ErrMalformed, s.OID)
 	}
 	parents := strings.Split(f[2], " ")
@@ -97,7 +97,7 @@ func parseStash(f []string) (Stash, error) {
 		return Stash{}, fmt.Errorf("%w: stash %s of %d parents", ErrMalformed, s.Ref, len(parents))
 	}
 	for _, p := range parents {
-		if !isHex(p) {
+		if !IsObjectName(p) {
 			return Stash{}, fmt.Errorf("%w: stash parent object name %q", ErrMalformed, p)
 		}
 	}

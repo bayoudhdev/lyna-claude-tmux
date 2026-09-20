@@ -1017,3 +1017,193 @@ func TestIntegrationUnstageBeforeTheFirstCommit(t *testing.T) {
 		t.Fatalf("the working tree reads as %v, want %v", got, want)
 	}
 }
+
+func TestIntegrationCommit(t *testing.T) {
+	r := newRepo(t)
+	ctx := t.Context()
+	r.Write("a.txt", "a\n")
+	r.Git("add", ".")
+
+	first, err := r.Runner.Commit(ctx, r.Dir, CommitOptions{Message: "first commit subject\n\na body of its own\n"})
+	if err != nil {
+		t.Fatalf("Commit() error = %v", err)
+	}
+	if !vcs.IsObjectName(first) {
+		t.Fatalf("Commit() returned %q", first)
+	}
+	if got := strings.TrimSpace(r.Git("log", "-1", "--format=%B")); got != "first commit subject\n\na body of its own" {
+		t.Fatalf("the message reads as %q", got)
+	}
+
+	t.Run("a second commit of what is staged", func(t *testing.T) {
+		r.Write("b.txt", "b\n")
+		r.Write("c.txt", "c\n")
+		r.Git("add", "b.txt")
+		second, err := r.Runner.Commit(ctx, r.Dir, CommitOptions{Message: "the staged file alone"})
+		if err != nil {
+			t.Fatalf("Commit() error = %v", err)
+		}
+		if second == first {
+			t.Fatal("Commit() wrote nothing")
+		}
+		if files := r.Git("show", "--name-only", "--format=", "HEAD"); strings.Contains(files, "c.txt") {
+			t.Fatalf("the commit holds %q, want the staged file alone", files)
+		}
+		if got := state(t, r); got["c.txt"] != "??" {
+			t.Fatalf("the working tree reads as %v, want the untracked file left alone", got)
+		}
+	})
+	t.Run("a path committed as it stands", func(t *testing.T) {
+		r.Write("d.txt", "d\n")
+		r.Git("add", "d.txt")
+		r.Write("d.txt", "d again\n")
+		if _, err := r.Runner.Commit(ctx, r.Dir, CommitOptions{Message: "one path", Paths: []string{"d.txt"}}); err != nil {
+			t.Fatalf("Commit() error = %v", err)
+		}
+		if got := strings.TrimSpace(r.Git("show", "HEAD:d.txt")); got != "d again" {
+			t.Fatalf("the commit holds %q, want the working tree of that path", got)
+		}
+	})
+	t.Run("a message kept while the commit changes", func(t *testing.T) {
+		before := strings.TrimSpace(r.Git("log", "-1", "--format=%s"))
+		r.Write("e.txt", "e\n")
+		r.Git("add", "e.txt")
+		if _, err := r.Runner.Commit(ctx, r.Dir, CommitOptions{Amend: true, Keep: true}); err != nil {
+			t.Fatalf("Commit() error = %v", err)
+		}
+		if got := strings.TrimSpace(r.Git("log", "-1", "--format=%s")); got != before {
+			t.Fatalf("the message reads as %q, want %q", got, before)
+		}
+		if files := r.Git("show", "--name-only", "--format=", "HEAD"); !strings.Contains(files, "e.txt") {
+			t.Fatalf("the amended commit holds %q", files)
+		}
+	})
+	t.Run("a message written again", func(t *testing.T) {
+		if _, err := r.Runner.Commit(ctx, r.Dir, CommitOptions{Amend: true, Message: "a better subject"}); err != nil {
+			t.Fatalf("Commit() error = %v", err)
+		}
+		if got := strings.TrimSpace(r.Git("log", "-1", "--format=%s")); got != "a better subject" {
+			t.Fatalf("the message reads as %q", got)
+		}
+	})
+	t.Run("a commit signed off", func(t *testing.T) {
+		r.Write("f.txt", "f\n")
+		r.Git("add", "f.txt")
+		if _, err := r.Runner.Commit(ctx, r.Dir, CommitOptions{Message: "signed", SignOff: true}); err != nil {
+			t.Fatalf("Commit() error = %v", err)
+		}
+		if got := r.Git("log", "-1", "--format=%B"); !strings.Contains(got, "Signed-off-by: t <t@example.invalid>") {
+			t.Fatalf("the message reads as %q", got)
+		}
+	})
+	t.Run("a commit with nothing in it", func(t *testing.T) {
+		if _, err := r.Runner.Commit(ctx, r.Dir, CommitOptions{Message: "nothing staged"}); err == nil {
+			t.Fatal("Commit() wrote a commit with nothing staged")
+		}
+		if _, err := r.Runner.Commit(ctx, r.Dir, CommitOptions{Message: "nothing staged", AllowEmpty: true}); err != nil {
+			t.Fatalf("Commit() error = %v", err)
+		}
+	})
+	t.Run("the hooks of the project", func(t *testing.T) {
+		hook := filepath.Join(r.Dir, ".git", "hooks", "pre-commit")
+		if err := os.WriteFile(hook, []byte("#!/bin/sh\nexit 1\n"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { os.Remove(hook) })
+		r.Write("g.txt", "g\n")
+		r.Git("add", "g.txt")
+		if _, err := r.Runner.Commit(ctx, r.Dir, CommitOptions{Message: "refused by the hook"}); err == nil {
+			t.Fatal("Commit() went past a hook that refused it")
+		}
+		if _, err := r.Runner.Commit(ctx, r.Dir, CommitOptions{Message: "asked for", NoVerify: true}); err != nil {
+			t.Fatalf("Commit() error = %v", err)
+		}
+	})
+	t.Run("a message with no editor to open", func(t *testing.T) {
+		// An editor that never exits would hang the pane; the environment
+		// makes every editor a command that exits at once.
+		editor := filepath.Join(filepath.Dir(r.Dir), "editor")
+		if err := os.WriteFile(editor, []byte("#!/bin/sh\nsleep 60\n"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		run := Runner{Environ: func() []string { return append(r.Environ()(), "GIT_EDITOR="+editor, "EDITOR="+editor) }}
+		r.Write("h.txt", "h\n")
+		r.Git("add", "h.txt")
+		if _, err := run.Commit(ctx, r.Dir, CommitOptions{Message: "written from a file"}); err != nil {
+			t.Fatalf("Commit() error = %v", err)
+		}
+	})
+}
+
+func TestIntegrationCommitRefusals(t *testing.T) {
+	cases := []struct {
+		name string
+		opt  CommitOptions
+	}{
+		{name: "a message of nothing", opt: CommitOptions{Message: "   \n\t\n"}},
+		{name: "no message at all", opt: CommitOptions{}},
+		{name: "keeping a message without amending", opt: CommitOptions{Keep: true}},
+		{name: "keeping a message and writing one", opt: CommitOptions{Amend: true, Keep: true, Message: "both"}},
+		{name: "a message holding a NUL byte", opt: CommitOptions{Message: "a\x00b"}},
+		{name: "a path leaving the project", opt: CommitOptions{Message: "m", Paths: []string{"../outside"}}},
+		{name: "an absolute path", opt: CommitOptions{Message: "m", Paths: []string{"/etc/passwd"}}},
+	}
+	r := newRepo(t)
+	r.Commit("first commit subject", "a.txt", "a\n")
+	head := strings.TrimSpace(r.Git("rev-parse", "HEAD"))
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := r.Runner.Commit(t.Context(), r.Dir, tc.opt); err == nil {
+				t.Fatal("Commit() went through, want it refused")
+			}
+			if got := strings.TrimSpace(r.Git("rev-parse", "HEAD")); got != head {
+				t.Fatalf("HEAD moved to %s", got)
+			}
+		})
+	}
+}
+
+// TestIntegrationCommitMessageIsNeverOnACommandLine proves the message
+// reaches git through a file, and that the file is gone afterwards.
+func TestIntegrationCommitMessageIsNeverOnACommandLine(t *testing.T) {
+	const secret = "a subject nobody else should read"
+	f := &fakeGit{outputs: map[string]Result{
+		"commit":    {},
+		"rev-parse": {Stdout: []byte(hashA + "\n")},
+	}}
+	var file string
+	got, err := Runner{Executor: ExecutorFunc(func(ctx context.Context, bin string, args, env []string, limit int64) (Result, error) {
+		for _, a := range args {
+			if strings.Contains(a, secret) {
+				t.Fatalf("the message was passed as %q", a)
+			}
+			if rest, ok := strings.CutPrefix(a, "--file="); ok {
+				file = rest
+				data, err := os.ReadFile(rest)
+				if err != nil {
+					t.Fatalf("the message file: %v", err)
+				}
+				if string(data) != secret {
+					t.Fatalf("the message file holds %q", data)
+				}
+				info, err := os.Stat(rest)
+				if err != nil || info.Mode().Perm() != 0o600 {
+					t.Fatalf("the message file is %v (%v)", info.Mode().Perm(), err)
+				}
+			}
+		}
+		return f.Exec(ctx, bin, args, env, limit)
+	})}.Commit(t.Context(), "/repo", CommitOptions{Message: secret})
+	if err != nil {
+		t.Fatalf("Commit() error = %v", err)
+	}
+	if got != hashA {
+		t.Fatalf("Commit() = %q, want %q", got, hashA)
+	}
+	if file == "" {
+		t.Fatal("no message file was passed")
+	}
+	if _, err := os.Stat(file); !os.IsNotExist(err) {
+		t.Fatalf("the message file is still there: %v", err)
+	}
+}

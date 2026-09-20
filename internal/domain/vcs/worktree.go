@@ -100,7 +100,7 @@ func ParseWorktrees(data []byte) ([]Worktree, error) {
 		}
 		switch key {
 		case "HEAD":
-			if !isHex(value) {
+			if !IsObjectName(value) {
 				return nil, fmt.Errorf("%w: worktree head %q", ErrMalformed, value)
 			}
 			current.Head = value

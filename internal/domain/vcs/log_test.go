@@ -259,14 +259,14 @@ func FuzzParseLog(f *testing.F) {
 			t.Fatalf("ParseLog() read %d commits, past the cap %d", len(got), MaxCommits)
 		}
 		for _, c := range got {
-			if !isHex(c.OID) {
+			if !IsObjectName(c.OID) {
 				t.Fatalf("commit object name %q is not one", c.OID)
 			}
 			if c.Merge() != (len(c.Parents) > 1) {
 				t.Fatalf("commit %+v disagrees with itself about being a merge", c)
 			}
 			for _, p := range c.Parents {
-				if !isHex(p) {
+				if !IsObjectName(p) {
 					t.Fatalf("parent object name %q is not one", p)
 				}
 			}

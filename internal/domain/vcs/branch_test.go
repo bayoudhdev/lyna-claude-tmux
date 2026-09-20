@@ -181,7 +181,7 @@ func TestParseBranchesReadsGitItself(t *testing.T) {
 		if gotState != want[i] {
 			t.Fatalf("branch %d = %+v, want %+v", i, gotState, want[i])
 		}
-		if !isHex(b.OID) || b.Tip.IsZero() {
+		if !IsObjectName(b.OID) || b.Tip.IsZero() {
 			t.Fatalf("branch %s = %+v, want a commit and a date", b.Name, b)
 		}
 	}
@@ -222,7 +222,7 @@ func FuzzParseBranches(f *testing.F) {
 			if b.Name == "" || headsPrefix+b.Name != b.Ref {
 				t.Fatalf("branch %+v is not named by its ref", b)
 			}
-			if !isHex(b.OID) {
+			if !IsObjectName(b.OID) {
 				t.Fatalf("branch object name %q is not one", b.OID)
 			}
 			if b.Ahead < 0 || b.Behind < 0 {

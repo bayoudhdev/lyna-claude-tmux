@@ -113,7 +113,7 @@ func (b *Head) parseHeader(rec string) error {
 			b.Initial = true
 			return nil
 		}
-		if !isHex(value) {
+		if !IsObjectName(value) {
 			return fmt.Errorf("%w: branch oid %q", ErrMalformed, value)
 		}
 		b.OID = value
@@ -193,7 +193,7 @@ func statusCode(c byte) bool {
 
 // isHex reports an object name: hexadecimal, and never shorter than the four
 // characters git abbreviates one to.
-func isHex(s string) bool {
+func IsObjectName(s string) bool {
 	if len(s) < 4 {
 		return false
 	}

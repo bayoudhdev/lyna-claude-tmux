@@ -202,7 +202,7 @@ func FuzzParseWorktrees(f *testing.F) {
 			if w.Path == "" {
 				t.Fatalf("worktree with no path: %+v", w)
 			}
-			if w.Head != "" && !isHex(w.Head) {
+			if w.Head != "" && !IsObjectName(w.Head) {
 				t.Fatalf("worktree head %q is not an object name", w.Head)
 			}
 			if !w.Locked && w.LockReason != "" {

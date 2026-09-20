@@ -186,7 +186,7 @@ func (p *InProgress) readBisect(files map[string]string) error {
 	if !ok || start == "" {
 		return nil
 	}
-	if isHex(start) {
+	if IsObjectName(start) {
 		p.Heads = []string{start}
 		return nil
 	}
@@ -214,7 +214,7 @@ func line(files map[string]string, name string) (string, bool) {
 
 func oid(files map[string]string, name string) (string, error) {
 	v, _ := line(files, name)
-	if !isHex(v) {
+	if !IsObjectName(v) {
 		return "", fmt.Errorf("%w: %s holds %q, which is no object name", ErrMalformed, name, v)
 	}
 	return v, nil
@@ -225,7 +225,7 @@ func oid(files map[string]string, name string) (string, error) {
 func oids(files map[string]string, name string) ([]string, error) {
 	var out []string
 	for _, v := range strings.Split(strings.TrimRight(files[name], "\n"), "\n") {
-		if !isHex(v) {
+		if !IsObjectName(v) {
 			return nil, fmt.Errorf("%w: %s holds %q, which is no object name", ErrMalformed, name, v)
 		}
 		out = append(out, v)

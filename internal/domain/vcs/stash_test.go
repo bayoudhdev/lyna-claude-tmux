@@ -223,7 +223,7 @@ func TestParseStashesReadsGitItself(t *testing.T) {
 		if gotState != want[i] {
 			t.Fatalf("stash %d = %+v, want %+v", i, gotState, want[i])
 		}
-		if s.Index != i || !isHex(s.OID) || !isHex(s.Base) || s.Created.IsZero() {
+		if s.Index != i || !IsObjectName(s.OID) || !IsObjectName(s.Base) || s.Created.IsZero() {
 			t.Fatalf("stash %d = %+v, want a commit, a base and a date", i, s)
 		}
 	}
@@ -266,7 +266,7 @@ func FuzzParseStashes(f *testing.F) {
 			if s.Index != i {
 				t.Fatalf("stash %+v sits in position %d", s, i)
 			}
-			if !isHex(s.OID) || !isHex(s.Base) {
+			if !IsObjectName(s.OID) || !IsObjectName(s.Base) {
 				t.Fatalf("stash %+v does not name its commits", s)
 			}
 			if s.Ref != "stash@{"+itoa(s.Index)+"}" {

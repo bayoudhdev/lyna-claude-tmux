@@ -182,6 +182,12 @@ func TestRunnerEnvironment(t *testing.T) {
 			absent:  []string{"GIT_DIR=/elsewhere/.git", "GIT_WORK_TREE=/elsewhere", "GIT_INDEX_FILE=/x", "GIT_OPTIONAL_LOCKS=1", "GIT_PAGER=less", "PAGER=less", "LC_ALL=fr_FR.UTF-8", "GIT_TERMINAL_PROMPT=1"},
 		},
 		{
+			name:    "no command can stop on an editor",
+			base:    []string{"GIT_EDITOR=vim -f", "GIT_SEQUENCE_EDITOR=vim", "EDITOR=vim", "VISUAL=vim"},
+			present: []string{"GIT_EDITOR=true", "GIT_SEQUENCE_EDITOR=true", "EDITOR=true", "VISUAL=true"},
+			absent:  []string{"GIT_EDITOR=vim -f", "GIT_SEQUENCE_EDITOR=vim", "EDITOR=vim", "VISUAL=vim"},
+		},
+		{
 			name:    "unrelated variables are kept",
 			base:    []string{"PATH=/bin", "GIT_AUTHOR_NAME=me"},
 			present: []string{"PATH=/bin", "GIT_AUTHOR_NAME=me", "GIT_OPTIONAL_LOCKS=0"},

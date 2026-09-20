@@ -77,7 +77,7 @@ func parseBranch(rec string) (LocalBranch, error) {
 		return LocalBranch{}, fmt.Errorf("%w: branch ref %q", ErrMalformed, b.Ref)
 	}
 	b.Name = strings.TrimPrefix(b.Ref, headsPrefix)
-	if !isHex(b.OID) {
+	if !IsObjectName(b.OID) {
 		return LocalBranch{}, fmt.Errorf("%w: branch object name %q", ErrMalformed, b.OID)
 	}
 	// Every count is a count against an upstream, so a branch that tracks

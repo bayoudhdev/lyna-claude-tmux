@@ -318,11 +318,11 @@ func FuzzParseInProgress(f *testing.F) {
 			}
 		}
 		for _, h := range got.Heads {
-			if !isHex(h) {
+			if !IsObjectName(h) {
 				t.Fatalf("ParseInProgress() read the commit %q, which is not one", h)
 			}
 		}
-		if got.Onto != "" && !isHex(got.Onto) {
+		if got.Onto != "" && !IsObjectName(got.Onto) {
 			t.Fatalf("ParseInProgress() read the commit %q, which is not one", got.Onto)
 		}
 		if got.Step < 0 || got.Total < 0 {

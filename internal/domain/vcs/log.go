@@ -96,13 +96,13 @@ func ParseLog(data []byte) ([]Commit, error) {
 
 func parseCommit(f []string) (Commit, error) {
 	c := Commit{OID: f[0], Author: f[2], Subject: f[6]}
-	if !isHex(c.OID) {
+	if !IsObjectName(c.OID) {
 		return Commit{}, fmt.Errorf("%w: commit object name %q", ErrMalformed, c.OID)
 	}
 	if f[1] != "" {
 		c.Parents = strings.Split(f[1], " ")
 		for _, p := range c.Parents {
-			if !isHex(p) {
+			if !IsObjectName(p) {
 				return Commit{}, fmt.Errorf("%w: parent object name %q", ErrMalformed, p)
 			}
 		}
