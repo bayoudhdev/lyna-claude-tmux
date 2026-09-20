@@ -82,6 +82,22 @@ func (r Runner) Log(ctx context.Context, dir string, opt LogOptions) ([]vcs.Comm
 	return vcs.ParseLog(out)
 }
 
+// Show reads one commit in full: its message, who wrote and landed it, and
+// the files it touched. A merge is read against its first parent, which is
+// the change the merge brought into the branch.
+func (r Runner) Show(ctx context.Context, dir, rev string) (vcs.CommitDetail, error) {
+	if err := checkRev(rev); err != nil {
+		return vcs.CommitDetail{}, err
+	}
+	out, err := r.git(ctx, dir, "show", "-z", "--numstat", "--first-parent",
+		"--no-ext-diff", "--no-textconv", "--no-color", "--decorate=full",
+		"--format="+vcs.ShowFormat, rev, "--")
+	if err != nil {
+		return vcs.CommitDetail{}, err
+	}
+	return vcs.ParseShow(out)
+}
+
 // Stashes lists the stashes of the repository containing dir, the one pushed
 // last first.
 func (r Runner) Stashes(ctx context.Context, dir string) ([]vcs.Stash, error) {

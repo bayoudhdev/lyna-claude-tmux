@@ -2486,3 +2486,65 @@ func TestIntegrationRemoteBranchesRead(t *testing.T) {
 		t.Fatal("RemoteBranches() read a directory that is no repository")
 	}
 }
+
+// TestIntegrationShow reads commits of a real repository in full: a merge
+// against its first parent, a commit with a body, and the refusals.
+func TestIntegrationShow(t *testing.T) {
+	r := newRepo(t)
+	r.Write("a.txt", "a\nb\n")
+	r.Write("logo.png", "\x00\x01\x02")
+	r.Git("add", ".")
+	r.Git("commit", "-qm", "the first commit\n\nA body over\ntwo lines.\n")
+	root := strings.TrimSpace(r.Git("rev-parse", "HEAD"))
+	r.Git("checkout", "-q", "-b", "side")
+	r.Write("a.txt", "a\nc\nd\n")
+	r.Git("mv", "logo.png", "new logo.png")
+	r.Git("commit", "-qam", "change a file and rename another")
+	r.Git("checkout", "-q", "main")
+	r.Commit("on main", "b.txt", "x\n")
+	r.Git("merge", "-q", "--no-ff", "side", "-m", "a merge commit")
+
+	ctx := t.Context()
+	merge, err := r.Runner.Show(ctx, r.Dir, "HEAD")
+	if err != nil {
+		t.Fatalf("Show() error = %v", err)
+	}
+	if merge.Commit.Subject != "a merge commit" || len(merge.Commit.Parents) != 2 {
+		t.Fatalf("Show() read %+v, want the merge and its two parents", merge.Commit)
+	}
+	// A merge is read against its first parent, which is what it brought in.
+	paths := make([]string, len(merge.Files))
+	for i, f := range merge.Files {
+		paths[i] = f.Path
+	}
+	want := []string{"a.txt", "new logo.png"}
+	if !slices.Equal(paths, want) {
+		t.Fatalf("Show() read the files %v, want %v", paths, want)
+	}
+	if merge.Files[1].OrigPath != "logo.png" || !merge.Files[1].Binary {
+		t.Fatalf("the renamed file reads as %+v, want the binary it was", merge.Files[1])
+	}
+	if merge.Added() != 2 || merge.Deleted() != 1 {
+		t.Fatalf("the merge counts +%d -%d, want +2 -1", merge.Added(), merge.Deleted())
+	}
+
+	first, err := r.Runner.Show(ctx, r.Dir, root)
+	if err != nil {
+		t.Fatalf("Show() error = %v", err)
+	}
+	if first.Commit.Subject != "the first commit" || first.Body != "A body over\ntwo lines." {
+		t.Fatalf("Show() read %q / %q, want the subject and the body apart", first.Commit.Subject, first.Body)
+	}
+	if len(first.Commit.Parents) != 0 {
+		t.Fatalf("the first commit has the parents %v", first.Commit.Parents)
+	}
+	if first.Commit.Author == "" || first.AuthorEmail == "" || first.Committer == "" {
+		t.Fatalf("Show() read %+v, want who wrote it and who landed it", first)
+	}
+
+	for _, rev := range []string{"", "--all", "-x", "no-such-ref"} {
+		if _, err := r.Runner.Show(ctx, r.Dir, rev); err == nil {
+			t.Fatalf("Show(%q) went through, want it refused", rev)
+		}
+	}
+}

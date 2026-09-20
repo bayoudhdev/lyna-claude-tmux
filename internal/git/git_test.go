@@ -1178,6 +1178,17 @@ func TestRunnerReadingArgv(t *testing.T) {
 			want: []string{"for-each-ref", "--format=" + vcs.RemoteBranchFormat, "refs/remotes/"},
 		},
 		{
+			name: "one commit in full",
+			act: func(r Runner) error {
+				_, err := r.Show(context.Background(), "/repo", "HEAD")
+				return err
+			},
+			want: []string{
+				"show", "-z", "--numstat", "--first-parent", "--no-ext-diff", "--no-textconv",
+				"--no-color", "--decorate=full", "--format=" + vcs.ShowFormat, "HEAD", "--",
+			},
+		},
+		{
 			name: "the worktrees of the project",
 			act: func(r Runner) error {
 				_, err := r.Worktrees(context.Background(), "/repo")
@@ -1188,7 +1199,12 @@ func TestRunnerReadingArgv(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			f := &fakeGit{outputs: map[string]Result{"for-each-ref": {}, "worktree": {}}}
+			f := &fakeGit{outputs: map[string]Result{
+				"for-each-ref": {}, "worktree": {},
+				// A reading of one commit parses what it reads, so the fake
+				// answers with the shape of an empty commit.
+				"show": {Stdout: []byte(zero[:8] + "\x00\x00\x00\x00\x00\x00\x00\x00\x00")},
+			}}
 			if err := tc.act(Runner{Executor: f}); err != nil {
 				t.Fatalf("the reading failed: %v", err)
 			}
