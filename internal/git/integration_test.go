@@ -1848,3 +1848,190 @@ func TestIntegrationContinueSkipAndAbort(t *testing.T) {
 		}
 	})
 }
+
+func TestIntegrationCherryPickAndRevert(t *testing.T) {
+	ctx := t.Context()
+	t.Run("a commit replayed onto the branch", func(t *testing.T) {
+		r := diverged(t)
+		if err := r.Runner.CherryPick(ctx, r.Dir, Pick{Revs: []string{"side"}}); err != nil {
+			t.Fatalf("CherryPick() error = %v", err)
+		}
+		if got := strings.TrimSpace(r.Git("log", "-1", "--format=%s")); got != "a change of the branch" {
+			t.Fatalf("the branch stands at %q", got)
+		}
+		if _, err := os.Stat(filepath.Join(r.Dir, "side.txt")); err != nil {
+			t.Fatalf("the change was not replayed: %v", err)
+		}
+	})
+	t.Run("two commits folded into what is staged", func(t *testing.T) {
+		r := newRepo(t)
+		r.Commit("first commit subject", "a.txt", "a\n")
+		r.Git("checkout", "-q", "-b", "side")
+		r.Commit("one", "one.txt", "1\n")
+		r.Commit("two", "two.txt", "2\n")
+		r.Git("checkout", "-q", "main")
+		head := strings.TrimSpace(r.Git("rev-parse", "HEAD"))
+		if err := r.Runner.CherryPick(ctx, r.Dir, Pick{Revs: []string{"side~1", "side"}, NoCommit: true}); err != nil {
+			t.Fatalf("CherryPick() error = %v", err)
+		}
+		if got := strings.TrimSpace(r.Git("rev-parse", "HEAD")); got != head {
+			t.Fatalf("a pick that writes no commit moved HEAD to %s", got)
+		}
+		got := state(t, r)
+		if got["one.txt"] != "A." || got["two.txt"] != "A." {
+			t.Fatalf("the working tree reads as %v, want both changes staged", got)
+		}
+	})
+	t.Run("a commit replayed with where it came from", func(t *testing.T) {
+		r := diverged(t)
+		source := strings.TrimSpace(r.Git("rev-parse", "side"))
+		if err := r.Runner.CherryPick(ctx, r.Dir, Pick{Revs: []string{"side"}, Reference: true}); err != nil {
+			t.Fatalf("CherryPick() error = %v", err)
+		}
+		if got := r.Git("log", "-1", "--format=%B"); !strings.Contains(got, source) {
+			t.Fatalf("the message reads as %q, want it to name %s", got, source)
+		}
+	})
+	t.Run("a commit undone", func(t *testing.T) {
+		r := newRepo(t)
+		r.Commit("first commit subject", "a.txt", "a\n")
+		r.Commit("a change to undo", "b.txt", "b\n")
+		if err := r.Runner.Revert(ctx, r.Dir, Pick{Revs: []string{"HEAD"}}); err != nil {
+			t.Fatalf("Revert() error = %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(r.Dir, "b.txt")); !os.IsNotExist(err) {
+			t.Fatalf("the change was not undone: %v", err)
+		}
+		if got := strings.TrimSpace(r.Git("log", "-1", "--format=%s")); !strings.Contains(got, "a change to undo") {
+			t.Fatalf("the message reads as %q, want it to name the commit undone", got)
+		}
+	})
+	t.Run("a merge undone against the branch it was merged into", func(t *testing.T) {
+		r := diverged(t)
+		r.Git("merge", "-q", "--no-ff", "-m", "a merge commit", "side")
+		if err := r.Runner.Revert(ctx, r.Dir, Pick{Revs: []string{"HEAD"}}); err == nil {
+			t.Fatal("Revert() undid a merge without being told which side to keep")
+		}
+		if err := r.Runner.Revert(ctx, r.Dir, Pick{Revs: []string{"HEAD"}, Mainline: 1}); err != nil {
+			t.Fatalf("Revert() error = %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(r.Dir, "side.txt")); !os.IsNotExist(err) {
+			t.Fatalf("the merge was not undone: %v", err)
+		}
+	})
+	t.Run("a pick that stops on a conflict", func(t *testing.T) {
+		r := conflicting(t)
+		if err := r.Runner.CherryPick(ctx, r.Dir, Pick{Revs: []string{"side"}}); err == nil {
+			t.Fatal("CherryPick() went through a conflict")
+		}
+		got, err := r.Runner.InProgress(ctx, r.Dir)
+		if err != nil {
+			t.Fatalf("InProgress() error = %v", err)
+		}
+		if got.Kind != vcs.OperationCherryPick {
+			t.Fatalf("InProgress() = %+v, want the pick waiting", got)
+		}
+	})
+	t.Run("the refusals", func(t *testing.T) {
+		r := diverged(t)
+		cases := []struct {
+			name string
+			act  func() error
+		}{
+			{name: "a pick of nothing", act: func() error { return r.Runner.CherryPick(ctx, r.Dir, Pick{}) }},
+			{name: "a revert of nothing", act: func() error { return r.Runner.Revert(ctx, r.Dir, Pick{}) }},
+			{
+				name: "a revision that would be an option",
+				act:  func() error { return r.Runner.CherryPick(ctx, r.Dir, Pick{Revs: []string{"--exec=id"}}) },
+			},
+			{
+				name: "a parent counting backwards",
+				act:  func() error { return r.Runner.Revert(ctx, r.Dir, Pick{Revs: []string{"HEAD"}, Mainline: -1}) },
+			},
+			{
+				name: "a parent past what a merge holds",
+				act:  func() error { return r.Runner.CherryPick(ctx, r.Dir, Pick{Revs: []string{"HEAD"}, Mainline: 99}) },
+			},
+			{
+				name: "a revert recording where it came from",
+				act:  func() error { return r.Runner.Revert(ctx, r.Dir, Pick{Revs: []string{"HEAD"}, Reference: true}) },
+			},
+		}
+		head := strings.TrimSpace(r.Git("rev-parse", "HEAD"))
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				if err := tc.act(); err == nil {
+					t.Fatal("the command went through, want it refused")
+				}
+				if got := strings.TrimSpace(r.Git("rev-parse", "HEAD")); got != head {
+					t.Fatalf("HEAD moved to %s", got)
+				}
+			})
+		}
+	})
+}
+
+func TestIntegrationReset(t *testing.T) {
+	cases := []struct {
+		name string
+		mode ResetMode
+		want map[string]string
+	}{
+		{name: "the branch alone", mode: ResetSoft, want: map[string]string{"b.txt": "A.", "c.txt": "A."}},
+		{name: "the branch and the index", mode: ResetMixed, want: map[string]string{"b.txt": "??", "c.txt": "??"}},
+		{name: "the branch, the index and the working tree", mode: ResetHard, want: map[string]string{}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newRepo(t)
+			r.Commit("first commit subject", "a.txt", "a\n")
+			first := strings.TrimSpace(r.Git("rev-parse", "HEAD"))
+			r.Commit("a second commit", "b.txt", "b\n")
+			r.Write("c.txt", "c\n")
+			r.Git("add", "c.txt")
+
+			if err := r.Runner.Reset(t.Context(), r.Dir, first, tc.mode); err != nil {
+				t.Fatalf("Reset() error = %v", err)
+			}
+			if got := strings.TrimSpace(r.Git("rev-parse", "HEAD")); got != first {
+				t.Fatalf("the branch stands at %s, want %s", got, first)
+			}
+			if got := state(t, r); !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("the working tree reads as %v, want %v", got, tc.want)
+			}
+		})
+	}
+	t.Run("a revision that would be an option", func(t *testing.T) {
+		r := newRepo(t)
+		r.Commit("first commit subject", "a.txt", "a\n")
+		if err := r.Runner.Reset(t.Context(), r.Dir, "--hard", ResetSoft); err == nil {
+			t.Fatal("Reset() accepted a revision git would read as an option")
+		}
+	})
+	t.Run("a mode this does not know", func(t *testing.T) {
+		r := newRepo(t)
+		r.Commit("first commit subject", "a.txt", "a\n")
+		if err := r.Runner.Reset(t.Context(), r.Dir, "HEAD", ResetMode(42)); err == nil {
+			t.Fatal("Reset() accepted a mode it has not got")
+		}
+	})
+}
+
+func TestResetModeString(t *testing.T) {
+	cases := []struct {
+		mode ResetMode
+		want string
+	}{
+		{ResetMixed, "mixed"},
+		{ResetSoft, "soft"},
+		{ResetHard, "hard"},
+		{ResetMode(42), "unknown"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.want, func(t *testing.T) {
+			if got := tc.mode.String(); got != tc.want {
+				t.Fatalf("ResetMode(%d).String() = %q, want %q", tc.mode, got, tc.want)
+			}
+		})
+	}
+}

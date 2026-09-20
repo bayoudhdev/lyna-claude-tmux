@@ -1043,3 +1043,111 @@ func TestOperationCommand(t *testing.T) {
 		})
 	}
 }
+
+// TestRunnerPickArgv holds the commands a pick, a revert and a reset build.
+func TestRunnerPickArgv(t *testing.T) {
+	cases := []struct {
+		name    string
+		act     func(r Runner) error
+		want    []string
+		wantErr bool
+	}{
+		{
+			name: "one commit replayed",
+			act:  func(r Runner) error { return r.CherryPick(context.Background(), "/repo", Pick{Revs: []string{"side"}}) },
+			want: []string{"cherry-pick", "side"},
+		},
+		{
+			name: "two commits folded into what is staged",
+			act: func(r Runner) error {
+				return r.CherryPick(context.Background(), "/repo", Pick{Revs: []string{"a", "b"}, NoCommit: true, Reference: true})
+			},
+			want: []string{"cherry-pick", "--no-commit", "-x", "a", "b"},
+		},
+		{
+			name: "a merge replayed against its first parent",
+			act: func(r Runner) error {
+				return r.CherryPick(context.Background(), "/repo", Pick{Revs: []string{"m"}, Mainline: 1})
+			},
+			want: []string{"cherry-pick", "--mainline", "1", "m"},
+		},
+		{
+			name: "a commit undone",
+			act:  func(r Runner) error { return r.Revert(context.Background(), "/repo", Pick{Revs: []string{"HEAD"}}) },
+			want: []string{"revert", "HEAD", "--no-edit"},
+		},
+		{
+			name: "a merge undone against the branch it was merged into",
+			act: func(r Runner) error {
+				return r.Revert(context.Background(), "/repo", Pick{Revs: []string{"HEAD"}, Mainline: 2, NoCommit: true})
+			},
+			want: []string{"revert", "--no-commit", "--mainline", "2", "HEAD", "--no-edit"},
+		},
+		{
+			name: "the branch moved, everything kept staged",
+			act:  func(r Runner) error { return r.Reset(context.Background(), "/repo", "HEAD~2", ResetSoft) },
+			want: []string{"reset", "-q", "--soft", "HEAD~2", "--"},
+		},
+		{
+			name: "the branch moved, the changes kept",
+			act:  func(r Runner) error { return r.Reset(context.Background(), "/repo", "origin/main", ResetMixed) },
+			want: []string{"reset", "-q", "--mixed", "origin/main", "--"},
+		},
+		{
+			name: "the branch moved, everything thrown away",
+			act:  func(r Runner) error { return r.Reset(context.Background(), "/repo", "HEAD", ResetHard) },
+			want: []string{"reset", "-q", "--hard", "HEAD", "--"},
+		},
+		{name: "a pick of nothing", act: func(r Runner) error { return r.CherryPick(context.Background(), "/repo", Pick{}) }, wantErr: true},
+		{
+			name:    "a revision that would be an option",
+			act:     func(r Runner) error { return r.CherryPick(context.Background(), "/repo", Pick{Revs: []string{"-x"}}) },
+			wantErr: true,
+		},
+		{
+			name: "a parent counting backwards",
+			act: func(r Runner) error {
+				return r.Revert(context.Background(), "/repo", Pick{Revs: []string{"m"}, Mainline: -1})
+			},
+			wantErr: true,
+		},
+		{
+			name: "a revert recording where it came from",
+			act: func(r Runner) error {
+				return r.Revert(context.Background(), "/repo", Pick{Revs: []string{"m"}, Reference: true})
+			},
+			wantErr: true,
+		},
+		{
+			name:    "a reset to a revision that would be an option",
+			act:     func(r Runner) error { return r.Reset(context.Background(), "/repo", "--hard", ResetSoft) },
+			wantErr: true,
+		},
+		{
+			name:    "a reset in a mode this has not got",
+			act:     func(r Runner) error { return r.Reset(context.Background(), "/repo", "HEAD", ResetMode(42)) },
+			wantErr: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeGit{outputs: map[string]Result{"cherry-pick": {}, "revert": {}, "reset": {}}}
+			err := tc.act(Runner{Executor: f})
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("the command went through, want it refused")
+				}
+				if len(f.calls) != 0 {
+					t.Fatalf("the command ran %v, want nothing run at all", f.calls)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("the command failed: %v", err)
+			}
+			if args := f.calls[0][5:]; !slices.Equal(args, tc.want) {
+				t.Fatalf("the command ran %v, want %v", args, tc.want)
+			}
+		})
+	}
+}
