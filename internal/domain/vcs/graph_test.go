@@ -241,6 +241,11 @@ func FuzzLayGraph(f *testing.F) {
 			if i == 0 && len(row.Link) != 0 {
 				t.Fatalf("the first row links %+v, with no row above it", row.Link)
 			}
+			// A drawing of the row is as wide as the layout says, whatever
+			// the history was.
+			if len(NodeCells(g.Width, row)) != CellCount(g.Width) || len(LinkCells(g.Width, row.Link)) != CellCount(g.Width) {
+				t.Fatalf("row %d of a %d lane graph draws the wrong number of cells", i, g.Width)
+			}
 		}
 	})
 }
@@ -254,92 +259,103 @@ func contains(lanes []int, lane int) bool {
 	return false
 }
 
-// The lines a gap is drawn with, one bit per direction leaving a cell.
-const (
-	up = 1 << iota
-	down
-	left
-	right
-)
-
-var marks = map[int]rune{
-	0:                        ' ',
-	up:                       '│',
-	down:                     '│',
-	left:                     '─',
-	right:                    '─',
-	up | down:                '│',
-	left | right:             '─',
-	up | right:               '╰',
-	up | left:                '╯',
-	down | left:              '╮',
-	down | right:             '╭',
-	up | down | right:        '├',
-	up | down | left:         '┤',
-	up | left | right:        '┴',
-	down | left | right:      '┬',
-	up | down | left | right: '┼',
-}
-
-// draw renders a graph the way the view will: the gap above a commit, then
+// draw renders a graph the way the view does: the gap above a commit, then
 // the commit's own line with its object name and subject.
 func draw(g Graph) string {
 	var b strings.Builder
 	for _, row := range g.Rows {
 		if len(row.Link) > 0 {
-			b.WriteString(strings.TrimRight(drawLink(g.Width, row.Link), " ") + "\n")
+			b.WriteString(strings.TrimRight(string(LinkCells(g.Width, row.Link)), " ") + "\n")
 		}
-		b.WriteString(drawNode(g.Width, row) + "  " + row.Commit.Short() + " " + row.Commit.Subject + "\n")
+		b.WriteString(string(NodeCells(g.Width, row)) + "  " + row.Commit.Short() + " " + row.Commit.Subject + "\n")
 	}
 	return b.String()
 }
 
-func drawLink(width int, link []Edge) string {
-	cells := make([]int, cellCount(width))
-	for _, e := range link {
-		switch {
-		case e.From == e.To:
-			cells[2*e.From] |= up | down
-		case e.To > e.From:
-			cells[2*e.From] |= up | right
-			cells[2*e.To] |= left | down
-			for c := 2*e.From + 1; c < 2*e.To; c++ {
-				cells[c] |= left | right
+func TestGraphCells(t *testing.T) {
+	cases := []struct {
+		name  string
+		width int
+		row   GraphRow
+		node  string
+		link  string
+	}{
+		{
+			name: "one commit alone", width: 1,
+			row:  GraphRow{Commit: commitOf("a"), Lanes: []int{0}},
+			node: "●", link: "",
+		},
+		{
+			name: "a line carrying on beside a commit", width: 2,
+			row:  GraphRow{Commit: commitOf("a"), Lane: 0, Lanes: []int{0, 1}, Link: []Edge{{From: 0, To: 0}, {From: 1, To: 1}}},
+			node: "● │", link: "│ │",
+		},
+		{
+			name: "a merge opening a lane", width: 2,
+			row:  GraphRow{Commit: commitOf("m", "a", "b"), Lane: 0, Lanes: []int{0}, Link: []Edge{{From: 0, To: 1}}},
+			node: "◆  ", link: "╰─╮",
+		},
+		{
+			name: "a lane closing into the one on its left", width: 2,
+			row:  GraphRow{Commit: commitOf("r"), Lane: 0, Lanes: []int{0}, Link: []Edge{{From: 0, To: 0}, {From: 1, To: 0}}},
+			node: "●  ", link: "├─╯",
+		},
+		{
+			name: "an octopus closing three lanes", width: 3,
+			row:  GraphRow{Commit: commitOf("r"), Lane: 0, Lanes: []int{0}, Link: []Edge{{From: 0, To: 0}, {From: 1, To: 0}, {From: 2, To: 0}}},
+			node: "●    ", link: "├─┴─╯",
+		},
+		{
+			name: "a width that is no width at all", width: 0,
+			row:  GraphRow{Commit: commitOf("a"), Lanes: []int{0}},
+			node: "●", link: "",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := string(NodeCells(tc.width, tc.row)); got != tc.node {
+				t.Fatalf("NodeCells() = %q, want %q", got, tc.node)
 			}
-		default:
-			cells[2*e.From] |= up | left
-			cells[2*e.To] |= right | down
-			for c := 2*e.To + 1; c < 2*e.From; c++ {
-				cells[c] |= left | right
+			if len(tc.row.Link) == 0 {
+				return
 			}
+			if got := string(LinkCells(tc.width, tc.row.Link)); got != tc.link {
+				t.Fatalf("LinkCells() = %q, want %q", got, tc.link)
+			}
+		})
+	}
+}
+
+func TestCellLane(t *testing.T) {
+	cases := []struct{ cell, lane int }{{0, 0}, {1, 1}, {2, 1}, {3, 2}, {4, 2}}
+	for _, tc := range cases {
+		t.Run("cell "+itoa(tc.cell), func(t *testing.T) {
+			if got := CellLane(tc.cell); got != tc.lane {
+				t.Fatalf("CellLane(%d) = %d, want %d", tc.cell, got, tc.lane)
+			}
+		})
+	}
+}
+
+// TestGraphCellsHoldTheirWidth proves a drawing is exactly as wide as the
+// graph says, whatever the rows carry: a view lays its columns out on that
+// number before it draws anything.
+func TestGraphCellsHoldTheirWidth(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("testdata", "log.z"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	commits, err := ParseLog(data)
+	if err != nil {
+		t.Fatalf("ParseLog() error = %v", err)
+	}
+	g := LayGraph(commits)
+	for _, row := range g.Rows {
+		if n := len(NodeCells(g.Width, row)); n != CellCount(g.Width) {
+			t.Fatalf("NodeCells() drew %d cells, want %d", n, CellCount(g.Width))
+		}
+		if n := len(LinkCells(g.Width, row.Link)); n != CellCount(g.Width) {
+			t.Fatalf("LinkCells() drew %d cells, want %d", n, CellCount(g.Width))
 		}
 	}
-	out := make([]rune, len(cells))
-	for i, c := range cells {
-		out[i] = marks[c]
-	}
-	return string(out)
-}
-
-func drawNode(width int, row GraphRow) string {
-	out := make([]rune, cellCount(width))
-	for i := range out {
-		out[i] = ' '
-	}
-	for _, lane := range row.Lanes {
-		out[2*lane] = '│'
-	}
-	node := '●'
-	if row.Commit.Merge() {
-		node = '◆'
-	}
-	out[2*row.Lane] = node
-	return string(out)
-}
-
-func cellCount(width int) int {
-	if width < 1 {
-		return 1
-	}
-	return 2*width - 1
 }

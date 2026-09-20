@@ -127,3 +127,101 @@ func rowWidth(row GraphRow) int {
 	}
 	return w
 }
+
+// The lines a cell of a gap is drawn with, one bit per direction leaving it.
+const (
+	linkUp = 1 << iota
+	linkDown
+	linkLeft
+	linkRight
+)
+
+// graphMarks is the glyph of every combination of directions a cell carries.
+var graphMarks = map[int]rune{
+	0:                                        ' ',
+	linkUp:                                   '│',
+	linkDown:                                 '│',
+	linkLeft:                                 '─',
+	linkRight:                                '─',
+	linkUp | linkDown:                        '│',
+	linkLeft | linkRight:                     '─',
+	linkUp | linkRight:                       '╰',
+	linkUp | linkLeft:                        '╯',
+	linkDown | linkLeft:                      '╮',
+	linkDown | linkRight:                     '╭',
+	linkUp | linkDown | linkRight:            '├',
+	linkUp | linkDown | linkLeft:             '┤',
+	linkUp | linkLeft | linkRight:            '┴',
+	linkDown | linkLeft | linkRight:          '┬',
+	linkUp | linkDown | linkLeft | linkRight: '┼',
+}
+
+// CellCount is how many cells wide a graph of that many lanes is drawn: one
+// per lane, with one between each pair for the lines that cross.
+func CellCount(width int) int {
+	if width < 1 {
+		return 1
+	}
+	return 2*width - 1
+}
+
+// LinkCells draws the gap above a commit: the lines carrying on, the ones
+// ending at it and the ones starting from the commit before. The result is
+// one rune per cell, which a view colors by the lane each cell belongs to.
+func LinkCells(width int, link []Edge) []rune {
+	cells := make([]int, CellCount(width))
+	set := func(i, bits int) {
+		if i >= 0 && i < len(cells) {
+			cells[i] |= bits
+		}
+	}
+	for _, e := range link {
+		switch {
+		case e.From == e.To:
+			set(2*e.From, linkUp|linkDown)
+		case e.To > e.From:
+			set(2*e.From, linkUp|linkRight)
+			set(2*e.To, linkLeft|linkDown)
+			for c := 2*e.From + 1; c < 2*e.To; c++ {
+				set(c, linkLeft|linkRight)
+			}
+		default:
+			set(2*e.From, linkUp|linkLeft)
+			set(2*e.To, linkRight|linkDown)
+			for c := 2*e.To + 1; c < 2*e.From; c++ {
+				set(c, linkLeft|linkRight)
+			}
+		}
+	}
+	out := make([]rune, len(cells))
+	for i, c := range cells {
+		out[i] = graphMarks[c]
+	}
+	return out
+}
+
+// NodeCells draws the line of a commit: a bar in every lane carrying a line,
+// and the commit itself in its own, a lozenge for a merge.
+func NodeCells(width int, row GraphRow) []rune {
+	out := make([]rune, CellCount(width))
+	for i := range out {
+		out[i] = ' '
+	}
+	for _, lane := range row.Lanes {
+		if c := 2 * lane; c < len(out) {
+			out[c] = '│'
+		}
+	}
+	node := '●'
+	if row.Commit.Merge() {
+		node = '◆'
+	}
+	if c := 2 * row.Lane; c >= 0 && c < len(out) {
+		out[c] = node
+	}
+	return out
+}
+
+// CellLane is the lane a cell of a drawing belongs to: its own for a lane's
+// column, and the one on its right for a cell between two lanes.
+func CellLane(cell int) int { return (cell + 1) / 2 }
