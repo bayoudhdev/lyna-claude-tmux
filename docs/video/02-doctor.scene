@@ -1,0 +1,19 @@
+# What the machine needs, and the command that fixes anything missing.
+# fixtures: off
+# The report prints where Claude Code is installed, so this chapter runs
+# against the machine's own installation rather than the fixture that answers
+# for the agent list.
+title lmux doctor
+size 134 36
+pre lmux kill --all
+run demo-shell
+wait 1
+type clear
+enter
+wait 0.5
+chapter Is the machine ready
+caption lmux doctor | tmux, git, Claude Code, the sandbox, the terminal
+type env -u TMUX -u TMUX_PANE lmux doctor
+enter
+wait 3
+frame 6

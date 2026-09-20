@@ -1,0 +1,25 @@
+# The wizard writes the configuration: theme, icons, the status bar, colors.
+title lmux setup
+size 134 36
+pre lmux kill --all
+run demo-shell
+wait 1
+type clear
+enter
+wait 0.5
+chapter The wizard
+caption lmux setup | the look, the layout, the sandbox, in five steps
+type lmux setup
+enter
+wait 2.5
+frame 3.5
+caption enter | the theme a workspace opens with is monokai
+keys Enter
+wait 1.2
+frame 2.5
+keys Enter
+wait 1.2
+frame 2.5
+keys C-c
+wait 0.8
+frame 1.5

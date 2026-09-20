@@ -16,7 +16,7 @@
 # a scene runs in is the same either way.
 #
 # Usage: scripts/record-docs.sh --project DIR [--bin PATH] [--assets DIR]
-#                               [--scenes DIR] [--home NAME]
+#                               [--scenes DIR] [--fixtures DIR] [--home NAME]
 #                               [--redact FROM=TO]... [--only NAME]...
 #                               [--film] [--width PIXELS] [--fps N] [--dry-run]
 set -euo pipefail
@@ -43,6 +43,10 @@ project=""
 bin=""
 assets=$root/docs/assets
 scenes=$root/docs/scenes
+# The recording shell and the fixture binaries belong to the recorder rather
+# than to one set of scenes, so a second set, the chapters of the film, runs
+# with the same ones.
+fixtures=""
 record=$here/record.sh
 demo_home=""
 only=()
@@ -53,13 +57,14 @@ width=1280
 fps=20
 while (($# > 0)); do
   case $1 in
-  --project | --bin | --assets | --scenes | --record | --only | --home | --redact | --width | --fps)
+  --project | --bin | --assets | --scenes | --fixtures | --record | --only | --home | --redact | --width | --fps)
     (($# >= 2)) || usage_error "$1 needs a value"
     case $1 in
     --project) project=$2 ;;
     --bin) bin=$2 ;;
     --assets) assets=$2 ;;
     --scenes) scenes=$2 ;;
+    --fixtures) fixtures=$2 ;;
     --record) record=$2 ;;
     --only) only+=("$2") ;;
     --home) demo_home=$2 ;;
@@ -91,6 +96,8 @@ done
 [[ -n $project ]] || usage_error "--project is required"
 [[ -d $project ]] || fail "$project is not a directory"
 [[ -d $scenes ]] || fail "$scenes is not a directory"
+[[ -n $fixtures ]] || fixtures=$scenes
+[[ -d $fixtures ]] || fail "$fixtures is not a directory"
 [[ -x $record ]] || fail "$record is not executable"
 # A scene that prints where the binary is, as uninstall does, must print a path
 # a reader could have: the one given is copied under a directory named with as
@@ -113,21 +120,21 @@ command -v lmux >/dev/null 2>&1 || fail "lmux is not on PATH; build it or pass -
 # "# fixtures: off" line and runs against the machine's own PATH.
 # The recording shell comes before the fixtures, so a scene that opts out of
 # them still opens its panes with it.
-if [[ -d $scenes/bin ]]; then
-  PATH=$scenes/bin:$PATH
+if [[ -d $fixtures/bin ]]; then
+  PATH=$fixtures/bin:$PATH
   export PATH
 fi
 machine_path=$PATH
-if [[ -d $scenes/fixtures/bin ]]; then
-  PATH=$scenes/fixtures/bin:$PATH
+if [[ -d $fixtures/fixtures/bin ]]; then
+  PATH=$fixtures/fixtures/bin:$PATH
   export PATH
 fi
 # Every pane the scenes open runs this shell rather than the account's own,
 # which would draw its own prompt into the pictures. tmux takes the shell of a
 # new pane from SHELL, and hands it down to the workspace tmux server a scene
 # starts; a scene that opens a shell of its own runs it by name, as demo-shell.
-if [[ -x $scenes/bin/demo-shell ]]; then
-  SHELL=$scenes/bin/demo-shell
+if [[ -x $fixtures/bin/demo-shell ]]; then
+  SHELL=$fixtures/bin/demo-shell
   export SHELL
 fi
 

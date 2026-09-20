@@ -1,0 +1,25 @@
+# The film opens on what the tool is, in one command and one sentence.
+# Every chapter is recorded at this size: a film is one picture from
+# beginning to end, and the assembler refuses to join two sizes.
+title lyna-tmux
+size 134 36
+pre lmux kill --all
+run demo-shell
+wait 1
+type clear
+enter
+wait 0.5
+chapter lyna-tmux
+caption lmux version | a tmux workspace made for Claude Code
+type lmux version
+enter
+wait 1.5
+frame 3
+caption lmux --help | every command, and what it is for
+type clear
+enter
+wait 0.4
+type lmux --help
+enter
+wait 1.5
+frame 5

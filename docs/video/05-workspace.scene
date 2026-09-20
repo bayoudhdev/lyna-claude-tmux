@@ -1,0 +1,13 @@
+# One command opens the project: the agent, a shell, and what is changing.
+title lmux create ~/src/acme-api
+size 134 36
+pre lmux kill --all
+pre rm -rf .devcontainer
+chapter The first workspace
+caption lmux create ~/src/acme-api | the agent, a shell and the changes, in one command
+run lmux create . --layout trio --nested
+film 5 0.9
+wait 5
+frame 4
+caption the status bar | the workspace, the windows, the agents, the sandbox, the branch
+frame 4

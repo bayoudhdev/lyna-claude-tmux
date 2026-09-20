@@ -581,3 +581,42 @@ func TestRecordDocsFilm(t *testing.T) {
 		}
 	}
 }
+
+// TestRecordDocsFixturesElsewhere covers the chapters of the film: they live
+// in a directory of their own, and run with the recording shell and the
+// fixture binaries that belong to the recorder rather than to one set of
+// scenes.
+func TestRecordDocsFixturesElsewhere(t *testing.T) {
+	e := newDocsEnv(t, nil)
+	shell := filepath.Join(e.scenes, "bin", "demo-shell")
+	writeExecutable(t, shell, "#!/bin/sh\nexit 0\n")
+	chapters := filepath.Join(e.dir, "video")
+	if err := os.MkdirAll(chapters, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(chapters, "01-open.scene"), []byte("frames: 2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, stderr, exit := runRecordDocs(t, e.env(),
+		"--project", e.project, "--scenes", chapters, "--fixtures", e.scenes,
+		"--assets", e.assets, "--record", e.record, "--film")
+	if exit != 0 {
+		t.Fatalf("exit %d\nstderr:\n%s", exit, stderr)
+	}
+	log := string(mustRead(t, e.log))
+	cases := []struct {
+		name string
+		want string
+	}{
+		{name: "the chapter is the scene that was asked for", want: chapters + "/01-open.scene"},
+		{name: "it runs the recording shell", want: "shell=" + shell},
+		{name: "with the fixture binaries of the recorder", want: "path=" + filepath.Join(e.scenes, "fixtures", "bin") + ":"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if !strings.Contains(log, tc.want) {
+				t.Fatalf("the recorder was not called with %q:\n%s", tc.want, log)
+			}
+		})
+	}
+}

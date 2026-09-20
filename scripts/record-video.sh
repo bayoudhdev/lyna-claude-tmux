@@ -110,8 +110,11 @@ done
 work=$(mktemp -d "${TMPDIR:-/tmp}/lyna-tmux-film.XXXXXX")
 trap 'rm -rf "$work"' EXIT
 
-driver_args=(--project "$project" --scenes "$scenes" --assets "$work"
-  --film --width "$width" --fps "$fps")
+# The chapters run with the recording shell and the fixture binaries the
+# documentation scenes use, which live beside them rather than beside the
+# chapters.
+driver_args=(--project "$project" --scenes "$scenes" --fixtures "$root/docs/scenes"
+  --assets "$work" --film --width "$width" --fps "$fps")
 if [[ -n $bin ]]; then driver_args+=(--bin "$bin"); fi
 if [[ -n $demo_home ]]; then driver_args+=(--home "$demo_home"); fi
 for name in "${chapters[@]}"; do driver_args+=(--only "$name"); done

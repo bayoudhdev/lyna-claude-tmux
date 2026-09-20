@@ -1,0 +1,25 @@
+# Where the configuration is, what it holds, and that it is valid.
+title lmux config
+size 134 36
+pre lmux kill --all
+run demo-shell
+wait 1
+type clear
+enter
+wait 0.5
+chapter The configuration
+caption lmux config path | one file, every key optional
+type lmux config path
+enter
+wait 1.2
+frame 2.2
+caption lmux config validate | an unknown key is an error, not a surprise
+type lmux config validate
+enter
+wait 1.2
+frame 2.2
+caption head -18 "$(lmux config path)" | the file is documented where it is written
+type head -18 "$(lmux config path)"
+enter
+wait 1.2
+frame 5
