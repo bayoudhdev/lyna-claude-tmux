@@ -6,7 +6,7 @@
   ┃ ui.theme: lyna -> light
   ┃ ui.icons: auto -> ascii
   ┃ ui.color: auto -> 256
-  ┃ workspace.layout: auto -> team
+  ┃ workspace.layout: auto -> git
   ┃ ui.alt_keys: true -> false
   ┃ claude.model: (default) -> opus
   ┃ claude.effort: (default) -> high

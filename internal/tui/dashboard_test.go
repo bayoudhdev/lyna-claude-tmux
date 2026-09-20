@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/agent"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/layout"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
 )
 
@@ -153,6 +154,26 @@ func TestDashboardFrames(t *testing.T) {
 				assertFrame(t, "dashboard/"+st.name+"-"+size.name, m, size.width, size.height, size.ansi)
 			})
 		}
+	}
+}
+
+// TestDashboardReachesEveryLayout holds the list of layouts to a list that
+// scrolls: the shortest frame shows fewer of them than there are, and the
+// last one is still reached with the keys.
+func TestDashboardReachesEveryLayout(t *testing.T) {
+	t.Parallel()
+	f := newDashFixture(t, 60, 20)
+	m, _ := f.start(t, press("n"))
+	if frame := m.View().Content; strings.Contains(frame, layout.Auto) {
+		t.Fatalf("the shortest frame already shows every layout:\n%s", frame)
+	}
+	msgs := []tea.Msg{press("n"), press("."), press("enter")}
+	for range layout.Names() {
+		msgs = append(msgs, press("down"))
+	}
+	m, _ = f.start(t, msgs...)
+	if frame := m.View().Content; !strings.Contains(frame, layout.Auto) {
+		t.Fatalf("the end of the list of layouts is out of reach:\n%s", frame)
 	}
 }
 
