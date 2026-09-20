@@ -1153,6 +1153,52 @@ func TestRunnerPickArgv(t *testing.T) {
 	}
 }
 
+// TestRunnerReadingArgv holds the commands the readings of the refs of a
+// project build, which are the ones the workstation runs on every refresh.
+func TestRunnerReadingArgv(t *testing.T) {
+	cases := []struct {
+		name string
+		act  func(r Runner) error
+		want []string
+	}{
+		{
+			name: "the branches of the project",
+			act: func(r Runner) error {
+				_, err := r.Branches(context.Background(), "/repo")
+				return err
+			},
+			want: []string{"for-each-ref", "--format=" + vcs.BranchFormat, "refs/heads/"},
+		},
+		{
+			name: "the branches of the remotes",
+			act: func(r Runner) error {
+				_, err := r.RemoteBranches(context.Background(), "/repo")
+				return err
+			},
+			want: []string{"for-each-ref", "--format=" + vcs.RemoteBranchFormat, "refs/remotes/"},
+		},
+		{
+			name: "the worktrees of the project",
+			act: func(r Runner) error {
+				_, err := r.Worktrees(context.Background(), "/repo")
+				return err
+			},
+			want: []string{"worktree", "list", "--porcelain", "-z"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeGit{outputs: map[string]Result{"for-each-ref": {}, "worktree": {}}}
+			if err := tc.act(Runner{Executor: f}); err != nil {
+				t.Fatalf("the reading failed: %v", err)
+			}
+			if args := f.calls[0][5:]; !slices.Equal(args, tc.want) {
+				t.Fatalf("the reading ran %v, want %v", args, tc.want)
+			}
+		})
+	}
+}
+
 // TestRunnerTagArgv holds the commands the tag and patch actions build.
 func TestRunnerTagArgv(t *testing.T) {
 	out := t.TempDir()

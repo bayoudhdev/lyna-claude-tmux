@@ -2429,3 +2429,60 @@ func TestIntegrationHistoryEditRefusals(t *testing.T) {
 		})
 	}
 }
+
+// TestIntegrationRemoteBranchesRead reads the refs a push leaves behind: the
+// branches of two remotes, a name holding a slash, and the symbolic ref git
+// writes for the branch a remote is on.
+func TestIntegrationRemoteBranchesRead(t *testing.T) {
+	r := series(t, "one")
+	base := filepath.Dir(r.Dir)
+	for _, name := range []string{"origin", "backup"} {
+		path := filepath.Join(base, name+".git")
+		r.Git("init", "-q", "--bare", path)
+		r.Git("remote", "add", name, path)
+	}
+	r.Git("push", "-q", "origin", "main")
+	r.Git("push", "-q", "backup", "main")
+	r.Git("checkout", "-q", "-b", "feat/graph")
+	r.Git("commit", "-q", "--allow-empty", "-m", "two")
+	r.Git("push", "-q", "origin", "feat/graph")
+	r.Git("remote", "set-head", "origin", "main")
+
+	got, err := r.Runner.RemoteBranches(t.Context(), r.Dir)
+	if err != nil {
+		t.Fatalf("RemoteBranches() error = %v", err)
+	}
+	names := make([]string, len(got))
+	for i, b := range got {
+		names[i] = b.Name
+		if !isHexOID(b.OID) {
+			t.Fatalf("remote branch %+v points at no commit", b)
+		}
+	}
+	want := []string{"backup/main", "origin/HEAD", "origin/feat/graph", "origin/main"}
+	if !slices.Equal(names, want) {
+		t.Fatalf("RemoteBranches() = %v, want %v", names, want)
+	}
+	for _, b := range got {
+		switch b.Name {
+		case "origin/HEAD":
+			if b.Target != "refs/remotes/origin/main" {
+				t.Fatalf("the branch origin is on stands for %q, want its main branch", b.Target)
+			}
+		case "backup/main":
+			if b.Remote != "backup" {
+				t.Fatalf("remote branch %+v belongs to %q, want backup", b, b.Remote)
+			}
+		default:
+			if b.Symbolic() {
+				t.Fatalf("remote branch %+v is symbolic, want a branch of its own", b)
+			}
+		}
+	}
+
+	// A directory outside any repository is a failure, not an empty list.
+	outside := t.TempDir()
+	if _, err := r.Runner.RemoteBranches(t.Context(), outside); err == nil {
+		t.Fatal("RemoteBranches() read a directory that is no repository")
+	}
+}

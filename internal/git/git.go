@@ -160,6 +160,17 @@ func (r Runner) Branches(ctx context.Context, dir string) ([]vcs.LocalBranch, er
 	return vcs.ParseBranches(out)
 }
 
+// RemoteBranches lists the branches of every remote as the last fetch left
+// them, in the order git keeps its refs. The symbolic ref git writes per
+// remote is among them: it names the branch that remote is on.
+func (r Runner) RemoteBranches(ctx context.Context, dir string) ([]vcs.RemoteBranch, error) {
+	out, err := r.git(ctx, dir, "for-each-ref", "--format="+vcs.RemoteBranchFormat, "refs/remotes/")
+	if err != nil {
+		return nil, err
+	}
+	return vcs.ParseRemoteBranches(out)
+}
+
 // git runs one command. Global options make the run side-effect free and safe
 // in an untrusted repository: no pager, no optional index lock (so refreshes
 // never trigger another file event), no fsmonitor hook program, and an
