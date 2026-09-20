@@ -43,7 +43,7 @@ printf 'animation\n' > "$out"
 `
 
 type recordEnv struct {
-	dir, bin, log, list string
+	dir, bin, log, list, font string
 }
 
 func newRecordEnv(t *testing.T) recordEnv {
@@ -63,6 +63,12 @@ func newRecordEnv(t *testing.T) recordEnv {
 	}
 	writeExecutable(t, filepath.Join(e.bin, "chrome"), fakeChrome)
 	writeExecutable(t, filepath.Join(e.bin, "ffmpeg"), fakeFFmpeg)
+	// The recorder draws with a patched font it downloads once. A test never
+	// reaches the network, so it hands it one instead.
+	e.font = filepath.Join(root, "font.ttf")
+	if err := os.WriteFile(e.font, []byte("fake font"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	return e
 }
 
@@ -84,6 +90,7 @@ func (e recordEnv) env(t *testing.T) []string {
 		"REC_LIST=" + e.list,
 		"TMPDIR=" + e.dir,
 		"HOME=" + e.dir,
+		"LYNA_TMUX_RECORD_FONT=" + e.font,
 	}
 }
 
@@ -305,6 +312,48 @@ frame 1.5
 		if strings.HasPrefix(entry.Name(), "lyna-tmux-rec.") {
 			t.Fatalf("scratch directory not removed: %s", entry.Name())
 		}
+	}
+}
+
+// TestRecordDrawsWithAPatchedFont covers the font the frames are drawn with:
+// the page loads it from beside itself, Chrome is allowed to read it, and a
+// recorder that cannot get one stops rather than drawing boxes where the
+// status bar separators and the icons belong.
+func TestRecordDrawsWithAPatchedFont(t *testing.T) {
+	e := newRecordEnv(t)
+	scene := e.scene(t, "title A frame\nsize 20 5\nrun cat\nframe 0.5\n")
+	keep := filepath.Join(e.dir, "keep")
+	still := filepath.Join(e.dir, "assets", "demo.png")
+	_, stderr, exit := runRecord(t, e.env(t), "--scene", scene, "--still", still, "--keep", keep)
+	if exit != 0 {
+		t.Fatalf("exit %d\nstderr:\n%s", exit, stderr)
+	}
+	page := string(mustRead(t, filepath.Join(keep, "frames", "0001.html")))
+	cases := []struct {
+		name string
+		want string
+	}{
+		{name: "the face is declared", want: `@font-face { font-family: "LynaRecorder"; src: url("font.ttf") format("truetype"); }`},
+		{name: "the terminal draws with it", want: `fontFamily: "LynaRecorder, Menlo, ui-monospace, monospace"`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if !strings.Contains(page, tc.want) {
+				t.Fatalf("the page lacks %q:\n%s", tc.want, page)
+			}
+		})
+	}
+	if got := mustRead(t, filepath.Join(keep, "frames", "font.ttf")); string(got) != "fake font" {
+		t.Fatalf("the font beside the page is %q", got)
+	}
+	if log := string(mustRead(t, e.log)); !strings.Contains(log, "--allow-file-access-from-files") {
+		t.Fatalf("the browser may not read the font:\n%s", log)
+	}
+
+	env := append(e.env(t), "LYNA_TMUX_RECORD_FONT="+filepath.Join(e.dir, "missing.ttf"))
+	_, stderr, exit = runRecord(t, env, "--scene", scene, "--still", still)
+	if exit != 1 || !strings.Contains(stderr, "could not get the patched font") {
+		t.Fatalf("a recorder without a font: exit %d\nstderr:\n%s", exit, stderr)
 	}
 }
 

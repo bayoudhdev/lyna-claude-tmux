@@ -210,6 +210,21 @@ if ((dry_run == 0)); then
   mkdir -p "$record_config"
   trap 'rm -rf "$record_config" "$record_bin"' EXIT
   lmux config init >/dev/null || fail "could not write the recording configuration"
+  # The frames are drawn with a patched font, so the scenes run with the icon
+  # set that font is for. The status bar then takes its pointed separators
+  # from the same rule a terminal with such a font follows, which is what a
+  # reader of the pictures gets by installing the font and nothing else.
+  config_file=$(lmux config path) || fail "could not find the recording configuration"
+  python3 - "$config_file" <<'EDIT' || fail "could not set the icon set of the recording configuration"
+import io
+import sys
+
+path = sys.argv[1]
+text = io.open(path, encoding="utf-8").read()
+if 'icons = "auto"' not in text:
+    sys.exit("the configuration template no longer sets icons")
+io.open(path, "w", encoding="utf-8").write(text.replace('icons = "auto"', 'icons = "nerd"', 1))
+EDIT
 fi
 
 recorded=0

@@ -32,10 +32,23 @@ if [ "$dry" = 1 ]; then
   exit 0
 fi
 echo "record $* cwd=$PWD path=$PATH shell=$SHELL" >> "$DOCS_LOG"
+if [ -f "$XDG_CONFIG_HOME/lyna-tmux/config.toml" ]; then
+  echo "config $(tr '\n' ' ' < "$XDG_CONFIG_HOME/lyna-tmux/config.toml")" >> "$DOCS_LOG"
+fi
 `
 
+// fakeLyna answers the two commands the driver needs of the binary: writing
+// the recording configuration and saying where it is.
 const fakeLyna = `#!/bin/sh
 echo "lmux $*" >> "$DOCS_LOG"
+config=$XDG_CONFIG_HOME/lyna-tmux/config.toml
+if [ "$1" = config ] && [ "$2" = init ]; then
+  mkdir -p "$(dirname "$config")"
+  printf '[ui]\ntheme = "monokai"\nicons = "auto"\nstatus_style = "auto"\n' > "$config"
+fi
+if [ "$1" = config ] && [ "$2" = path ]; then
+  echo "$config"
+fi
 `
 
 type docsEnv struct {
@@ -99,6 +112,45 @@ func runRecordDocs(t *testing.T, env []string, args ...string) (stdout, stderr s
 		t.Fatal(err)
 	}
 	return out.String(), errOut.String(), exit
+}
+
+// TestRecordDocsConfiguration checks the configuration the scenes run against:
+// written by the binary itself rather than taken from the account, and set to
+// the icon set the patched font the frames are drawn with is for, which is
+// what gives the status bar its pointed separators.
+func TestRecordDocsConfiguration(t *testing.T) {
+	e := newDocsEnv(t, map[string]string{"doctor": "frames: 1\n"})
+	_, stderr, exit := runRecordDocs(t, e.env(), e.args()...)
+	if exit != 0 {
+		t.Fatalf("exit %d\nstderr:\n%s", exit, stderr)
+	}
+	log := string(mustRead(t, e.log))
+	if !strings.Contains(log, "lmux config init") {
+		t.Fatalf("no configuration was written:\n%s", log)
+	}
+	// The recorder takes its configuration away with it, so what the scenes
+	// ran against is read from what the recorder was handed.
+	got := log
+	cases := []struct {
+		name string
+		want string
+	}{
+		{name: "the icon set of the recording font", want: `icons = "nerd"`},
+		{name: "the theme a workspace opens with", want: `theme = "monokai"`},
+		{name: "the status bar follows the icon set", want: `status_style = "auto"`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if !strings.Contains(got, tc.want) {
+				t.Fatalf("the recording configuration lacks %q:\n%s", tc.want, got)
+			}
+		})
+	}
+	for _, dir := range []string{".config", ".reccfg"} {
+		if _, err := os.Stat(filepath.Join(e.dir, dir, "lyna-tmux")); err == nil {
+			t.Errorf("the recorder left %s behind in the account", dir)
+		}
+	}
 }
 
 // TestRecordDocsOutputs pins the rule that decides what a scene produces: one

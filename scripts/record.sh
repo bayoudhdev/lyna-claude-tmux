@@ -195,6 +195,10 @@ fi
 command -v tmux >/dev/null 2>&1 || fail "tmux is required"
 command -v python3 >/dev/null 2>&1 || fail "python3 is required"
 chrome=$(termshot_chrome) || fail "no Chrome found; set CHROME_PATH"
+# The patched font is what draws the status bar separators and the nerd icon
+# set; without it those glyphs would be boxes, so a recording stops here
+# rather than shipping a picture of them.
+font=$(termshot_font) || fail "could not get the patched font; set LYNA_TMUX_RECORD_FONT to a local .ttf"
 if [[ -n $out || -n $mp4 ]]; then
   command -v ffmpeg >/dev/null 2>&1 || fail "ffmpeg is required to assemble an animation"
 fi
@@ -348,7 +352,7 @@ for ((n = 1; n <= frame_no; n++)); do
   ansi=$(printf '%s/frames/%04d.ansi' "$work" "$n")
   html=$(printf '%s/frames/%04d.html' "$work" "$n")
   png=$(printf '%s/frames/%04d.png' "$work" "$n")
-  termshot_html "$ansi" "$cols" "$rows" "$title" "$html" "$work"
+  termshot_html "$ansi" "$cols" "$rows" "$title" "$html" "$work" "$font"
   termshot_png "$chrome" "$html" "$cols" "$rows" "$png" &
   pending=$((pending + 1))
   if ((pending >= 4)); then
