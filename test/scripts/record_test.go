@@ -140,7 +140,7 @@ func TestRecordArguments(t *testing.T) {
 		{name: "scene is not a file", args: []string{"--scene", "/nonexistent/x.scene", "--out", "/tmp/x.gif"}, wantExit: 2, wantErr: "is not a file"},
 		{
 			name: "no output", scene: "run true\nframe\n", args: []string{"--out", ""},
-			wantExit: 2, wantErr: "one of --out, --still or --mp4 is required",
+			wantExit: 2, wantErr: "one of --out, --still, --mp4 or --srt is required",
 		},
 		{
 			name: "width is a number", scene: "run true\nframe\n", args: []string{"--out", "/tmp/x.gif", "--width", "wide"},
@@ -594,6 +594,34 @@ func TestRecordBandIsOnlyForFilms(t *testing.T) {
 			}
 			if !strings.Contains(stdout, tc.want) {
 				t.Fatalf("stdout does not report %q:\n%s", tc.want, stdout)
+			}
+		})
+	}
+}
+
+// TestScriptUsageIsOnlyTheHeader keeps every script's --help to the comment it
+// is written from. The help is printed by reading a range of lines out of the
+// script itself, so a line added to the header spills the shell below it into
+// the help, which is how each of these scripts has already been caught once.
+func TestScriptUsageIsOnlyTheHeader(t *testing.T) {
+	for _, name := range []string{"record.sh", "record-docs.sh", "record-video.sh", "bench.sh"} {
+		t.Run(name, func(t *testing.T) {
+			bash, err := exec.LookPath("bash")
+			if err != nil {
+				t.Skip("bash is not installed")
+			}
+			out, err := exec.Command(bash, scriptPath(t, name), "--help").CombinedOutput()
+			if err != nil {
+				t.Fatalf("%v\n%s", err, out)
+			}
+			help := string(out)
+			if !strings.Contains(help, "Usage: scripts/"+name) {
+				t.Fatalf("the help does not say how to run it:\n%s", help)
+			}
+			for _, code := range []string{"set -euo pipefail", "#!/usr/bin/env bash", "fail()"} {
+				if strings.Contains(help, code) {
+					t.Errorf("the help carries the line %q of the script:\n%s", code, help)
+				}
 			}
 		})
 	}

@@ -53,7 +53,7 @@ usage_error() {
 }
 
 usage() {
-  sed -n '2,40p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,39p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)

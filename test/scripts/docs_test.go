@@ -8,9 +8,10 @@ import (
 	"testing"
 )
 
-// assetRef matches a link to a recorded image, from the README (which is one
-// directory above the assets) or from a page under docs.
-var assetRef = regexp.MustCompile(`assets/([A-Za-z0-9._-]+\.(?:png|gif))`)
+// assetRef matches a link to a recorded image, a chapter of the film or its
+// subtitle track, from the README (which is one directory above the assets) or
+// from a page under docs.
+var assetRef = regexp.MustCompile(`assets/([A-Za-z0-9._-]+\.(?:png|gif|mp4|srt))`)
 
 // docsMarkdown returns every markdown file that may point at an asset, with
 // its contents, keyed by the path a failure should name.
@@ -82,16 +83,30 @@ func TestDocsAssetsAreUsed(t *testing.T) {
 }
 
 // TestDocsScenesProduceTheAssets ties each shown asset back to the scene that
-// records it, so an image cannot survive the scene it came from.
+// records it, so an image cannot survive the scene it came from. A picture of
+// a documentation page comes from docs/scenes, a chapter of the film from
+// docs/video, and the film itself from all of them at once.
 func TestDocsScenesProduceTheAssets(t *testing.T) {
 	root := repoRoot(t)
-	scenes, err := filepath.Glob(filepath.Join(root, "docs", "scenes", "*.scene"))
-	if err != nil {
-		t.Fatal(err)
-	}
 	known := map[string]bool{}
-	for _, scene := range scenes {
-		known[strings.TrimSuffix(filepath.Base(scene), ".scene")] = true
+	chapters := map[string]bool{}
+	for _, dir := range []struct {
+		name string
+		into map[string]bool
+	}{
+		{name: "scenes", into: known},
+		{name: "video", into: chapters},
+	} {
+		scenes, err := filepath.Glob(filepath.Join(root, "docs", dir.name, "*.scene"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(scenes) == 0 {
+			t.Fatalf("no scene under docs/%s", dir.name)
+		}
+		for _, scene := range scenes {
+			dir.into[strings.TrimSuffix(filepath.Base(scene), ".scene")] = true
+		}
 	}
 	entries, err := os.ReadDir(filepath.Join(root, "docs", "assets"))
 	if err != nil {
@@ -99,6 +114,17 @@ func TestDocsScenesProduceTheAssets(t *testing.T) {
 	}
 	for _, entry := range entries {
 		name := entry.Name()
+		// The film and its subtitle track are every chapter joined, so they
+		// answer to no single scene.
+		if name == "demo.mp4" || name == "demo.srt" {
+			continue
+		}
+		if chapter, ok := strings.CutPrefix(strings.TrimSuffix(name, ".mp4"), "demo-"); ok {
+			if !chapters[chapter] {
+				t.Errorf("docs/assets/%s has no chapter under docs/video", name)
+			}
+			continue
+		}
 		stem := strings.TrimSuffix(strings.TrimSuffix(name, ".png"), ".gif")
 		if !known[stem] {
 			t.Errorf("docs/assets/%s has no scene under docs/scenes", name)
