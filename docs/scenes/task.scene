@@ -1,8 +1,10 @@
 # A task gets its own git worktree, so agents never share a checkout. The task
 # window is selected as it opens, so the scene goes back to the first window to
-# ask git what the repository now holds.
+# ask git what the repository now holds. The window is wide enough for the
+# whole bar: the branch of a worktree is long and the pointed separators cost
+# columns of their own, so a narrower one would scroll the window list.
 title lmux task rate-limit
-size 112 34
+size 130 34
 pre lmux kill --all
 pre rm -rf .devcontainer
 # The worktrees another scene left are locked, so git prunes none of them: the
