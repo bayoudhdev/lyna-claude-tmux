@@ -105,6 +105,9 @@ func TestGitWorkFrames(t *testing.T) {
 		{name: "detail", state: ptr(sampleState()), keys: []string{"tab"}},
 		{name: "working-tree", state: ptr(sampleState()), keys: []string{"w"}},
 		{name: "rebase", state: ptr(rebase)},
+		{name: "keys", state: ptr(sampleState()), keys: []string{"?"}},
+		{name: "keys-refs", state: ptr(sampleState()), keys: []string{"shift+tab", "?"}},
+		{name: "form", state: ptr(sampleState()), keys: []string{"w", "x"}},
 		{
 			name:  "failed",
 			state: ptr(GitState{Err: errors.New("git log: exit status 128: fatal: bad revision"), At: fixedNow}),
@@ -790,5 +793,327 @@ func TestGitWorkNow(t *testing.T) {
 	}
 	if time.Since(fixedNow) == 0 {
 		t.Fatal("the fixed clock is the real one")
+	}
+}
+
+// workOps sends keys and returns the operations the workstation asked for.
+func workOps(m *GitWorkModel, keys ...string) []GitOp {
+	var out []GitOp
+	for _, k := range keys {
+		_, cmd := m.Update(press(k))
+		for _, msg := range collect(cmd) {
+			if op, ok := msg.(GitOpMsg); ok {
+				out = append(out, op.Op)
+			}
+		}
+	}
+	return out
+}
+
+func TestGitWorkOpKeys(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		// keys walk to a region and then press the key under test.
+		keys []string
+		want GitOpKind
+		// rev, path and refName say what the operation came out carrying.
+		rev, path, refName string
+	}{
+		{name: "the refs are checked out", keys: []string{"shift+tab", "j", "c"}, want: OpCheckout},
+		{name: "a branch opens at a ref", keys: []string{"shift+tab", "j", "b"}, want: OpBranchHere},
+		{name: "a ref is merged in", keys: []string{"shift+tab", "j", "m"}, want: OpMerge},
+		{name: "the branch is rebased onto a ref", keys: []string{"shift+tab", "j", "B"}, want: OpRebase},
+		{name: "a ref is renamed", keys: []string{"shift+tab", "j", "i"}, want: OpRename},
+		{name: "a ref is got rid of", keys: []string{"shift+tab", "j", "d"}, want: OpDelete},
+		{name: "a ref is followed", keys: []string{"shift+tab", "j", "u"}, want: OpSetUpstream},
+		{name: "a worktree opens at a ref", keys: []string{"shift+tab", "j", "A"}, want: OpWorktreeAdd},
+
+		{name: "a commit is checked out", keys: []string{"c"}, want: OpCheckout, rev: graphOID("a")},
+		{name: "a branch opens at a commit", keys: []string{"b"}, want: OpBranchHere, rev: graphOID("a")},
+		{name: "a commit is tagged", keys: []string{"t"}, want: OpTag, rev: graphOID("a")},
+		{name: "a commit is tagged with a message", keys: []string{"T"}, want: OpTagAnnotated, rev: graphOID("a")},
+		{name: "a commit is cherry picked", keys: []string{"y"}, want: OpCherryPick, rev: graphOID("a")},
+		{name: "a commit is reverted", keys: []string{"v"}, want: OpRevert, rev: graphOID("a")},
+		{name: "the branch moves to a commit", keys: []string{"m"}, want: OpResetMixed, rev: graphOID("a")},
+		{name: "the branch moves, keeping the changes", keys: []string{"M"}, want: OpResetSoft, rev: graphOID("a")},
+		{name: "the branch moves, writing the tree over", keys: []string{"H"}, want: OpResetHard, rev: graphOID("a")},
+		{name: "a commit is reworded", keys: []string{"e"}, want: OpReword, rev: graphOID("a")},
+		{name: "a commit is dropped", keys: []string{"d"}, want: OpDrop, rev: graphOID("a")},
+		{name: "a commit is folded into the one before", keys: []string{"S"}, want: OpSquash, rev: graphOID("a")},
+		{name: "a commit is fixed up", keys: []string{"f"}, want: OpFixup, rev: graphOID("a")},
+		{name: "a commit moves up", keys: []string{"["}, want: OpMoveUp, rev: graphOID("a")},
+		{name: "a commit moves down", keys: []string{"]"}, want: OpMoveDown, rev: graphOID("a")},
+		{name: "a commit becomes a patch", keys: []string{"p"}, want: OpPatch, rev: graphOID("a")},
+		{name: "the object name is copied", keys: []string{"o"}, want: OpCopyOID, rev: graphOID("a")},
+		{name: "a worktree opens at a commit", keys: []string{"A"}, want: OpWorktreeAdd, rev: graphOID("a")},
+
+		{name: "a file is staged", keys: []string{"w", "s"}, want: OpStage, path: "api/handler.go"},
+		{name: "everything is staged", keys: []string{"w", "S"}, want: OpStageAll},
+		{name: "a file is unstaged", keys: []string{"w", "u"}, want: OpUnstage, path: "api/handler.go"},
+		{name: "everything is unstaged", keys: []string{"w", "U"}, want: OpUnstageAll},
+		{name: "a file is discarded", keys: []string{"w", "x"}, want: OpDiscard, path: "api/handler.go"},
+		{name: "everything is discarded", keys: []string{"w", "X"}, want: OpDiscardAll},
+		{name: "what is staged is committed", keys: []string{"w", "C"}, want: OpCommit},
+		{name: "the last commit is amended", keys: []string{"w", "M"}, want: OpAmend},
+		{name: "the message of HEAD is edited", keys: []string{"w", "e"}, want: OpRewordHead},
+
+		{name: "a fetch", keys: []string{"F"}, want: OpFetch},
+		{name: "a pull", keys: []string{"L"}, want: OpPull},
+		{name: "a push", keys: []string{"P"}, want: OpPush},
+		{name: "a push that follows", keys: []string{"O"}, want: OpPushUpstream},
+		{name: "a fetch from the refs", keys: []string{"shift+tab", "F"}, want: OpFetch},
+		{name: "a fetch from the detail", keys: []string{"w", "F"}, want: OpFetch},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			m, _ := newTestWork(t, 120, 30)
+			ops := workOps(m, tc.keys...)
+			if len(ops) != 1 {
+				t.Fatalf("the keys asked for %d operations, want one: %+v", len(ops), ops)
+			}
+			op := ops[0]
+			if op.Kind != tc.want {
+				t.Fatalf("the key asked for %v, want %v", op.Kind, tc.want)
+			}
+			if tc.rev != "" && op.Rev != tc.rev {
+				t.Fatalf("the operation carries rev %q, want %q", op.Rev, tc.rev)
+			}
+			if tc.path != "" && op.Path != tc.path {
+				t.Fatalf("the operation carries path %q, want %q", op.Path, tc.path)
+			}
+			if tc.refName != "" && op.Name != tc.refName {
+				t.Fatalf("the operation carries name %q, want %q", op.Name, tc.refName)
+			}
+			if op.Confirmed {
+				t.Fatalf("the operation came out confirmed: %+v", op)
+			}
+		})
+	}
+}
+
+func TestGitWorkOpsInTheMiddleOfSomething(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		running bool
+		key     string
+		want    GitOpKind
+		none    bool
+	}{
+		{name: "y carries on a rebase", running: true, key: "y", want: OpContinue},
+		{name: "! leaves a commit out", running: true, key: "!", want: OpSkip},
+		{name: "Z puts the branch back", running: true, key: "Z", want: OpAbort},
+		{name: "y cherry picks when nothing is in the middle", key: "y", want: OpCherryPick},
+		{name: "! does nothing when nothing is in the middle", key: "!", none: true},
+		{name: "Z does nothing when nothing is in the middle", key: "Z", none: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			state := sampleState()
+			if tc.running {
+				state.Progress = vcs.InProgress{Kind: vcs.OperationRebase, Branch: "main", Step: 1, Total: 3}
+			}
+			rec := &workRecorder{}
+			opts := rec.options(t)
+			opts.Width, opts.Height = 120, 30
+			m := NewGitWork(opts)
+			m.Update(gitStateMsg{state: state})
+			ops := workOps(m, tc.key)
+			if tc.none {
+				if len(ops) != 0 {
+					t.Fatalf("the key asked for %+v, want nothing", ops)
+				}
+				if !strings.Contains(workFrame(m), "nothing to ") {
+					t.Fatalf("the bar does not say there is nothing to do:\n%s", workFrame(m))
+				}
+				return
+			}
+			if len(ops) != 1 || ops[0].Kind != tc.want {
+				t.Fatalf("the key asked for %+v, want %v", ops, tc.want)
+			}
+		})
+	}
+}
+
+// TestGitWorkOpKeysLeaveTheRegionKeysAlone proves the navigation and the
+// filter of a region are still its own.
+func TestGitWorkOpKeysLeaveTheRegionKeysAlone(t *testing.T) {
+	t.Parallel()
+	m, _ := newTestWork(t, 120, 30)
+	if ops := workOps(m, "j", "k", "G", "g", "/", "esc", "enter"); len(ops) != 0 {
+		t.Fatalf("the keys of the history asked for %+v, want nothing", ops)
+	}
+	c, ok := m.graph.Selected()
+	if !ok || c.OID != graphOID("a") {
+		t.Fatalf("the cursor ended on %+v, want the commit it started on", c)
+	}
+}
+
+func TestGitWorkAsksBeforeAnOperation(t *testing.T) {
+	t.Parallel()
+	form := DiscardFileForm("api/handler.go", []string{"git", "restore", "--", "api/handler.go"})
+	t.Run("the form answered asks for the operation again", func(t *testing.T) {
+		t.Parallel()
+		m, _ := newTestWork(t, 120, 30)
+		asked := GitOp{Kind: OpDiscard, Path: "api/handler.go", Index: -1}
+		m.Update(GitAskMsg{Form: form, Op: asked})
+		if !strings.Contains(workFrame(m), "Discard a file") {
+			t.Fatalf("the form is not on screen:\n%s", workFrame(m))
+		}
+		ops := workOps(m, "y")
+		if len(ops) != 1 {
+			t.Fatalf("answering the form asked for %+v, want the operation", ops)
+		}
+		if !ops[0].Confirmed || ops[0].Kind != OpDiscard || ops[0].Path != asked.Path {
+			t.Fatalf("the operation came back as %+v, want it confirmed", ops[0])
+		}
+	})
+	t.Run("a form backed out of asks for nothing", func(t *testing.T) {
+		t.Parallel()
+		m, _ := newTestWork(t, 120, 30)
+		m.Update(GitAskMsg{Form: form, Op: GitOp{Kind: OpDiscard, Path: "api/handler.go"}})
+		if ops := workOps(m, "n"); len(ops) != 0 {
+			t.Fatalf("backing out asked for %+v, want nothing", ops)
+		}
+	})
+	t.Run("what was typed comes back with the operation", func(t *testing.T) {
+		t.Parallel()
+		m, _ := newTestWork(t, 120, 30)
+		m.Update(GitAskMsg{
+			Form: TextForm("branch", "Open a branch here", "At a000000.", "a name", true, nil),
+			Op:   GitOp{Kind: OpBranchHere, Rev: graphOID("a")},
+		})
+		ops := workOps(m, "f", "i", "x", "enter")
+		if len(ops) != 1 || ops[0].Text != "fix" || !ops[0].Confirmed {
+			t.Fatalf("the operation came back as %+v, want it carrying what was typed", ops)
+		}
+	})
+	t.Run("the keys belong to the form while it is up", func(t *testing.T) {
+		t.Parallel()
+		m, _ := newTestWork(t, 120, 30)
+		m.Update(GitAskMsg{
+			Form: TextForm("branch", "Open a branch here", "At a000000.", "a name", true, nil),
+			Op:   GitOp{Kind: OpBranchHere},
+		})
+		// F is a fetch anywhere, and a letter of a name while a form is up.
+		if ops := workOps(m, "F", "j", "tab"); len(ops) != 0 {
+			t.Fatalf("the keys of the form asked for %+v, want nothing", ops)
+		}
+		if m.Region() != RegionGraph {
+			t.Fatalf("a key of the form moved the keys to %v", m.Region())
+		}
+		// F and j are letters of a name here; tab is not printable at all.
+		if m.form.Value() != "Fj" {
+			t.Fatalf("the form holds %q, want the keys that were pressed", m.form.Value())
+		}
+	})
+}
+
+func TestGitWorkListsItsKeys(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name   string
+		keys   []string
+		region string
+		want   []string
+	}{
+		{name: "the history", keys: []string{"?"}, region: "HISTORY", want: []string{"cherry pick it", "fetch and prune"}},
+		{name: "the refs", keys: []string{"shift+tab", "?"}, region: "REFS", want: []string{"merge it in", "push"}},
+		{name: "the detail", keys: []string{"w", "?"}, region: "DETAIL", want: []string{"stage the file", "pull"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			m, _ := newTestWork(t, 120, 30)
+			workKeys(m, tc.keys...)
+			frame := workFrame(m)
+			for _, want := range append(tc.want, "IN THE "+tc.region, "ANYWHERE") {
+				if !strings.Contains(frame, want) {
+					t.Fatalf("the list of keys lacks %q:\n%s", want, frame)
+				}
+			}
+			// It scrolls, so a list longer than the frame is still read in
+			// full, and every other key closes it without doing anything
+			// else.
+			workKeys(m, "j", "j")
+			if !strings.Contains(workFrame(m), "push and follow") {
+				t.Fatalf("the end of the list cannot be reached:\n%s", workFrame(m))
+			}
+			if ops := workOps(m, "d"); len(ops) != 0 {
+				t.Fatalf("the key that closed the list asked for %+v", ops)
+			}
+			if strings.Contains(workFrame(m), "ANYWHERE") {
+				t.Fatalf("the list of keys is still up:\n%s", workFrame(m))
+			}
+			// It opens again at the top.
+			workKeys(m, "?")
+			if !strings.Contains(workFrame(m), "IN THE "+tc.region) {
+				t.Fatalf("the list did not open at the top:\n%s", workFrame(m))
+			}
+		})
+	}
+}
+
+// TestGitOpKindNames holds every operation to a name, since the list of keys
+// and the messages are written from them.
+func TestGitOpKindNames(t *testing.T) {
+	t.Parallel()
+	seen := map[string]GitOpKind{}
+	for k := GitOpKind(0); k < gitOpCount; k++ {
+		name := k.String()
+		if name == "" || name == "unknown" {
+			t.Fatalf("operation %d has no name", k)
+		}
+		if other, ok := seen[name]; ok {
+			t.Fatalf("operations %d and %d are both called %q", other, k, name)
+		}
+		seen[name] = k
+	}
+	for _, k := range []GitOpKind{-1, gitOpCount, gitOpCount + 10} {
+		if got := k.String(); got != "unknown" {
+			t.Fatalf("GitOpKind(%d).String() = %q, want unknown", k, got)
+		}
+	}
+}
+
+// TestGitOpKeysAreUnambiguous proves no two keys of one region stand for the
+// same operation and no key of a region is a key the region itself uses.
+func TestGitOpKeysAreUnambiguous(t *testing.T) {
+	t.Parallel()
+	taken := map[string]bool{
+		"j": true, "k": true, "g": true, "G": true, "up": true, "down": true,
+		"home": true, "end": true, "pgup": true, "pgdown": true,
+		"ctrl+p": true, "ctrl+n": true, "ctrl+b": true, "ctrl+f": true,
+		"enter": true, "esc": true, "tab": true, "shift+tab": true, "ctrl+c": true,
+		"/": true, "n": true, "N": true, " ": true, "space": true,
+		"w": true, "r": true, "q": true, "?": true,
+	}
+	kinds := map[GitRegion]map[GitOpKind]bool{}
+	for _, k := range gitOpKeys() {
+		for _, name := range k.binding.Keys() {
+			if taken[name] {
+				t.Fatalf("%q stands for %v and for a key the workstation already uses", name, k.kind)
+			}
+		}
+		if kinds[k.region] == nil {
+			kinds[k.region] = map[GitOpKind]bool{}
+		}
+		if kinds[k.region][k.kind] {
+			t.Fatalf("%v is on two keys of the same region", k.kind)
+		}
+		kinds[k.region][k.kind] = true
+	}
+	// Every operation is reachable from somewhere.
+	reachable := map[GitOpKind]bool{}
+	for _, k := range gitOpKeys() {
+		reachable[k.kind] = true
+	}
+	for k := GitOpKind(0); k < gitOpCount; k++ {
+		if !reachable[k] {
+			t.Fatalf("%v is on no key", k)
+		}
 	}
 }

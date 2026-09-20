@@ -1,0 +1,30 @@
+ ⎇ refs          15  ● history                                      1/5  ± working tree                        4 staged
+▌▾ LOCAL          4      COMMIT MESSAGE                                  STAGED  4  +13 -4
+ ● main              ◆   a000000 [main] {origin/main} merge the g…   1h  M api/handler.go                     +12    -3
+   feat/git-… ↑12 ↓1 ├─╮┌─ Keys ───────────────────────────────────────────────────────────────┐ocs/guide.md   +1    -1
+   fix/border   gone ● ││ IN THE REFS                                                          │               +0    -0
+   spike             │ ││ c         check it out                                               │                    bin
+ ▾ REMOTE         3  │ ●│ b         open a branch here                                         │
+   origi… origin/ma… ├─╯│ m         merge it in                                                │
+   origin/main       ●  │ B         rebase onto it                                             │              +40    -0
+   origin/feat/git…  │  │ i         rename it                                                  │ocs/guide.md   +1    -1
+ ▾ WORKTREES      4  ●  │ d         get rid of it                                              │               +0    -0
+   main    ~/src/api    │ u         follow it                                                  │               +7    -2
+   task-a ~/src/api…    │ p         pop it                                                     │               +0    -0
+   spike    detached    │ a         apply it                                                   │ry/deep/dir…+1024  -512
+   gone         gone    │ A         open a worktree                                            │
+ ▾ STASHES        2     │                                                                      │
+   stash@{0}     20m    │ ANYWHERE                                                             │
+   stash@{1}      2d    │ y         carry on                                                   │
+ ▾ TAGS           2     │ !         leave this one out                                         │
+   v1.1.0  annotated    │ Z         put the branch back                                        │
+   v1.0.1        16d    │ F         fetch and prune                                            │
+                        │ L         pull                                                       │
+                        │ P         push                                                       │
+                        │ O         push and follow                                            │
+                        │                                                                      │
+                        │ any key closes this                                                  │
+                        └──────────────────────────────────────────────────────────────────────┘
+
+ ↓/j down  space fol a000000  2 parents           ↓/j down  enter open … 1/10                       ↓/j down  enter diff
+ ~/src/acme                                                             tab region  w working tree  r read again  ? keys

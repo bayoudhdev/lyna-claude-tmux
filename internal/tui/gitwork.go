@@ -136,11 +136,14 @@ type GitWorkModel struct {
 	detail *GitDetailModel
 	form   *GitFormModel
 
+	nav    navKeys
 	nextK  key.Binding
 	prevK  key.Binding
 	treeK  key.Binding
 	readK  key.Binding
+	keysK  key.Binding
 	quitK  key.Binding
+	ops    []gitOpKey
 	width  int
 	height int
 
@@ -149,6 +152,11 @@ type GitWorkModel struct {
 	have   bool
 	closed bool
 	note   string
+	// keysOpen says the list of keys is over the regions and keysTop how far
+	// it is scrolled; asked is the operation the form now up stands before.
+	keysOpen bool
+	keysTop  int
+	asked    GitOp
 	// rev is the commit the detail region stands on, empty when it is on the
 	// working tree.
 	rev string
@@ -160,11 +168,14 @@ func NewGitWork(opts GitWorkOptions) *GitWorkModel {
 	w, h := sizeOr(opts.Width, opts.Height)
 	m := &GitWorkModel{
 		opts:   opts,
+		nav:    newNavKeys(opts.Styles.Theme.Icons.Name == "ascii"),
 		nextK:  key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "region")),
 		prevK:  key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "back")),
 		treeK:  key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "working tree")),
 		readK:  key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "read again")),
+		keysK:  key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "keys")),
 		quitK:  key.NewBinding(key.WithKeys("q", "esc"), key.WithHelp("q", "close")),
+		ops:    gitOpKeys(),
 		width:  w,
 		height: h,
 		region: RegionGraph,
@@ -242,8 +253,12 @@ func (m *GitWorkModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case GitWorkNoteMsg:
 		m.note = sanitize.Line(msg.Text)
 		return m, nil
-	case GitFormDoneMsg:
+	case GitAskMsg:
+		m.asked = msg.Op
+		m.form.Ask(msg.Form)
 		return m, nil
+	case GitFormDoneMsg:
+		return m, m.answered(msg)
 	case tea.KeyPressMsg:
 		return m, m.key(msg)
 	case tea.MouseClickMsg:
@@ -285,8 +300,22 @@ func (m *GitWorkModel) key(msg tea.KeyPressMsg) tea.Cmd {
 		return tea.Quit
 	}
 	if m.form.Asking() {
+		// The answer of the form is read here rather than left to the program
+		// loop, for the same reason a region's messages are: it belongs to
+		// the workstation, not to the form that produced it.
 		_, cmd := m.form.Update(msg)
-		return cmd
+		return m.answer(cmd)
+	}
+	if m.keysOpen {
+		// The list is read, not typed at: it scrolls, and every other key
+		// closes it and does nothing else, so nothing is run by a key meant
+		// to dismiss it.
+		if d, ok := m.nav.delta(msg, len(m.keyLines()), m.keysHeight()); ok {
+			m.keysTop = min(max(m.keysTop+d, 0), max(len(m.keyLines())-m.keysHeight(), 0))
+			return nil
+		}
+		m.keysOpen, m.keysTop = false, 0
+		return nil
 	}
 	m.note = ""
 	if !m.typing() {
@@ -301,6 +330,9 @@ func (m *GitWorkModel) key(msg tea.KeyPressMsg) tea.Cmd {
 			return nil
 		case key.Matches(msg, m.treeK):
 			return m.showWorkingTree()
+		case key.Matches(msg, m.keysK):
+			m.keysOpen, m.keysTop = true, 0
+			return nil
 		case key.Matches(msg, m.readK):
 			if m.opts.Refresh == nil {
 				return nil
@@ -309,8 +341,86 @@ func (m *GitWorkModel) key(msg tea.KeyPressMsg) tea.Cmd {
 		case m.opts.Popup && key.Matches(msg, m.quitK):
 			return tea.Quit
 		}
+		if cmd, ok := m.opKey(msg); ok {
+			return cmd
+		}
 	}
 	return m.toRegion(msg)
+}
+
+// opKey asks for the operation a key stands for, false when the key is none
+// of them. A key of this region with nothing under it says so rather than
+// falling through to a region that would do something else with it.
+func (m *GitWorkModel) opKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
+	var matched *gitOpKey
+	for i, k := range m.ops {
+		if k.region != anyRegion && k.region != m.region {
+			continue
+		}
+		if !key.Matches(msg, k.binding) {
+			continue
+		}
+		if matched == nil {
+			matched = &m.ops[i]
+		}
+		op, ok := m.target(k.need)
+		if !ok {
+			continue
+		}
+		op.Kind = k.kind
+		return func() tea.Msg { return GitOpMsg{Op: op} }, true
+	}
+	if matched == nil {
+		return nil, false
+	}
+	m.note = "nothing to " + matched.kind.String() + " here"
+	return nil, true
+}
+
+// target is the operation filled in with what it applies to, false when there
+// is nothing there to apply it to.
+func (m *GitWorkModel) target(need gitOpNeed) (GitOp, bool) {
+	op := GitOp{Index: -1}
+	switch need {
+	case needNothing:
+		return op, true
+	case needRunning:
+		return op, m.state.Progress.Running()
+	case needRef:
+		ref, ok := m.refs.Selected()
+		if !ok {
+			return op, false
+		}
+		op.Rev, op.Name, op.Path, op.Index = ref.Rev, ref.Name, ref.Path, ref.Index
+		return op, true
+	case needCommit:
+		c, ok := m.graph.Selected()
+		if !ok {
+			return op, false
+		}
+		op.Rev = c.OID
+		return op, true
+	case needFile:
+		file, ok := m.detail.Selected()
+		if !ok {
+			return op, false
+		}
+		op.Path, op.Rev = file.Path, file.Rev
+		return op, true
+	}
+	return op, false
+}
+
+// answered carries the answer of a form back to the operation that stands
+// behind it: confirmed, it is asked for again with what was typed.
+func (m *GitWorkModel) answered(msg GitFormDoneMsg) tea.Cmd {
+	op := m.asked
+	m.asked = GitOp{}
+	if !msg.OK {
+		return nil
+	}
+	op.Confirmed, op.Text = true, msg.Value
+	return func() tea.Msg { return GitOpMsg{Op: op} }
 }
 
 // step is the region the keys move to, skipping the ones the frame is too
@@ -375,6 +485,8 @@ func (m *GitWorkModel) answer(cmd tea.Cmd) tea.Cmd {
 			if m.opts.Open != nil {
 				out = append(out, m.opts.Open(msg.Path, msg.Rev))
 			}
+		case GitFormDoneMsg:
+			out = append(out, m.answered(msg))
 		default:
 			out = append(out, func() tea.Msg { return msg })
 		}
@@ -439,7 +551,7 @@ func (m *GitWorkModel) readMore(before string) tea.Cmd {
 // mouse hands a pointer message to the region it fell in, moving the keys
 // there first, so clicking a region is the same as tabbing to it.
 func (m *GitWorkModel) mouse(msg tea.Msg, x, y int) tea.Cmd {
-	if m.form.Asking() {
+	if m.form.Asking() || m.keysOpen {
 		return nil
 	}
 	refs, graph, detail := m.layout()
@@ -540,7 +652,11 @@ func (m *GitWorkModel) frame() []string {
 	}
 	out = append(out, m.body()...)
 	out = append(out, m.bar())
-	if box := m.form.Box(m.width, m.height); len(box) > 0 {
+	box := m.form.Box(m.width, m.height)
+	if m.keysOpen {
+		box = m.keysBox()
+	}
+	if len(box) > 0 {
 		x := max((m.width-ansi.StringWidth(box[0]))/2, 0)
 		out = overlay(out, box, x, max((m.height-len(box))/2, 0))
 	}
@@ -565,6 +681,63 @@ func (m *GitWorkModel) body() []string {
 
 // lines splits a frame back into the lines it was drawn as.
 func lines(frame string) []string { return strings.Split(frame, "\n") }
+
+// keyLines are every key of the workstation where the cursor stands, the
+// ones of the region first and the ones that work anywhere under them.
+func (m *GitWorkModel) keyLines() []string {
+	s := m.opts.Styles
+	inner := max(boxWidth(m.width)-4, 1)
+	const keyColumn = 10
+	var lines []string
+	add := func(title string, keys []gitOpKey) {
+		if len(keys) == 0 {
+			return
+		}
+		if len(lines) > 0 {
+			lines = append(lines, "")
+		}
+		lines = append(lines, s.Title.Render(title))
+		for _, k := range keys {
+			name := fit(k.binding.Help().Key, keyColumn, s.Ellipsis)
+			lines = append(lines, s.Key.Render(name)+
+				s.Text.Render(truncate(k.kind.String(), max(inner-keyColumn, 1), s.Ellipsis)))
+		}
+	}
+	var here, every []gitOpKey
+	for _, k := range m.ops {
+		switch k.region {
+		case m.region:
+			here = append(here, k)
+		case anyRegion:
+			every = append(every, k)
+		}
+	}
+	add("IN THE "+strings.ToUpper(m.region.String()), here)
+	add("ANYWHERE", every)
+	return lines
+}
+
+// keysHeight is how many lines of the list the frame has room for, the two
+// edges of the box and the line under it taken off.
+func (m *GitWorkModel) keysHeight() int { return max(m.height-4, 1) }
+
+// keysBox lists what the keys do where the cursor stands, since a region has
+// more of them than a bar can hold. A list longer than the frame scrolls
+// rather than losing its end.
+func (m *GitWorkModel) keysBox() []string {
+	s := m.opts.Styles
+	all := m.keyLines()
+	h := m.keysHeight()
+	end := min(m.keysTop+h, len(all))
+	lines := append([]string(nil), all[min(m.keysTop, end):end]...)
+	help := "any key closes this"
+	if len(all) > h {
+		help = strconv.Itoa(end) + " of " + strconv.Itoa(len(all)) +
+			", " + m.nav.Down.Help().Key + " scrolls, any other key closes this"
+	}
+	lines = append(lines, "", s.Muted.Render(truncate(help, max(boxWidth(m.width)-4, 1), s.Ellipsis)))
+	return s.box(boxWidth(m.width), "Keys", lines)
+}
 
 // banner says what git stopped in the middle of, which holds the branch where
 // it is and makes most commands refuse.
@@ -638,6 +811,7 @@ func (m *GitWorkModel) keys() []key.Binding {
 	if m.opts.Refresh != nil {
 		keys = append(keys, m.readK)
 	}
+	keys = append(keys, m.keysK)
 	if m.opts.Popup {
 		keys = append(keys, m.quitK)
 	}

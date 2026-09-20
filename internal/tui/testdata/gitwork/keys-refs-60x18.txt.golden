@@ -1,0 +1,18 @@
+ ±┌─ Keys ───────────────────────────────────────────────┐d
+ S│ IN THE DETAIL                                        │
+ M│ s         stage the file                             │3
+ R│ S         stage everything                           │1
+ A│ u         unstage the file                           │0
+ M│ U         unstage everything                         │n
+  │ x         discard the file                           │
+ U│ X         discard everything                         │
+ M│ C         commit what is staged                      │0
+ M│ M         amend the last commit                      │1
+ D│ e         edit the message of HEAD                   │0
+ U│                                                      │2
+ ?│ ANYWHERE                                             │0
+ M│ y         carry on                                   │2
+  │ !         leave this one out                         │
+  │                                                      │
+ 1│ 14 of 19, ↓/j scrolls, any other key closes this     │ff
+ ~└──────────────────────────────────────────────────────┘ …
