@@ -99,6 +99,15 @@ done
 [[ -n $fixtures ]] || fixtures=$scenes
 [[ -d $fixtures ]] || fail "$fixtures is not a directory"
 [[ -x $record ]] || fail "$record is not executable"
+# Every scene is recorded from the project directory, where a relative path
+# would name something else, so the paths are resolved while the directory is
+# still the one the command line was written in. The assets directory is not
+# created here: a dry run writes nothing.
+project=$(cd "$project" && pwd)
+scenes=$(cd "$scenes" && pwd)
+fixtures=$(cd "$fixtures" && pwd)
+record=$(cd "$(dirname "$record")" && pwd)/$(basename "$record")
+[[ $assets == /* ]] || assets=$PWD/$assets
 # A scene that prints where the binary is, as uninstall does, must print a path
 # a reader could have: the one given is copied under a directory named with as
 # many characters as ".local/bin", which the redaction below puts back.

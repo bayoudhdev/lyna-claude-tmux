@@ -620,3 +620,54 @@ func TestRecordDocsFixturesElsewhere(t *testing.T) {
 		})
 	}
 }
+
+// TestRecordDocsRelativePaths covers a command line written in the repository
+// and run from it: the recorder is run from the project directory, where a
+// relative scene, asset or recorder path names something else, or nothing.
+func TestRecordDocsRelativePaths(t *testing.T) {
+	e := newDocsEnv(t, map[string]string{"open": "frames: 2\n"})
+	bash, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash is not installed")
+	}
+	cmd := exec.Command(bash, scriptPath(t, "record-docs.sh"),
+		"--project", "project", "--scenes", "scenes", "--assets", "assets",
+		"--record", "bin/record.sh", "--film")
+	cmd.Dir = e.dir
+	cmd.Env = e.env()
+	var out, errOut bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &errOut
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("%v\nstdout:\n%s\nstderr:\n%s", err, out.String(), errOut.String())
+	}
+	log := string(mustRead(t, e.log))
+	// The shell reads its directory from the kernel, which answers with the
+	// path the temporary directory has once its symbolic links are followed.
+	scenes, assets, project := resolved(t, e.scenes), resolved(t, e.assets), resolved(t, e.project)
+	cases := []struct {
+		name string
+		want string
+	}{
+		{name: "the scene is the one beside the command line", want: filepath.Join(scenes, "open.scene")},
+		{name: "the film is written where it was asked for", want: filepath.Join(assets, "open.mp4")},
+		{name: "the recorder runs in the project", want: "cwd=" + project},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if !strings.Contains(log, tc.want) {
+				t.Fatalf("the recorder was not called with %q:\n%s", tc.want, log)
+			}
+		})
+	}
+}
+
+// resolved is a path with its symbolic links followed, which is the form a
+// process reads back from the kernel.
+func resolved(t *testing.T, path string) string {
+	t.Helper()
+	out, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
