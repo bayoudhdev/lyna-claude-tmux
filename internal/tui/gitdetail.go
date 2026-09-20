@@ -77,19 +77,37 @@ type GitDetailModel struct {
 	cursor int
 	top    int
 	clicks clicks
+	// focused says the keys reach this region, which a workstation holding
+	// several of them turns off for the ones it is not typing at. A region
+	// standing on its own is always the one being typed at.
+	focused bool
 }
 
 // NewGitDetail builds the detail pane.
 func NewGitDetail(opts GitDetailOptions) *GitDetailModel {
 	w, h := sizeOr(opts.Width, opts.Height)
 	return &GitDetailModel{
-		opts:   opts,
-		nav:    newNavKeys(opts.Styles.Theme.Icons.Name == "ascii"),
-		quitK:  key.NewBinding(key.WithKeys("q", "esc"), key.WithHelp("q", "close")),
-		openK:  key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "diff")),
-		width:  w,
-		height: h,
+		opts:    opts,
+		nav:     newNavKeys(opts.Styles.Theme.Icons.Name == "ascii"),
+		quitK:   key.NewBinding(key.WithKeys("q", "esc"), key.WithHelp("q", "close")),
+		openK:   key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "diff")),
+		width:   w,
+		height:  h,
+		focused: true,
 	}
+}
+
+// SetFocused says whether the keys reach this region. A region of a
+// workstation that is not the one being typed at draws its cursor quietly and
+// its title muted, so which region answers the keys is never a guess.
+func (m *GitDetailModel) SetFocused(on bool) { m.focused = on }
+
+// titleStyle is the heading of the region, muted while the keys are elsewhere.
+func (m *GitDetailModel) titleStyle() lipgloss.Style {
+	if m.focused {
+		return m.opts.Styles.Title
+	}
+	return m.opts.Styles.Muted
 }
 
 // ShowCommit draws one commit read in full.
@@ -272,6 +290,9 @@ func (m *GitDetailModel) render() string {
 		var bg *lipgloss.Style
 		if lines[i].file >= 0 && lines[i].file == m.cursor {
 			bg = &s.Selected
+			if !m.focused {
+				bg = &s.Bar
+			}
 		}
 		out = append(out, s.line(m.width, bg, lines[i].segs...))
 	}
@@ -288,15 +309,15 @@ func (m *GitDetailModel) header() string {
 	var left, right []segment
 	switch m.kind {
 	case detailChanges:
-		left = []segment{seg(" "+ic.Changes+" working tree ", s.Title)}
+		left = []segment{seg(" "+ic.Changes+" working tree ", m.titleStyle())}
 		if n := m.changes.Staged(); n > 0 {
 			right = append(right, seg(strconv.Itoa(n)+" staged ", s.Success))
 		}
 	case detailCommit:
-		left = []segment{seg(" "+ic.Branch+" commit ", s.Title)}
+		left = []segment{seg(" "+ic.Branch+" commit ", m.titleStyle())}
 		right = append(right, seg(m.commit.Commit.Short()+" ", s.Muted))
 	case detailNothing, detailReading, detailFailed:
-		left = []segment{seg(" "+ic.Branch+" detail ", s.Title)}
+		left = []segment{seg(" "+ic.Branch+" detail ", m.titleStyle())}
 	}
 	return s.bar(m.width, left, right)
 }

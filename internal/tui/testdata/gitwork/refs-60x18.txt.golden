@@ -1,0 +1,18 @@
+ ± working tree                                    4 staged
+ STAGED  4  +13 -4
+ M api/handler.go                                 +12    -3
+ R docs/old guide.md → docs/guide.md               +1    -1
+ A go.sum                                          +0    -0
+ M logo.png                                             bin
+
+ UNSTAGED  6  +1072 -515
+ M api/handler_test.go                            +40    -0
+ M docs/old guide.md → docs/guide.md               +1    -1
+ D go.sum                                          +0    -0
+ U internal/merge.go                               +7    -2
+ ? notes/                                          +0    -0
+ M web/src/components/very/deep/directory/struc…+1024  -512
+
+
+ 1/10                                   ↓/j down  enter diff
+ ~/src/acme                     tab region  w working tree …

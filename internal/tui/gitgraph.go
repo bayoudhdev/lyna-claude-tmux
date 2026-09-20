@@ -90,6 +90,10 @@ type GitGraphModel struct {
 	seeking bool
 	asked   bool
 	clicks  clicks
+	// focused says the keys reach this region, which a workstation holding
+	// several of them turns off for the ones it is not typing at. A region
+	// standing on its own is always the one being typed at.
+	focused bool
 }
 
 // graphLine is one drawn line: a commit, or the gap above it where the lines
@@ -114,9 +118,27 @@ func NewGitGraph(opts GitGraphOptions) *GitGraphModel {
 		width:   w,
 		height:  h,
 		search:  lineInput{limit: 64},
+		focused: true,
 	}
 	m.lay()
 	return m
+}
+
+// Typing reports whether the search line is open, which is when every
+// printable key belongs to it rather than to the workstation around it.
+func (m *GitGraphModel) Typing() bool { return m.seeking }
+
+// SetFocused says whether the keys reach this region. A region of a
+// workstation that is not the one being typed at draws its cursor quietly and
+// its title muted, so which region answers the keys is never a guess.
+func (m *GitGraphModel) SetFocused(on bool) { m.focused = on }
+
+// titleStyle is the heading of the region, muted while the keys are elsewhere.
+func (m *GitGraphModel) titleStyle() lipgloss.Style {
+	if m.focused {
+		return m.opts.Styles.Title
+	}
+	return m.opts.Styles.Muted
 }
 
 // SetCommits puts a new reading on screen, keeping the cursor on the commit
@@ -186,6 +208,36 @@ func (m *GitGraphModel) lineOf(commit int) int {
 		}
 	}
 	return 0
+}
+
+// GoTo puts the cursor on a commit and brings it on screen. rev is an object
+// name or the full name of a ref, which is how a branch chosen in the refs
+// pane is followed into the history. It reports false when the history read
+// so far reaches no such commit, which is what happens to a branch older than
+// the page on screen.
+func (m *GitGraphModel) GoTo(rev string) bool {
+	if rev == "" {
+		return false
+	}
+	for i, c := range m.opts.Commits {
+		if c.OID == rev || hasRef(c.Refs, rev) {
+			m.cursor = i
+			m.clamp()
+			return true
+		}
+	}
+	return false
+}
+
+// hasRef reports whether one of the refs of a commit is the one named, by its
+// full name so that a branch and a tag of the same name stay apart.
+func hasRef(refs []vcs.Ref, full string) bool {
+	for _, r := range refs {
+		if r.Full == full {
+			return true
+		}
+	}
+	return false
 }
 
 // Selected is the commit the cursor is on, false on an empty history.
@@ -396,7 +448,7 @@ func (m *GitGraphModel) header() string {
 	if s.Theme.Icons.Name == "ascii" {
 		node = "*"
 	}
-	left := []segment{seg(" "+node+" history ", s.Title)}
+	left := []segment{seg(" "+node+" history ", m.titleStyle())}
 	if m.opts.Title != "" {
 		left = append(left, seg(" "+sanitize.Line(m.opts.Title)+" ", s.Accent2))
 	}
@@ -541,6 +593,9 @@ func (m *GitGraphModel) row(row vcs.GraphRow, index int) string {
 		bg = &s.Selected
 		if cursor = "▌"; s.Theme.Icons.Name == "ascii" {
 			cursor = ">"
+		}
+		if !m.focused {
+			bg, cursor = &s.Bar, " "
 		}
 	}
 	segs := []segment{seg(cursor, s.Accent)}

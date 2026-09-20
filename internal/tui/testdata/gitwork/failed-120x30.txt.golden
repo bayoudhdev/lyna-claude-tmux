@@ -1,0 +1,30 @@
+ ⎇ refs              ● history                                           ± working tree
+ ▾ LOCAL          0    COMMIT MESSAGE
+ ▾ REMOTE         0                                                                    working tree clean
+ ▾ WORKTREES      0                    no commit yet
+ ▾ STASHES        0
+ ▾ TAGS           0
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ ↓/j down  space fol / search
+ git log: exit status 128: fatal: bad revision                                  tab region  w working tree  r read again

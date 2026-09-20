@@ -1,0 +1,24 @@
+ ◆ a rebase of feat/git-workstation at step 2 of 5 stopped on c000000
+ ⎇ refs        15  ● history                                                          1/5
+ ▾ LOCAL        4      COMMIT MESSAGE                                        AUTHOR  WHEN
+ ● main           ▌◆   a000000 [main] {origin/main} merge the git work… Ada Lovelace   1h
+   feat/gi… ↑12 ↓1 ├─╮
+   fix/border gone ● │ b000000 the refs pane of the git workstation     Ada Lovelace   3h
+   spike           │ │
+ ▾ REMOTE       3  │ ● d000000 [spike] a spike that was kept            Grace Hopper   1d
+   orig… origin/m… ├─╯
+   origin/main     ●   c000000 <v1.1.0> the agents workstation          Ada Lovelace   2d
+   origin/feat/g…  │
+ ▾ WORKTREES    4  ●   e000000 the first commit                         Grace Hopper  16d
+   main  ~/src/api
+   task… ~/src/ap…
+   spike  detached
+   gone       gone
+ ▾ STASHES      2
+   stash@{0}   20m
+   stash@{1}    2d
+ ▾ TAGS         2
+   v1.1… annotated
+   v1.0.1      16d
+ ↓/j down …        a000000  2 parents                       ↓/j down  enter open  / search
+ ~/src/acme                                       tab region  w working tree  r read again

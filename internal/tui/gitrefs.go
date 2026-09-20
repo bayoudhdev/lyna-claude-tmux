@@ -124,6 +124,10 @@ type GitRefsModel struct {
 	filter    lineInput
 	filtering bool
 	clicks    clicks
+	// focused says the keys reach this region, which a workstation holding
+	// several of them turns off for the ones it is not typing at. A region
+	// standing on its own is always the one being typed at.
+	focused bool
 }
 
 // NewGitRefs builds the refs pane.
@@ -139,9 +143,27 @@ func NewGitRefs(opts GitRefsOptions) *GitRefsModel {
 		width:   w,
 		height:  h,
 		filter:  lineInput{limit: 64},
+		focused: true,
 	}
 	m.build()
 	return m
+}
+
+// Typing reports whether the filter line is open, which is when every
+// printable key belongs to it rather than to the workstation around it.
+func (m *GitRefsModel) Typing() bool { return m.filtering }
+
+// SetFocused says whether the keys reach this region. A region of a
+// workstation that is not the one being typed at draws its cursor quietly and
+// its title muted, so which region answers the keys is never a guess.
+func (m *GitRefsModel) SetFocused(on bool) { m.focused = on }
+
+// titleStyle is the heading of the region, muted while the keys are elsewhere.
+func (m *GitRefsModel) titleStyle() lipgloss.Style {
+	if m.focused {
+		return m.opts.Styles.Title
+	}
+	return m.opts.Styles.Muted
 }
 
 // SetRefs puts a new reading on screen, keeping the cursor on the row it was
@@ -534,7 +556,7 @@ func (m *GitRefsModel) render() string {
 
 func (m *GitRefsModel) header() string {
 	s := m.opts.Styles
-	left := []segment{seg(" "+s.Theme.Icons.Branch+" refs ", s.Title)}
+	left := []segment{seg(" "+s.Theme.Icons.Branch+" refs ", m.titleStyle())}
 	var right []segment
 	if n := m.count() - int(gitRefSections); n > 0 {
 		right = append(right, seg(strconv.Itoa(n)+" ", s.Muted))
@@ -568,6 +590,11 @@ func (m *GitRefsModel) line(row gitRefRow, selected bool) string {
 		bg = &s.Selected
 		if cursor = "▌"; ascii {
 			cursor = ">"
+		}
+		if !m.focused {
+			// A region the keys do not reach still says where its cursor
+			// stands, quietly, so coming back to it is not a search.
+			bg, cursor = &s.Bar, " "
 		}
 	}
 	if row.head {

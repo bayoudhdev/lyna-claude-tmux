@@ -1,0 +1,24 @@
+ ⎇ refs        15  ± working tree                                                4 staged
+ ▾ LOCAL        4  STAGED  4  +13 -4
+ ● main            M api/handler.go                                             +12    -3
+   feat/gi… ↑12 ↓1 R docs/old guide.md → docs/guide.md                           +1    -1
+   fix/border gone A go.sum                                                      +0    -0
+   spike           M logo.png                                                         bin
+ ▾ REMOTE       3
+   orig… origin/m… UNSTAGED  6  +1072 -515
+   origin/main     M api/handler_test.go                                        +40    -0
+   origin/feat/g…  M docs/old guide.md → docs/guide.md                           +1    -1
+ ▾ WORKTREES    4  D go.sum                                                      +0    -0
+   main  ~/src/api U internal/merge.go                                           +7    -2
+   task… ~/src/ap… ? notes/                                                      +0    -0
+   spike  detached M web/src/components/very/deep/directory/structure/Compone…+1024  -512
+   gone       gone
+ ▾ STASHES      2
+   stash@{0}   20m
+   stash@{1}    2d
+ ▾ TAGS         2
+   v1.1… annotated
+   v1.0.1      16d
+
+ ↓/j down …        1/10                                               ↓/j down  enter diff
+ ~/src/acme                                       tab region  w working tree  r read again

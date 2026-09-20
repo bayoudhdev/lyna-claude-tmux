@@ -132,6 +132,78 @@ func (s Styles) box(width int, title string, lines []string) []string {
 	return append(out, s.Border.Render(bl+strings.Repeat(h, width-2)+br))
 }
 
+// overlay draws box over base with its top left corner at x, y, which is how
+// a form is put over the regions it was opened from. The cells the box covers
+// are replaced and the rest of every line is kept, styles and all; a box that
+// falls outside the frame is clipped rather than moving anything.
+func overlay(base, box []string, x, y int) []string {
+	out := append([]string(nil), base...)
+	for i, l := range box {
+		row := y + i
+		if row < 0 || row >= len(out) || x < 0 {
+			continue
+		}
+		left := ansi.Truncate(out[row], x, "")
+		if w := ansi.StringWidth(left); w < x {
+			left += strings.Repeat(" ", x-w)
+		}
+		right := ansi.TruncateLeft(out[row], x+ansi.StringWidth(l), "")
+		out[row] = left + l + right
+	}
+	return out
+}
+
+// beside joins columns of lines side by side into one block of lines, each
+// column already drawn to its own width. A column shorter than the tallest is
+// padded with blanks.
+func beside(columns ...[]string) []string {
+	rows, widths := 0, make([]int, len(columns))
+	for i, col := range columns {
+		rows = max(rows, len(col))
+		for _, l := range col {
+			widths[i] = max(widths[i], ansi.StringWidth(l))
+		}
+	}
+	out := make([]string, rows)
+	for r := range rows {
+		var b strings.Builder
+		for i, col := range columns {
+			l := ""
+			if r < len(col) {
+				l = col[r]
+			}
+			b.WriteString(l)
+			if w := ansi.StringWidth(l); w < widths[i] {
+				b.WriteString(strings.Repeat(" ", widths[i]-w))
+			}
+		}
+		out[r] = b.String()
+	}
+	return out
+}
+
+// flatten runs a command and returns the messages it produced, unpacking the
+// batches. It is for a view that holds other views and has to read what they
+// report rather than letting the program loop hand it back to them; every
+// command it runs is one that builds a message and does nothing else.
+func flatten(cmd tea.Cmd) []tea.Msg {
+	if cmd == nil {
+		return nil
+	}
+	msg := cmd()
+	if msg == nil {
+		return nil
+	}
+	if batch, ok := msg.(tea.BatchMsg); ok {
+		var out []tea.Msg
+		for _, c := range batch {
+			out = append(out, flatten(c)...)
+		}
+		return out
+	}
+	return []tea.Msg{msg}
+}
+
 // helpLine renders key help that fits in width.
 func (s Styles) helpLine(width int, bindings ...key.Binding) string {
 	h := help.New()
