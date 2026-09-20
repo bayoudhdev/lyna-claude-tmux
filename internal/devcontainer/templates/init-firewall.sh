@@ -132,18 +132,25 @@ apply_rules() {
 
 self_test() {
   local domains=$1 probe="" host first
+  # The allowlist is matched line by line in the shell rather than through a
+  # pipeline: a reader that stops at the first line leaves the writer on a
+  # closed pipe, and under pipefail that signal would be read as a firewall
+  # that failed to come up.
   for host in example.com example.net example.org; do
-    if ! printf '%s\n' "$domains" | grep -qxF "$host"; then
+    case $'\n'$domains$'\n' in
+    *$'\n'"$host"$'\n'*) ;;
+    *)
       probe=$host
       break
-    fi
+      ;;
+    esac
   done
   [ -n "$probe" ] || fail "self-test needs a host outside the allowlist; remove example.com, example.net or example.org"
   if curl --silent --output /dev/null --connect-timeout 5 --max-time 10 "https://$probe"; then
     fail "self-test failed: $probe is outside the allowlist but reachable"
   fi
   log "self-test: $probe is blocked"
-  first=$(printf '%s\n' "$domains" | head -n 1)
+  first=${domains%%$'\n'*}
   if ! curl --silent --output /dev/null --connect-timeout 5 --max-time 15 "https://$first"; then
     fail "self-test failed: allowed domain $first is unreachable"
   fi
