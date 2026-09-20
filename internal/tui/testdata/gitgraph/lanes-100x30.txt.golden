@@ -1,0 +1,30 @@
+ ● history                                                                                      1/8
+ BRANCH / TAG        GRAPH       COMMIT MESSAGE                                        AUTHOR  WHEN
+▌✓ main              ◆           m000000 merge six branches at once               Ada Lovelace   1h
+                     ├─┬─┬─┬─┬─╮
+ ⎇ task-a            ● │ │ │ │ │ a000000 work on task a                           Grace Hopper   2h
+                     │ │ │ │ │ │
+ ⎇ task-b            │ ● │ │ │ │ b000000 work on task b                           Grace Hopper   3h
+                     │ │ │ │ │ │
+ ⎇ task-c            │ │ ● │ │ │ c000000 work on task c                           Grace Hopper   4h
+                     │ │ │ │ │ │
+ ⎇ task-d            │ │ │ ● │ │ d000000 work on task d                           Grace Hopper   5h
+                     │ │ │ │ │ │
+ ⎇ task-e            │ │ │ │ ● │ e000000 work on task e                           Grace Hopper   6h
+                     │ │ │ │ │ │
+ ⎇ task-f            │ │ │ │ │ ● f000000 work on task f                           Grace Hopper   7h
+                     ├─┴─┴─┴─┴─╯
+ #v1.0.0             ●           r000000 the commit they all come from            Ada Lovelace   1d
+
+
+
+
+
+
+
+
+
+
+
+
+ m000000  6 parents                                                   ↓/j down  enter open  / search
