@@ -208,7 +208,10 @@ wanted() {
 if ((dry_run == 0)); then
   rm -rf "$record_config"
   mkdir -p "$record_config"
-  trap 'rm -rf "$record_config" "$record_bin"' EXIT
+  # Nothing of the pass outlives it: the workspaces the last scene left are
+  # ended on the recorder's own server while the binary and the
+  # configuration they were opened with are still in place.
+  trap 'lmux kill --all >/dev/null 2>&1 || true; rm -rf "$record_config" "$record_bin"' EXIT
   lmux config init >/dev/null || fail "could not write the recording configuration"
   # The frames are drawn with a patched font, so the scenes run with the icon
   # set that font is for. The status bar then takes its pointed separators

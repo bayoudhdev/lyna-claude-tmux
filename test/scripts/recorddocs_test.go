@@ -492,3 +492,40 @@ func TestRecordDocsArguments(t *testing.T) {
 		})
 	}
 }
+
+// TestRecordDocsEndsItsWorkspaces pins what a pass leaves behind: the scenes
+// open workspaces on the recorder's own server, and the last thing the driver
+// does is end them, while the binary and the configuration they were opened
+// with are still in place.
+func TestRecordDocsEndsItsWorkspaces(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+		want bool
+	}{
+		{name: "a pass ends what it opened", want: true},
+		{name: "a dry run opened nothing to end", args: []string{"--dry-run"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newDocsEnv(t, map[string]string{"doctor": "frames: 1\n"})
+			_, stderr, exit := runRecordDocs(t, e.env(), e.args(tc.args...)...)
+			if exit != 0 {
+				t.Fatalf("exit %d\nstderr:\n%s", exit, stderr)
+			}
+			log := ""
+			if data, err := os.ReadFile(e.log); err == nil {
+				log = string(data)
+			}
+			if got := strings.Contains(log, "lmux kill --all"); got != tc.want {
+				t.Fatalf("every workspace ended: %v, want %v\n%s", got, tc.want, log)
+			}
+			if !tc.want {
+				return
+			}
+			if last := strings.LastIndex(log, "lmux kill --all"); last < strings.LastIndex(log, "record ") {
+				t.Fatalf("a scene was recorded after the workspaces were ended:\n%s", log)
+			}
+		})
+	}
+}
