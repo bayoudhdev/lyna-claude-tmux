@@ -669,3 +669,176 @@ func isHexOID(s string) bool {
 	}
 	return true
 }
+
+func TestIntegrationWorktreeAdd(t *testing.T) {
+	cases := []struct {
+		name     string
+		req      AddWorktree
+		branch   string
+		detached bool
+	}{
+		{name: "a worktree on a branch of its own", req: AddWorktree{Name: "task-a"}, branch: "refs/heads/task-a"},
+		{
+			name:   "a branch named apart from the directory",
+			req:    AddWorktree{Name: "task-b", Branch: "feat/b"},
+			branch: "refs/heads/feat/b",
+		},
+		{
+			name:   "a branch starting where another one stands",
+			req:    AddWorktree{Name: "task-c", Branch: "feat/c", Start: "side"},
+			branch: "refs/heads/feat/c",
+		},
+		{
+			name:   "a branch that already exists",
+			req:    AddWorktree{Name: "task-d", Branch: "side", Checkout: true},
+			branch: "refs/heads/side",
+		},
+		{name: "a commit with no branch at all", req: AddWorktree{Name: "task-e", Detach: true, Start: "side"}, detached: true},
+	}
+	r := history(t)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := r.Runner.AddWorktree(t.Context(), r.Dir, tc.req)
+			if err != nil {
+				t.Fatalf("AddWorktree() error = %v", err)
+			}
+			want := filepath.Join(r.Dir, ".claude", "worktrees", tc.req.Name)
+			if got.Path != want {
+				t.Fatalf("AddWorktree() opened %q, want %q", got.Path, want)
+			}
+			if got.Branch != tc.branch || got.Detached != tc.detached {
+				t.Fatalf("AddWorktree() = %+v, want branch %q detached=%v", got, tc.branch, tc.detached)
+			}
+			if info, err := os.Stat(filepath.Join(want, ".git")); err != nil || info.IsDir() {
+				t.Fatalf("the worktree at %s holds no git file: %v", want, err)
+			}
+			if tc.req.Start != "" {
+				side := strings.TrimSpace(r.Git("rev-parse", tc.req.Start))
+				if got.Head != side {
+					t.Fatalf("AddWorktree() opened %s at %s, want %s", tc.req.Name, got.Head, side)
+				}
+			}
+		})
+	}
+}
+
+func TestIntegrationWorktreeAddRefusals(t *testing.T) {
+	r := history(t)
+	if _, err := r.Runner.AddWorktree(t.Context(), r.Dir, AddWorktree{Name: "taken"}); err != nil {
+		t.Fatalf("AddWorktree() error = %v", err)
+	}
+	cases := []struct {
+		name string
+		req  AddWorktree
+	}{
+		{name: "a name that is a path", req: AddWorktree{Name: "../escape"}},
+		{name: "a name that would be an option", req: AddWorktree{Name: "-force"}},
+		{name: "a name of nothing", req: AddWorktree{Name: ""}},
+		{name: "a branch git refuses", req: AddWorktree{Name: "ok", Branch: "feat/.hidden"}},
+		{name: "a branch that would be an option", req: AddWorktree{Name: "ok", Branch: "--upload-pack=id"}},
+		{name: "a revision that would be an option", req: AddWorktree{Name: "ok", Start: "--output=/tmp/x"}},
+		{name: "a branch checked out and a revision at once", req: AddWorktree{Name: "ok", Branch: "side", Checkout: true, Start: "main"}},
+		{name: "a directory already taken", req: AddWorktree{Name: "taken"}},
+		{name: "a branch already checked out elsewhere", req: AddWorktree{Name: "again", Branch: "main", Checkout: true}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := r.Runner.AddWorktree(t.Context(), r.Dir, tc.req)
+			if err == nil {
+				t.Fatalf("AddWorktree() = %+v, want it refused", got)
+			}
+		})
+	}
+}
+
+func TestIntegrationWorktreeRemoveAndPrune(t *testing.T) {
+	r := history(t)
+	ctx := t.Context()
+	if _, err := r.Runner.AddWorktree(ctx, r.Dir, AddWorktree{Name: "clean"}); err != nil {
+		t.Fatalf("AddWorktree() error = %v", err)
+	}
+	held, err := r.Runner.AddWorktree(ctx, r.Dir, AddWorktree{Name: "held"})
+	if err != nil {
+		t.Fatalf("AddWorktree() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(held.Path, "a.txt"), []byte("changed\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("a worktree with nothing in it", func(t *testing.T) {
+		if err := r.Runner.RemoveWorktree(ctx, r.Dir, "clean", false); err != nil {
+			t.Fatalf("RemoveWorktree() error = %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(r.Dir, ".claude", "worktrees", "clean")); !os.IsNotExist(err) {
+			t.Fatalf("the directory is still there: %v", err)
+		}
+	})
+	t.Run("a worktree holding changes", func(t *testing.T) {
+		if err := r.Runner.RemoveWorktree(ctx, r.Dir, "held", false); err == nil {
+			t.Fatal("RemoveWorktree() threw the changes away without being asked to")
+		}
+		if err := r.Runner.RemoveWorktree(ctx, r.Dir, "held", true); err != nil {
+			t.Fatalf("RemoveWorktree() error = %v", err)
+		}
+	})
+	t.Run("a worktree that is not one of ours", func(t *testing.T) {
+		outside := filepath.Join(filepath.Dir(r.Dir), "outside")
+		r.Git("worktree", "add", "-q", outside, "-b", "outside")
+		t.Cleanup(func() { r.Git("worktree", "remove", "--force", outside) })
+		err := r.Runner.RemoveWorktree(ctx, r.Dir, "outside", false)
+		if err == nil {
+			t.Fatal("RemoveWorktree() removed a worktree outside the project's own directory")
+		}
+		if !strings.Contains(err.Error(), "is not a worktree of this project") {
+			t.Fatalf("RemoveWorktree() error = %v, want the refusal to come before the command", err)
+		}
+		if _, err := os.Stat(outside); err != nil {
+			t.Fatalf("the worktree outside the project was touched: %v", err)
+		}
+	})
+	t.Run("a directory that is not a worktree", func(t *testing.T) {
+		// Nothing is handed to git that was not read back from git: a
+		// directory sitting where a worktree would be is refused here.
+		plain := filepath.Join(r.Dir, ".claude", "worktrees", "plain")
+		if err := os.MkdirAll(plain, 0o750); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { os.RemoveAll(plain) })
+		err := r.Runner.RemoveWorktree(ctx, r.Dir, "plain", true)
+		if err == nil {
+			t.Fatal("RemoveWorktree() accepted a directory that is not a worktree")
+		}
+		if !strings.Contains(err.Error(), "is not a worktree of this project") {
+			t.Fatalf("RemoveWorktree() error = %v, want the refusal to come before the command", err)
+		}
+		if _, err := os.Stat(plain); err != nil {
+			t.Fatalf("the directory was touched: %v", err)
+		}
+	})
+	t.Run("a name that is not one", func(t *testing.T) {
+		if err := r.Runner.RemoveWorktree(ctx, r.Dir, "../escape", false); err == nil {
+			t.Fatal("RemoveWorktree() accepted a name that is a path")
+		}
+	})
+	t.Run("the ones whose directory is gone", func(t *testing.T) {
+		w, err := r.Runner.AddWorktree(ctx, r.Dir, AddWorktree{Name: "vanished"})
+		if err != nil {
+			t.Fatalf("AddWorktree() error = %v", err)
+		}
+		if err := os.RemoveAll(w.Path); err != nil {
+			t.Fatal(err)
+		}
+		if err := r.Runner.PruneWorktrees(ctx, r.Dir); err != nil {
+			t.Fatalf("PruneWorktrees() error = %v", err)
+		}
+		list, err := r.Runner.Worktrees(ctx, r.Dir)
+		if err != nil {
+			t.Fatalf("Worktrees() error = %v", err)
+		}
+		for _, got := range list {
+			if got.Name() == "vanished" {
+				t.Fatalf("Worktrees() still lists %+v", got)
+			}
+		}
+	})
+}

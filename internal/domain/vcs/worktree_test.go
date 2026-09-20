@@ -260,3 +260,54 @@ func FuzzValidateWorktreeName(f *testing.F) {
 		}
 	})
 }
+
+func TestWorktreePath(t *testing.T) {
+	cases := []struct {
+		name string
+		root string
+		wt   string
+		want string
+	}{
+		{name: "a worktree of a project", root: "/src/acme", wt: "task-a", want: "/src/acme/.claude/worktrees/task-a"},
+		{name: "a root with a trailing separator", root: "/src/acme/", wt: "b", want: "/src/acme/.claude/worktrees/b"},
+		{name: "a name that is a path", root: "/src/acme", wt: "../../etc"},
+		{name: "a name that would be an option", root: "/src/acme", wt: "-force"},
+		{name: "a name of nothing", root: "/src/acme", wt: ""},
+		{name: "a root that is relative", root: "acme", wt: "task-a"},
+		{name: "a root of nothing", root: "", wt: "task-a"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := WorktreePath(tc.root, tc.wt)
+			if tc.want == "" {
+				if err == nil {
+					t.Fatalf("WorktreePath(%q, %q) = %q, want it refused", tc.root, tc.wt, got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("WorktreePath(%q, %q) error = %v", tc.root, tc.wt, err)
+			}
+			if got != tc.want {
+				t.Fatalf("WorktreePath(%q, %q) = %q, want %q", tc.root, tc.wt, got, tc.want)
+			}
+		})
+	}
+}
+
+func FuzzWorktreePath(f *testing.F) {
+	f.Add("/src/acme", "task-a")
+	f.Add("/src/acme", "../escape")
+	f.Fuzz(func(t *testing.T, root, name string) {
+		got, err := WorktreePath(root, name)
+		if err != nil {
+			return
+		}
+		// An accepted path never leaves the project's own worktree directory.
+		base := filepath.Join(root, filepath.FromSlash(WorktreeDir))
+		rel, relErr := filepath.Rel(base, got)
+		if relErr != nil || rel != name || strings.Contains(rel, "..") {
+			t.Fatalf("WorktreePath(%q, %q) = %q, outside %q", root, name, got, base)
+		}
+	})
+}

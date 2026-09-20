@@ -7,6 +7,7 @@ package vcs
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 )
 
@@ -147,4 +148,22 @@ func ValidateWorktreeName(name string) error {
 		}
 	}
 	return nil
+}
+
+// WorktreeDir is where the worktrees of a project live, under the top of the
+// working tree. It is the directory a Claude launch uses as well, so a
+// worktree opened here is the same one an agent is started in.
+const WorktreeDir = ".claude/worktrees"
+
+// WorktreePath is where the worktree of that name belongs in the project
+// rooted at root. A name that is not one is refused rather than cleaned, so
+// no path is ever built outside the project.
+func WorktreePath(root, name string) (string, error) {
+	if root == "" || !filepath.IsAbs(root) {
+		return "", fmt.Errorf("%w: project root %q is not an absolute path", ErrMalformed, root)
+	}
+	if err := ValidateWorktreeName(name); err != nil {
+		return "", err
+	}
+	return filepath.Join(root, filepath.FromSlash(WorktreeDir), name), nil
 }
