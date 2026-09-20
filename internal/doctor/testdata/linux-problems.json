@@ -31,7 +31,13 @@
       "id": "git",
       "title": "git",
       "status": "ok",
-      "detail": "git 2.43.0 at /usr/bin/git"
+      "detail": "git 2.43.0 at /usr/bin/git, past the 2.36 the worktree list, the interactive rebase and the force-with-lease push need"
+    },
+    {
+      "id": "git-repository",
+      "title": "Project repository",
+      "status": "skip",
+      "detail": "no project directory"
     },
     {
       "id": "sandbox-bwrap",
@@ -107,6 +113,6 @@
     "ok": 2,
     "warn": 7,
     "fail": 5,
-    "skip": 1
+    "skip": 2
   }
 }
