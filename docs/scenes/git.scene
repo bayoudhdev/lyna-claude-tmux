@@ -1,44 +1,67 @@
 # The git workstation beside the agent: the refs of the project, its history
-# and what is in front of you, with every operation on a key. Nothing here
-# changes the repository: the form that stands before a reset is cancelled.
+# and what is in front of you, with every operation on a key. It is recorded
+# against a repository written for it, which has branches that were merged and
+# so cross lanes, a branch still open, tags, a remote, a stash and worktrees.
+# Nothing here changes it: the form that stands before a reset is cancelled.
 title The git workstation
-size 150 38
+size 150 32
 pre lmux kill --all
-pre rm -rf .devcontainer
-run lmux create . --layout git --nested
+pre demo-repo ../acme-gateway
+run lmux create ../acme-gateway --layout git --nested
 wait 6
 frame 1.6
 keys M-]
 wait 1.2
-frame 1.6
+frame 1.4
+# Zoomed, the workstation opens its three regions: the refs of the project,
+# its history, and the commit in front of you.
+keys M-z
+wait 1.5
+frame 2.4
 # Walking the history, with the commit in front of you following the cursor.
 keys Down
-wait 0.8
-frame 1.2
+wait 0.7
+frame 1.1
 keys Down
-wait 0.8
-frame 1.8
-# The refs of the project, and the history of the one that is chosen.
+wait 0.7
+frame 1.1
+keys Down
+wait 0.7
+frame 1.1
+keys Down
+wait 0.7
+frame 2.0
+# The refs of the project: the branches, the branches of the remote, the
+# worktrees, the stashes and the tags.
 keys BTab
 wait 1
 frame 1.6
 keys Down
-wait 0.8
-frame 1.6
+wait 0.7
+frame 1.1
+keys Down
+wait 0.7
+frame 1.8
 keys Tab
 wait 0.8
 frame 1.2
+# What is in front of you, staged and unstaged.
+keys w
+wait 1.2
+frame 2.4
 # Anything that cannot be undone shows what it runs before it runs it.
 keys H
 wait 1.5
-frame 2.6
+frame 2.8
 keys Escape
 wait 0.8
 frame 1.2
 # Every key of the region the cursor is in.
 keys ?
 wait 1.2
-frame 2.6
+frame 2.8
 keys q
 wait 0.8
-frame 1.6
+keys Down
+wait 0.9
+frame 2.2

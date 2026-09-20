@@ -1,0 +1,383 @@
+#!/usr/bin/env bash
+# Builds the repository the git scenes are recorded against.
+#
+# The history of a real project is the recorder's own work, which a picture
+# must not publish, and the history of a fresh directory is one straight line,
+# which shows none of what the workstation draws. This writes a repository that
+# has what the pictures need: branches that were merged and so cross lanes,
+# a branch still open, two tags, a remote to compare against, a stash, two
+# worktrees and a working tree with something in it.
+#
+# Usage: demo-repo DIR
+#
+# DIR is removed and written again, so a recording starts from the same
+# repository every time. Dates are counted back from now, so the history reads
+# as days old whenever it is recorded. Nothing reaches the network: the remote
+# is a bare repository beside it.
+set -euo pipefail
+
+fail() {
+  printf 'demo-repo: %s\n' "$*" >&2
+  exit 1
+}
+
+(($# == 1)) || fail "usage: demo-repo DIR"
+dir=$1
+case $dir in
+"" | / | /*/) fail "refusing to write $dir" ;;
+esac
+
+# An absolute path, so the worktrees and the remote are named the same way
+# wherever this is run from.
+parent=$(cd "$(dirname "$dir")" && pwd) || fail "$(dirname "$dir") is not a directory"
+name=$(basename "$dir")
+[[ $parent != / ]] || fail "refusing to write a directory of the root"
+dir=$parent/$name
+remote=$parent/.$name-origin.git
+
+# The builder removes what it is pointed at, so it only ever removes what it
+# wrote: a mark inside the repository it made, which nothing else has. A
+# directory that is there without it is left alone.
+mark=demo-repo-fixture
+mine() {
+  [[ ! -e $1 ]] || [[ -f $1/$2 ]]
+}
+mine "$dir" ".git/$mark" || fail "refusing to remove $dir: demo-repo did not write it"
+mine "$remote" "$mark" || fail "refusing to remove $remote: demo-repo did not write it"
+
+rm -rf "$dir" "$remote"
+mkdir -p "$dir"
+
+git init -q -b main "$dir"
+: >"$dir/.git/$mark"
+git -C "$dir" config user.name "Acme Dev"
+git -C "$dir" config user.email "dev@example.com"
+git -C "$dir" config commit.gpgsign false
+git -C "$dir" config gc.auto 0
+
+# Each commit is five hours further back than the one after it, so the history
+# reads in order and the column that says when stays short. Git takes a date as
+# seconds since the epoch, which every shell can count back from now.
+now=$(date +%s)
+step=0
+at() {
+  step=$((step + 1))
+  printf '@%s +0000' "$((now - step * 5 * 3600))"
+}
+commit() {
+  local when
+  when=$(at)
+  GIT_AUTHOR_DATE=$when GIT_COMMITTER_DATE=$when git -C "$dir" commit -q -m "$1"
+}
+merge() {
+  local when
+  when=$(at)
+  GIT_AUTHOR_DATE=$when GIT_COMMITTER_DATE=$when \
+    git -C "$dir" merge -q --no-ff -m "$1" "$2"
+}
+
+write() {
+  local path=$1
+  mkdir -p "$dir/$(dirname "$path")"
+  cat >"$dir/$path"
+  git -C "$dir" add -- "$path"
+}
+
+# ------------------------------------------------------------------- main
+
+write README.md <<'EOF'
+# acme-gateway
+
+The public API of acme: routing, rate limiting and the order endpoints.
+
+    go run ./cmd/api
+EOF
+write .gitignore <<'EOF'
+/bin/
+/.claude/
+EOF
+commit "docs: what the gateway is"
+
+write go.mod <<'EOF'
+module github.com/acme/gateway
+
+go 1.27
+EOF
+write cmd/api/main.go <<'EOF'
+package main
+
+import (
+	"log"
+	"net/http"
+
+	"github.com/acme/gateway/internal/gateway"
+)
+
+func main() {
+	if err := http.ListenAndServe(":8080", gateway.New()); err != nil {
+		log.Fatal(err)
+	}
+}
+EOF
+commit "chore: the module and the entry point"
+
+write internal/gateway/gateway.go <<'EOF'
+// Package gateway routes the public API onto the handlers that answer it.
+package gateway
+
+import "net/http"
+
+// New returns the router of the public API.
+func New() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", health)
+	return mux
+}
+
+func health(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("ok"))
+}
+EOF
+commit "gateway: routes and a health check"
+
+git -C "$dir" tag v0.1.0
+
+# ---------------------------------------------------- the orders branch
+
+git -C "$dir" switch -q -c feat/orders
+write internal/gateway/orders.go <<'EOF'
+package gateway
+
+import (
+	"encoding/json"
+	"net/http"
+)
+
+// Order is one line of a customer's basket.
+type Order struct {
+	ID    string `json:"id"`
+	Cents int64  `json:"cents"`
+}
+
+func orders(w http.ResponseWriter, _ *http.Request) {
+	_ = json.NewEncoder(w).Encode([]Order{})
+}
+EOF
+commit "orders: the endpoint and its shape"
+
+write internal/gateway/orders_total.go <<'EOF'
+package gateway
+
+// Total is what the basket costs, in cents.
+func Total(orders []Order) int64 {
+	var sum int64
+	for _, o := range orders {
+		sum += o.Cents
+	}
+	return sum
+}
+EOF
+commit "orders: the total of a basket"
+
+git -C "$dir" switch -q main
+write internal/gateway/gateway_test.go <<'EOF'
+package gateway
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
+
+func TestHealth(t *testing.T) {
+	rec := httptest.NewRecorder()
+	New().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("health answered %d, want %d", rec.Code, http.StatusOK)
+	}
+}
+EOF
+commit "gateway: a test for the health check"
+
+merge "merge: the order endpoints" feat/orders
+
+# ------------------------------------------------- the rate limit branch
+
+git -C "$dir" switch -q -c feat/ratelimit
+write internal/ratelimit/bucket.go <<'EOF'
+// Package ratelimit holds the token bucket the gateway admits requests with.
+package ratelimit
+
+import "time"
+
+// Bucket admits a request while it holds a token, and fills back up at rate
+// tokens a second.
+type Bucket struct {
+	tokens float64
+	rate   float64
+	size   float64
+	last   time.Time
+}
+
+// New returns a bucket of size tokens that fills at rate a second.
+func New(size, rate float64) *Bucket {
+	return &Bucket{tokens: size, rate: rate, size: size, last: time.Now()}
+}
+
+// Allow takes a token when there is one.
+func (b *Bucket) Allow() bool {
+	now := time.Now()
+	b.tokens = min(b.size, b.tokens+now.Sub(b.last).Seconds()*b.rate)
+	b.last = now
+	if b.tokens < 1 {
+		return false
+	}
+	b.tokens--
+	return true
+}
+EOF
+commit "ratelimit: a token bucket"
+
+write internal/ratelimit/bucket_test.go <<'EOF'
+package ratelimit
+
+import "testing"
+
+func TestBucket(t *testing.T) {
+	cases := []struct {
+		name  string
+		size  float64
+		takes int
+		want  bool
+	}{
+		{name: "the first token", size: 2, takes: 1, want: true},
+		{name: "the last token", size: 2, takes: 2, want: true},
+		{name: "one too many", size: 2, takes: 3, want: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			b := New(tc.size, 0)
+			got := false
+			for range tc.takes {
+				got = b.Allow()
+			}
+			if got != tc.want {
+				t.Fatalf("Allow() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+EOF
+commit "ratelimit: a table of what the bucket admits"
+
+git -C "$dir" switch -q main
+write internal/gateway/middleware.go <<'EOF'
+package gateway
+
+import "net/http"
+
+// withRequestID puts an identifier on every answer, so a log line and a
+// support ticket name the same request.
+func withRequestID(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Request-Id", r.Header.Get("X-Request-Id"))
+		next.ServeHTTP(w, r)
+	})
+}
+EOF
+commit "gateway: carry the request identifier through"
+
+merge "merge: admit requests at a rate" feat/ratelimit
+
+write CHANGELOG.md <<'EOF'
+# Changelog
+
+## [0.2.0]
+
+- The order endpoints.
+- A token bucket in front of the public API.
+EOF
+commit "docs: what 0.2.0 holds"
+
+git -C "$dir" tag -a v0.2.0 -m "0.2.0: orders and the rate limit"
+
+# --------------------------------------------- a branch still being written
+
+git -C "$dir" switch -q -c feat/search
+write internal/gateway/search.go <<'EOF'
+package gateway
+
+import "strings"
+
+// Match reports whether the haystack holds every word of the query.
+func Match(haystack, query string) bool {
+	for _, word := range strings.Fields(query) {
+		if !strings.Contains(haystack, word) {
+			return false
+		}
+	}
+	return true
+}
+EOF
+commit "search: match every word of a query"
+
+write internal/gateway/search_test.go <<'EOF'
+package gateway
+
+import "testing"
+
+func TestMatch(t *testing.T) {
+	if !Match("the order total", "order total") {
+		t.Fatal("Match() = false, want true")
+	}
+}
+EOF
+commit "search: a test for the match"
+
+git -C "$dir" switch -q main
+
+# ------------------------------------------------------------- the remote
+
+git init -q --bare -b main "$remote"
+: >"$remote/$mark"
+git -C "$dir" remote add origin "$remote"
+git -C "$dir" push -q --set-upstream origin main
+git -C "$dir" push -q origin feat/orders feat/ratelimit
+
+# A branch that is ahead of what the remote holds, so the refs pane has
+# something to say about it.
+write internal/gateway/version.go <<'EOF'
+package gateway
+
+// Version is the release this build answers as.
+const Version = "0.3.0-dev"
+EOF
+commit "gateway: name the build"
+
+# -------------------------------------------------------------- the stash
+
+printf '\n// TODO: the per-customer rate.\n' >>"$dir/internal/ratelimit/bucket.go"
+git -C "$dir" stash push -q -m "wip: a rate for each customer"
+
+# ----------------------------------------------------------- the worktrees
+
+git -C "$dir" worktree add -q "$dir/.claude/worktrees/search" feat/search
+git -C "$dir" worktree add -q -b feat/audit "$dir/.claude/worktrees/audit" main
+
+# ------------------------------------------------ what is in front of you
+
+printf '\nRequests are admitted by a token bucket, 20 a second.\n' >>"$dir/README.md"
+git -C "$dir" add -- README.md
+printf '\n## [0.3.0]\n\n- Search across the order notes.\n' >>"$dir/CHANGELOG.md"
+cat >"$dir/internal/gateway/notes.go" <<'EOF'
+package gateway
+
+// Note is what a customer wrote on an order.
+type Note struct {
+	OrderID string
+	Text    string
+}
+EOF
+
+printf 'demo-repo: wrote %s\n' "$dir"
