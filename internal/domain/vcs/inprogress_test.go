@@ -286,7 +286,7 @@ func TestInProgressPathsAreBounded(t *testing.T) {
 			t.Fatalf("InProgressPaths names %s twice", p)
 		}
 		seen[p] = true
-		if err := checkPath(p); err != nil {
+		if err := ValidatePath(p); err != nil {
 			t.Fatalf("InProgressPaths names %s: %v", p, err)
 		}
 	}

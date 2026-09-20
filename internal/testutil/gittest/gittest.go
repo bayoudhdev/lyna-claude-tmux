@@ -97,6 +97,17 @@ func (r *Repo) Git(args ...string) string {
 	return string(out)
 }
 
+// Try runs one git command that is allowed to fail, which is how a test puts
+// a repository in the middle of a conflict: the output and the error are
+// returned instead of failing the test.
+func (r *Repo) Try(args ...string) (string, error) {
+	r.t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", r.Dir}, args...)...)
+	cmd.Env = r.Env
+	out, err := cmd.CombinedOutput()
+	return string(out), err
+}
+
 // Write puts content at a path of the repository, making the directories it
 // needs.
 func (r *Repo) Write(name, content string) {

@@ -224,3 +224,35 @@ func FuzzParseNumstat(f *testing.F) {
 		}
 	})
 }
+
+// TestValidatePath holds the rule every path read from git or handed to a
+// command is checked against.
+func TestValidatePath(t *testing.T) {
+	cases := []struct {
+		name string
+		path string
+		want bool
+	}{
+		{name: "a file at the top", path: "a.txt", want: true},
+		{name: "a file in a directory", path: "internal/git/git.go", want: true},
+		{name: "a name that starts with a dot", path: ".github/workflows/ci.yml", want: true},
+		{name: "a name holding a dot dot", path: "a..b/c", want: true},
+		{name: "nothing at all", path: ""},
+		{name: "an absolute path", path: "/etc/passwd"},
+		{name: "a path leaving the repository", path: "../secrets"},
+		{name: "a path leaving it halfway", path: "a/../../secrets"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := ValidatePath(tc.path)
+			switch {
+			case tc.want && err != nil:
+				t.Fatalf("ValidatePath(%q) = %v, want the path accepted", tc.path, err)
+			case !tc.want && err == nil:
+				t.Fatalf("ValidatePath(%q) accepted it", tc.path)
+			case !tc.want && !errors.Is(err, ErrMalformed):
+				t.Fatalf("ValidatePath(%q) error = %v, want %v", tc.path, err, ErrMalformed)
+			}
+		})
+	}
+}

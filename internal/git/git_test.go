@@ -340,3 +340,83 @@ func TestCappedWriter(t *testing.T) {
 		})
 	}
 }
+
+// TestRunnerLogArgv holds the command a history reading builds, and proves a
+// revision or a path that could be read as an option never reaches git: the
+// reading is refused before a process is started.
+func TestRunnerLogArgv(t *testing.T) {
+	const format = "--format=" + vcs.LogFormat
+	cases := []struct {
+		name    string
+		opt     LogOptions
+		want    []string
+		wantErr bool
+	}{
+		{
+			name: "every ref of the repository",
+			want: []string{"log", "--decorate=full", "-z", format, "--topo-order", "--max-count=4096", "--all", "--"},
+		},
+		{
+			name: "a page of it",
+			opt:  LogOptions{Max: 20, Skip: 40},
+			want: []string{"log", "--decorate=full", "-z", format, "--topo-order", "--max-count=20", "--skip=40", "--all", "--"},
+		},
+		{
+			name: "more than the domain reads",
+			opt:  LogOptions{Max: vcs.MaxCommits + 1},
+			want: []string{"log", "--decorate=full", "-z", format, "--topo-order", "--max-count=4096", "--all", "--"},
+		},
+		{
+			name: "branches and paths, each on its own side of the separator",
+			opt:  LogOptions{Max: 5, Revs: []string{"main", "side"}, Paths: []string{"internal/git", "a.txt"}, FirstParent: true},
+			want: []string{
+				"log", "--decorate=full", "-z", format, "--topo-order", "--max-count=5",
+				"--first-parent", "main", "side", "--", "internal/git", "a.txt",
+			},
+		},
+		{name: "a revision git would read as an option", opt: LogOptions{Revs: []string{"--output=/tmp/x"}}, wantErr: true},
+		{name: "a revision that is empty", opt: LogOptions{Revs: []string{""}}, wantErr: true},
+		{name: "a path leaving the repository", opt: LogOptions{Paths: []string{"../etc/passwd"}}, wantErr: true},
+		{name: "an absolute path", opt: LogOptions{Paths: []string{"/etc/passwd"}}, wantErr: true},
+		{name: "a page counting backwards", opt: LogOptions{Skip: -1}, wantErr: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeGit{outputs: map[string]Result{"log": {}}}
+			got, err := Runner{Executor: f}.Log(context.Background(), "/repo", tc.opt)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("Log() = %+v, want the reading refused", got)
+				}
+				if len(f.calls) != 0 {
+					t.Fatalf("Log() ran %v, want nothing run at all", f.calls)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Log() error = %v", err)
+			}
+			if len(f.calls) != 1 {
+				t.Fatalf("Log() ran %d commands, want one", len(f.calls))
+			}
+			if args := f.calls[0][5:]; !slices.Equal(args, tc.want) {
+				t.Fatalf("Log() ran %v, want %v", args, tc.want)
+			}
+		})
+	}
+}
+
+func TestRunnerStashesArgv(t *testing.T) {
+	f := &fakeGit{outputs: map[string]Result{"stash": {}}}
+	got, err := Runner{Executor: f}.Stashes(context.Background(), "/repo")
+	if err != nil {
+		t.Fatalf("Stashes() error = %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("Stashes() = %+v, want none from an empty list", got)
+	}
+	want := []string{"stash", "list", "-z", "--format=" + vcs.StashFormat}
+	if args := f.calls[0][5:]; !slices.Equal(args, want) {
+		t.Fatalf("Stashes() ran %v, want %v", args, want)
+	}
+}

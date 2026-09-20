@@ -272,3 +272,400 @@ func TestIntegrationBranches(t *testing.T) {
 		t.Fatalf("branch %+v has no date", alone)
 	}
 }
+
+// history builds a repository whose shape the history reads are checked
+// against: a first commit, a branch that diverged, a merge of the two, a tag
+// on the merge and a commit on top of it.
+func history(t *testing.T) *repo {
+	t.Helper()
+	r := newRepo(t)
+	r.Commit("first commit subject", "a.txt", "a\n")
+	r.Git("checkout", "-q", "-b", "side")
+	r.Commit("a change of the branch", "side.txt", "s\n")
+	r.Git("checkout", "-q", "main")
+	r.Commit("a change of the project", "main.txt", "m\n")
+	r.Git("merge", "-q", "--no-ff", "-m", "a merge commit", "side")
+	r.Git("tag", "-a", "v0.1.0", "-m", "the first tag")
+	r.Commit("the last commit", "a.txt", "b\n")
+	return r
+}
+
+func TestIntegrationLog(t *testing.T) {
+	r := history(t)
+	got, err := r.Runner.Log(t.Context(), r.Dir, LogOptions{})
+	if err != nil {
+		t.Fatalf("Log() error = %v", err)
+	}
+	if len(got) != 5 {
+		t.Fatalf("Log() read %d commits, want the whole history: %+v", len(got), got)
+	}
+	subjects := make([]string, len(got))
+	at := map[string]vcs.Commit{}
+	for i, c := range got {
+		subjects[i] = c.Subject
+		at[c.Subject] = c
+		if !isHexOID(c.OID) || c.Author == "" || c.Authored.IsZero() || c.Committed.IsZero() {
+			t.Fatalf("commit %+v is missing what every commit carries", c)
+		}
+	}
+	if subjects[0] != "the last commit" || subjects[len(subjects)-1] != "first commit subject" {
+		t.Fatalf("Log() read %v, want the newest commit first and the oldest last", subjects)
+	}
+	merge := at["a merge commit"]
+	if !merge.Merge() || len(merge.Parents) != 2 {
+		t.Fatalf("the merge reads as %+v", merge)
+	}
+	// A commit is never read before a commit that follows it.
+	seen := map[string]bool{}
+	for _, c := range got {
+		for _, p := range c.Parents {
+			if seen[p] {
+				t.Fatalf("Log() read the parent %s before its child %s", p[:7], c.Short())
+			}
+		}
+		seen[c.OID] = true
+	}
+	var tags, branches int
+	for _, c := range got {
+		for _, ref := range c.Refs {
+			switch ref.Kind {
+			case vcs.RefTag:
+				tags++
+				if ref.Name != "v0.1.0" {
+					t.Fatalf("the tag reads as %+v", ref)
+				}
+			case vcs.RefBranch:
+				branches++
+			case vcs.RefRemote, vcs.RefOther:
+			}
+		}
+	}
+	if tags != 1 || branches != 2 {
+		t.Fatalf("Log() read %d tags and %d branches, want the tag and both branches", tags, branches)
+	}
+	head := at["the last commit"]
+	if len(head.Refs) != 1 || head.Refs[0].Name != "main" || !head.Refs[0].Head {
+		t.Fatalf("the last commit carries %+v, want the branch HEAD is on", head.Refs)
+	}
+}
+
+func TestIntegrationLogOptions(t *testing.T) {
+	cases := []struct {
+		name string
+		opt  LogOptions
+		want []string
+	}{
+		{
+			name: "a page of the history",
+			opt:  LogOptions{Max: 2},
+			want: []string{"the last commit", "a merge commit"},
+		},
+		{
+			name: "the page after it",
+			opt:  LogOptions{Max: 2, Skip: 2},
+			// Topological order walks the branch merged in before the commit
+			// it was merged into.
+			want: []string{"a change of the branch", "a change of the project"},
+		},
+		{
+			name: "one branch alone",
+			opt:  LogOptions{Revs: []string{"side"}},
+			want: []string{"a change of the branch", "first commit subject"},
+		},
+		{
+			name: "what a branch holds that another does not",
+			opt:  LogOptions{Revs: []string{"side", "^main~2"}},
+			want: []string{"a change of the branch"},
+		},
+		{
+			name: "the commits that touched a file",
+			opt:  LogOptions{Paths: []string{"side.txt"}},
+			want: []string{"a change of the branch"},
+		},
+		{
+			name: "the first parent of every merge",
+			opt:  LogOptions{FirstParent: true, Revs: []string{"main"}},
+			want: []string{"the last commit", "a merge commit", "a change of the project", "first commit subject"},
+		},
+		{
+			name: "a tag names a commit",
+			opt:  LogOptions{Max: 1, Revs: []string{"v0.1.0"}},
+			want: []string{"a merge commit"},
+		},
+	}
+	r := history(t)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := r.Runner.Log(t.Context(), r.Dir, tc.opt)
+			if err != nil {
+				t.Fatalf("Log() error = %v", err)
+			}
+			subjects := make([]string, len(got))
+			for i, c := range got {
+				subjects[i] = c.Subject
+			}
+			if !slices.Equal(subjects, tc.want) {
+				t.Fatalf("Log() read %v, want %v", subjects, tc.want)
+			}
+		})
+	}
+}
+
+func TestIntegrationLogRefusals(t *testing.T) {
+	cases := []struct {
+		name string
+		opt  LogOptions
+	}{
+		{name: "a revision git would read as an option", opt: LogOptions{Revs: []string{"--exec=id"}}},
+		{name: "a revision that is empty", opt: LogOptions{Revs: []string{""}}},
+		{name: "a path leaving the repository", opt: LogOptions{Paths: []string{"../secrets"}}},
+		{name: "an absolute path", opt: LogOptions{Paths: []string{"/etc/passwd"}}},
+		{name: "a page that counts backwards", opt: LogOptions{Skip: -1}},
+	}
+	r := history(t)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := r.Runner.Log(t.Context(), r.Dir, tc.opt)
+			if err == nil {
+				t.Fatalf("Log() = %+v, want the reading refused", got)
+			}
+		})
+	}
+}
+
+func TestIntegrationStashes(t *testing.T) {
+	r := newRepo(t)
+	r.Commit("first commit subject", "a.txt", "a\n")
+	r.Write("a.txt", "b\n")
+	r.Git("stash", "push", "-q", "-m", "a message of my own")
+	r.Write("a.txt", "c\n")
+	r.Git("stash", "push", "-q")
+	r.Write("untracked.txt", "u\n")
+	r.Write("a.txt", "d\n")
+	r.Git("stash", "push", "-q", "-u", "-m", "with an untracked file")
+
+	got, err := r.Runner.Stashes(t.Context(), r.Dir)
+	if err != nil {
+		t.Fatalf("Stashes() error = %v", err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("Stashes() read %+v, want three entries", got)
+	}
+	if s := got[0]; s.Ref != "stash@{0}" || s.Message != "with an untracked file" || !s.Untracked || s.Branch != "main" {
+		t.Fatalf("the entry pushed last reads as %+v", s)
+	}
+	if s := got[1]; !s.WIP || s.Untracked || !strings.HasSuffix(s.Message, "first commit subject") {
+		t.Fatalf("the entry pushed with no message reads as %+v", s)
+	}
+	if s := got[2]; s.Message != "a message of my own" || s.WIP {
+		t.Fatalf("the entry pushed with a message reads as %+v", s)
+	}
+	for i, s := range got {
+		if s.Index != i || !isHexOID(s.OID) || !isHexOID(s.Base) || s.Created.IsZero() {
+			t.Fatalf("entry %d reads as %+v", i, s)
+		}
+	}
+
+	r.Git("stash", "clear")
+	empty, err := r.Runner.Stashes(t.Context(), r.Dir)
+	if err != nil {
+		t.Fatalf("Stashes() error = %v", err)
+	}
+	if len(empty) != 0 {
+		t.Fatalf("Stashes() read %+v after the list was cleared", empty)
+	}
+}
+
+// TestIntegrationInProgress puts a repository in the middle of each operation
+// and reads it back. The states are the ones a user runs into: a merge, a
+// cherry pick and a revert stopped on a conflict, a rebase stopped halfway,
+// and a bisection.
+func TestIntegrationInProgress(t *testing.T) {
+	cases := []struct {
+		name  string
+		setup func(t *testing.T, r *repo)
+		want  vcs.InProgress
+		heads int
+	}{
+		{
+			name:  "a repository in the middle of nothing",
+			setup: func(*testing.T, *repo) {},
+			want:  vcs.InProgress{},
+		},
+		{
+			name: "a merge stopped on a conflict",
+			setup: func(t *testing.T, r *repo) {
+				mustConflict(t, r, "merge", "side")
+			},
+			want:  vcs.InProgress{Kind: vcs.OperationMerge},
+			heads: 1,
+		},
+		{
+			name: "a cherry pick stopped on a conflict",
+			setup: func(t *testing.T, r *repo) {
+				mustConflict(t, r, "cherry-pick", "side")
+			},
+			want:  vcs.InProgress{Kind: vcs.OperationCherryPick},
+			heads: 1,
+		},
+		{
+			name: "a revert stopped on a conflict",
+			setup: func(t *testing.T, r *repo) {
+				r.Git("checkout", "-q", "side")
+				r.Commit("a change on top", "a.txt", "on top\n")
+				mustConflict(t, r, "revert", "--no-edit", "HEAD~1")
+			},
+			want:  vcs.InProgress{Kind: vcs.OperationRevert},
+			heads: 1,
+		},
+		{
+			name: "a rebase stopped on a conflict",
+			setup: func(t *testing.T, r *repo) {
+				r.Git("checkout", "-q", "side")
+				r.Commit("a second change of the branch", "side.txt", "again\n")
+				mustConflict(t, r, "rebase", "main")
+			},
+			want:  vcs.InProgress{Kind: vcs.OperationRebase, Branch: "side", Step: 1, Total: 2},
+			heads: 1,
+		},
+		{
+			name: "a bisection",
+			setup: func(t *testing.T, r *repo) {
+				if out, err := r.Try("bisect", "start", "main", "main~1"); err != nil {
+					t.Fatalf("git bisect start: %v\n%s", err, out)
+				}
+			},
+			want: vcs.InProgress{Kind: vcs.OperationBisect, Branch: "main", Bisecting: true},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := conflicting(t)
+			tc.setup(t, r)
+			got, err := r.Runner.InProgress(t.Context(), r.Dir)
+			if err != nil {
+				t.Fatalf("InProgress() error = %v", err)
+			}
+			if got.Kind != tc.want.Kind || got.Branch != tc.want.Branch ||
+				got.Step != tc.want.Step || got.Total != tc.want.Total || got.Bisecting != tc.want.Bisecting {
+				t.Fatalf("InProgress() = %+v, want %+v", got, tc.want)
+			}
+			if len(got.Heads) != tc.heads {
+				t.Fatalf("InProgress() = %+v, want %d commits named", got, tc.heads)
+			}
+			for _, h := range got.Heads {
+				if !isHexOID(h) {
+					t.Fatalf("InProgress() names %q, which is no commit", h)
+				}
+			}
+			if got.Kind == vcs.OperationRebase && !isHexOID(got.Onto) {
+				t.Fatalf("the rebase reads as %+v, want the commit it replays onto", got)
+			}
+			if got.Running() != (tc.want.Kind != vcs.OperationNone) {
+				t.Fatalf("Running() = %v for %+v", got.Running(), got)
+			}
+		})
+	}
+}
+
+// conflicting is a repository whose branch and project changed the same file,
+// so merging, picking or replaying one on the other stops.
+func conflicting(t *testing.T) *repo {
+	t.Helper()
+	r := newRepo(t)
+	r.Commit("first commit subject", "a.txt", "one\n")
+	r.Git("checkout", "-q", "-b", "side")
+	r.Commit("a change of the branch", "a.txt", "branch\n")
+	r.Git("checkout", "-q", "main")
+	r.Commit("a change of the project", "a.txt", "project\n")
+	return r
+}
+
+// mustConflict runs a command that has to stop on a conflict, which is what
+// leaves the repository in the middle of the operation.
+func mustConflict(t *testing.T, r *repo, args ...string) {
+	t.Helper()
+	out, err := r.Try(args...)
+	if err == nil {
+		t.Fatalf("git %v went through, want it stopped on a conflict\n%s", args, out)
+	}
+}
+
+func TestIntegrationReadInProgressRefusals(t *testing.T) {
+	r := newRepo(t)
+	r.Commit("first", "a.txt", "a\n")
+	gitDir := filepath.Join(r.Dir, ".git")
+
+	t.Run("a state file that is a link", func(t *testing.T) {
+		// The link points at a file a merge would have written, so the reading
+		// is refused for what it is and not for what it says.
+		target := filepath.Join(filepath.Dir(r.Dir), "elsewhere")
+		if err := os.WriteFile(target, []byte(strings.Repeat("a", 40)+"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		link := filepath.Join(gitDir, "MERGE_HEAD")
+		if err := os.Symlink(target, link); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { os.Remove(link) })
+		got, err := ReadInProgress(gitDir)
+		if err == nil {
+			t.Fatalf("ReadInProgress() = %+v, want the link refused", got)
+		}
+		if !strings.Contains(err.Error(), "not a plain file") {
+			t.Fatalf("ReadInProgress() error = %v, want it to name the link", err)
+		}
+	})
+	t.Run("a state file too large to be one", func(t *testing.T) {
+		path := filepath.Join(gitDir, "MERGE_HEAD")
+		// The first line is an object name, so the file is refused for its
+		// size and not for what it holds.
+		big := append([]byte(strings.Repeat("a", 40)+"\n"), make([]byte, maxStateFile)...)
+		if err := os.WriteFile(path, big, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { os.Remove(path) })
+		_, err := ReadInProgress(gitDir)
+		if !errors.Is(err, ErrOutputTooLarge) {
+			t.Fatalf("ReadInProgress() error = %v, want %v", err, ErrOutputTooLarge)
+		}
+	})
+	t.Run("a directory of a rebase that is a file", func(t *testing.T) {
+		path := filepath.Join(gitDir, "rebase-merge")
+		if err := os.WriteFile(path, []byte("not a directory\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { os.Remove(path) })
+		got, err := ReadInProgress(gitDir)
+		if err != nil {
+			t.Fatalf("ReadInProgress() error = %v", err)
+		}
+		if got.Running() {
+			t.Fatalf("ReadInProgress() = %+v, want nothing running", got)
+		}
+	})
+	t.Run("a git directory that does not exist", func(t *testing.T) {
+		got, err := ReadInProgress(filepath.Join(r.Dir, "nowhere"))
+		if err != nil {
+			t.Fatalf("ReadInProgress() error = %v", err)
+		}
+		if got.Running() {
+			t.Fatalf("ReadInProgress() = %+v, want nothing running", got)
+		}
+	})
+}
+
+// isHexOID reports a full object name, which every reading of a repository
+// carries.
+func isHexOID(s string) bool {
+	if len(s) != 40 && len(s) != 64 {
+		return false
+	}
+	for i := range len(s) {
+		c := s[i]
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
+}

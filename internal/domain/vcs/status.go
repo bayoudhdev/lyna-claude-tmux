@@ -159,12 +159,12 @@ func (st *Status) addEntry(rec string, kind Kind, n int, orig string) error {
 		default:
 			return fmt.Errorf("%w: rename score %q", ErrMalformed, f[8])
 		}
-		if err := checkPath(orig); err != nil {
+		if err := ValidatePath(orig); err != nil {
 			return err
 		}
 	}
 	path := f[n-1]
-	if err := checkPath(path); err != nil {
+	if err := ValidatePath(path); err != nil {
 		return err
 	}
 	st.Entries = append(st.Entries, Entry{Kind: kind, Index: xy[0], Worktree: xy[1], Path: path, OrigPath: orig})
@@ -176,7 +176,7 @@ func (st *Status) addUntracked(rec string) error {
 		return fmt.Errorf("%w: status record %q", ErrMalformed, rec)
 	}
 	path := rec[2:]
-	if err := checkPath(path); err != nil {
+	if err := ValidatePath(path); err != nil {
 		return err
 	}
 	kind, code := KindUntracked, byte('?')
@@ -206,11 +206,11 @@ func isHex(s string) bool {
 	return true
 }
 
-// checkPath accepts repository-relative paths only. git never reports
+// ValidatePath accepts repository-relative paths only. git never reports
 // absolute paths or ".." components; seeing one means the output is not what
-// it claims to be, and later consumers (review, open in editor) must never be
-// pointed outside the repository.
-func checkPath(p string) error {
+// it claims to be, and neither a reader (review, open in editor) nor a
+// command built from here may be pointed outside the repository.
+func ValidatePath(p string) error {
 	if p == "" || p[0] == '/' {
 		return fmt.Errorf("%w: path %q", ErrMalformed, p)
 	}
@@ -275,11 +275,11 @@ func ParseNumstat(data []byte) ([]NumStat, error) {
 			}
 			ns.OrigPath, ns.Path = fields[i+1], fields[i+2]
 			i += 2
-			if err := checkPath(ns.OrigPath); err != nil {
+			if err := ValidatePath(ns.OrigPath); err != nil {
 				return nil, err
 			}
 		}
-		if err := checkPath(ns.Path); err != nil {
+		if err := ValidatePath(ns.Path); err != nil {
 			return nil, err
 		}
 		out = append(out, ns)
