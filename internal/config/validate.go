@@ -15,6 +15,7 @@ import (
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/layout"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/review"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/session"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/theme"
 )
 
 var choices = map[string][]string{
@@ -22,11 +23,12 @@ var choices = map[string][]string{
 	// the theme listing document them: the default first, then the dark
 	// sets, the light sets, and the one that borrows the terminal's colors.
 	"ui.theme": {
-		"lyna", "slate", "dusk", "contrast", "nord", "rose", "mono", "solar-dark", "earth-dark",
-		"light", "solar-light", "earth-light", "ansi",
+		"monokai", "lyna", "slate", "dusk", "contrast", "nord", "rose", "mono", "solar-dark",
+		"earth-dark", "light", "solar-light", "earth-light", "ansi",
 	},
 	"ui.icons":               {"auto", "unicode", "nerd", "ascii"},
 	"ui.color":               {"auto", "truecolor", "256", "16"},
+	"ui.status_style":        {theme.StatusAuto, theme.StatusPowerline, theme.StatusPlain},
 	"ui.status_position":     {"top", "bottom"},
 	"ui.agents_sidebar":      {SidebarAuto, SidebarAlways, SidebarKey, SidebarOff},
 	"workspace.layout":       layout.Names(),
@@ -108,6 +110,7 @@ func (c Config) Validate() error {
 	v.choice("ui.theme", c.UI.Theme)
 	v.choice("ui.icons", c.UI.Icons)
 	v.choice("ui.color", c.UI.Color)
+	v.choice("ui.status_style", c.UI.StatusStyle)
 	v.choice("ui.status_position", c.UI.StatusPosition)
 	v.choice("ui.agents_sidebar", c.UI.AgentsSidebar)
 	if w := c.UI.SidebarWidth; w < layout.MinRailWidth || w > layout.MaxRailWidth {

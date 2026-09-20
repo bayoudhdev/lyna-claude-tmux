@@ -134,12 +134,17 @@ func confOptions(cfg config.Config, v tmux.Version, h Host, paths xdg.Paths) (tm
 	if err != nil {
 		return tmux.ConfOptions{}, err
 	}
+	seps, err := theme.GetSeps(theme.ResolveStatusStyle(cfg.UI.StatusStyle, icons))
+	if err != nil {
+		return tmux.ConfOptions{}, err
+	}
 	return tmux.ConfOptions{
 		Version: v,
 		Look: tmux.Look{
 			Palette: palette,
 			Depth:   depth,
 			Icons:   icons,
+			Seps:    seps,
 			Clock:   cfg.UI.Clock,
 			Buttons: cfg.UI.Mouse && v.Has(tmux.FeatureUserRanges),
 		},

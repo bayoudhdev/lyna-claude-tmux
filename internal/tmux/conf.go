@@ -154,7 +154,7 @@ func GenerateConf(o ConfOptions) string {
 	w.set("-g", "status-position", position)
 	w.set("-g", "status-justify", "left")
 	w.set("-g", "status-style", "bg="+l.c(p.Bg)+",fg="+l.c(p.Text))
-	w.set("-g", "status-left-length", strconv.Itoa(session.MaxNameLen+StatusLeftFixed))
+	w.set("-g", "status-left-length", strconv.Itoa(session.MaxNameLen+l.StatusLeftFixed()))
 	w.set("-g", "status-right-length", "160")
 	w.set("-g", "status-left", l.StatusLeft())
 	w.set("-g", "status-right", l.StatusRight())

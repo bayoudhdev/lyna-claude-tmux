@@ -208,8 +208,29 @@ wanted() {
 if ((dry_run == 0)); then
   rm -rf "$record_config"
   mkdir -p "$record_config"
-  trap 'rm -rf "$record_config" "$record_bin"' EXIT
+  # Nothing of the pass outlives it: the workspaces the last scene left are
+  # ended on the recorder's own server while the binary and the
+  # configuration they were opened with are still in place.
+  trap 'lmux kill --all >/dev/null 2>&1 || true; rm -rf "$record_config" "$record_bin"' EXIT
   lmux config init >/dev/null || fail "could not write the recording configuration"
+  # The frames are drawn with a patched font, so the scenes run with the icon
+  # set that font is for. The status bar then takes its pointed separators
+  # from the same rule a terminal with such a font follows, which is what a
+  # reader of the pictures gets by installing the font and nothing else.
+  config_file=$(lmux config path) || fail "could not find the recording configuration"
+  grep -q '^icons = "auto"$' "$config_file" ||
+    fail "the configuration template no longer sets the icon set"
+  edited=$config_file.icons
+  if ! {
+    sed 's/^icons = "auto"$/icons = "nerd"/' "$config_file" >"$edited" &&
+      mv "$edited" "$config_file"
+  }; then
+    fail "could not set the icon set of the recording configuration"
+  fi
+  # A scene that opens a review needs the plugin a review runs, and a machine
+  # without it would be recorded showing the warning instead of the editor.
+  lmux review status >/dev/null 2>&1 ||
+    fail "the review plugin is not ready; run: lmux review install"
 fi
 
 recorded=0

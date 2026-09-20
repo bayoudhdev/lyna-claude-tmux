@@ -60,6 +60,8 @@ func DoctorRun(ctx context.Context, h Host, sys doctor.Deps, dir string, src Rev
 	sys.ClaudeHome = xdg.ClaudeHome(h.Getenv, h.Home)
 	sys.ClaudeMinVersion = claude.MinVersion.String()
 	sys.AltKeys = cfg.UI.AltKeys
+	sys.Icons = cfg.UI.Icons
+	sys.StatusStyle = cfg.UI.StatusStyle
 	sys.NoAgentsRail = !cfg.UI.RailKey()
 	sys.Prefix = cfg.Workspace.Prefix
 	sys.SandboxProfile = cfg.Sandbox.Profile

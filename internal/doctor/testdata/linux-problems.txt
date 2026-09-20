@@ -25,6 +25,7 @@ fail  User namespaces     AppArmor restricts unprivileged user namespaces, so bu
                                 sudo systemctl reload apparmor
 warn  Truecolor           the terminal does not advertise 24-bit color, so lyna-tmux quantizes the theme to 256 colors
                           fix:  export COLORTERM=truecolor (only when the terminal renders 24-bit color), or set ui.color = "256" in config.toml
+ok    Status bar          plain: every segment ends where its background does, which any font draws
 warn  Clipboard           no clipboard tool found (xclip, xsel, wl-copy), so copy mode cannot write the system clipboard
                           fix:  sudo apt-get install xclip
 ok    Option as Meta      Alt sends Meta by default on this platform
@@ -37,4 +38,4 @@ warn  Docker              the Docker daemon is not reachable: permission denied 
 warn  Neovim              Neovim 0.7.2 at /usr/bin/nvim is older than 0.9; the review popup needs 0.9 or newer
                           fix:  sudo apt-get install neovim
 
-2 ok, 7 warn, 5 fail, 2 skipped
+3 ok, 7 warn, 5 fail, 2 skipped

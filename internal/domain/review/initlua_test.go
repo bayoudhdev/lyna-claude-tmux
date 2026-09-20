@@ -29,7 +29,10 @@ func TestRenderInitGolden(t *testing.T) {
 		{
 			name:   "lyna colors unicode truecolor",
 			golden: "init/lyna-unicode-truecolor.lua",
-			opts:   InitOptions{PluginDir: goldenPluginDir, Colors: ColorsFromPalette(palette(t, "lyna")), Icons: IconsUnicode, TrueColor: true},
+			opts: InitOptions{
+				PluginDir: goldenPluginDir, Colors: ColorsFromPalette(palette(t, "lyna")),
+				Scheme: SchemeFromPalette(palette(t, "lyna")), Icons: IconsUnicode, TrueColor: true,
+			},
 		},
 		{
 			name:   "default colors ascii 256",
@@ -39,7 +42,10 @@ func TestRenderInitGolden(t *testing.T) {
 		{
 			name:   "light nerd inline",
 			golden: "init/light-nerd-inline.lua",
-			opts:   InitOptions{PluginDir: goldenPluginDir, Colors: ColorsFromPalette(palette(t, "light")), Icons: IconsNerd, TrueColor: true, Light: true, Layout: LayoutInline},
+			opts: InitOptions{
+				PluginDir: goldenPluginDir, Colors: ColorsFromPalette(palette(t, "light")),
+				Scheme: SchemeFromPalette(palette(t, "light")), Icons: IconsNerd, TrueColor: true, Light: true, Layout: LayoutInline,
+			},
 		},
 		{
 			name:   "ansi side by side with quoted directory",
@@ -75,6 +81,8 @@ func TestRenderInitErrors(t *testing.T) {
 		{name: "glob in plugin dir", opts: InitOptions{PluginDir: "/d/a*/codediff.nvim"}, wantErr: `contains '*'`},
 		{name: "newline in plugin dir", opts: InitOptions{PluginDir: "/d/a\n/codediff.nvim"}, wantErr: `contains '\n'`},
 		{name: "bad color", opts: InitOptions{PluginDir: "/p", Colors: Colors{CharDelete: "red"}}, wantErr: `char_delete = "red"`},
+		{name: "bad highlight color", opts: InitOptions{PluginDir: "/p", Scheme: Scheme{Groups: []Group{{Name: "Normal", Fg: "green"}}}}, wantErr: `Normal = "green"`},
+		{name: "bad highlight group", opts: InitOptions{PluginDir: "/p", Scheme: Scheme{Groups: []Group{{Name: "Normal Float", Fg: "#ffffff"}}}}, wantErr: "is not a name Neovim accepts"},
 		{name: "bad icons", opts: InitOptions{PluginDir: "/p", Icons: "emoji"}, wantErr: "unknown icon set"},
 		{name: "bad layout", opts: InitOptions{PluginDir: "/p", Layout: "stacked"}, wantErr: "unknown layout"},
 	}

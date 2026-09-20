@@ -49,6 +49,7 @@ type setupValues struct {
 	// Fields are exported so the review step's dynamic description sees
 	// every change (huh hashes exported fields of its bindings).
 	Theme, Icons, Color   string
+	StatusStyle           string
 	Layout                string
 	AltKeys, Mouse        bool
 	Model, Effort, Status string
@@ -76,7 +77,7 @@ func NewSetup(opts SetupOptions) *SetupModel {
 		width:  w,
 		height: h,
 		values: &setupValues{
-			Theme: c.UI.Theme, Icons: c.UI.Icons, Color: c.UI.Color,
+			Theme: c.UI.Theme, Icons: c.UI.Icons, Color: c.UI.Color, StatusStyle: c.UI.StatusStyle,
 			Layout: c.Workspace.Layout, AltKeys: c.UI.AltKeys, Mouse: c.UI.Mouse,
 			Model: c.Claude.Model, Effort: c.Claude.Effort, Status: c.Claude.Statusline,
 			Profile: c.Sandbox.Profile, Isolation: c.Sandbox.Isolation,
@@ -96,6 +97,7 @@ func (m *SetupModel) candidate() config.Config {
 	c := m.opts.Config
 	v := m.values
 	c.UI.Theme, c.UI.Icons, c.UI.Color = v.Theme, v.Icons, v.Color
+	c.UI.StatusStyle = v.StatusStyle
 	c.Workspace.Layout, c.UI.AltKeys, c.UI.Mouse = v.Layout, v.AltKeys, v.Mouse
 	c.Claude.Model, c.Claude.Effort, c.Claude.Statusline = strings.TrimSpace(v.Model), v.Effort, v.Status
 	c.Sandbox.Profile, c.Sandbox.Isolation = v.Profile, v.Isolation
@@ -147,6 +149,7 @@ func (m *SetupModel) buildForm() *huh.Form {
 	return huh.NewForm(
 		huh.NewGroup(
 			huh.NewSelect[string]().Title("Theme").Options(
+				huh.NewOption("monokai the colors a workspace opens with", "monokai"),
 				huh.NewOption("lyna    dark with a green accent", "lyna"),
 				huh.NewOption("light   for light terminal backgrounds", "light"),
 				huh.NewOption("ansi    your terminal's own 16 colors", "ansi"),
@@ -157,6 +160,11 @@ func (m *SetupModel) buildForm() *huh.Form {
 				huh.NewOption("nerd      glyphs from a patched icon font", "nerd"),
 				huh.NewOption("ascii     plain characters only", "ascii"),
 			).Value(&v.Icons),
+			huh.NewSelect[string]().Title("Status bar").Options(
+				huh.NewOption("auto        pointed separators with a patched icon font", theme.StatusAuto),
+				huh.NewOption("powerline   pointed separators, whatever the icons", theme.StatusPowerline),
+				huh.NewOption("plain       no separators", theme.StatusPlain),
+			).Value(&v.StatusStyle),
 			huh.NewSelect[string]().Title("Color depth").Options(
 				huh.NewOption("auto        detected from COLORTERM and TERM", "auto"),
 				huh.NewOption("truecolor   24-bit color", "truecolor"),
@@ -281,6 +289,7 @@ var wizardKeys = []struct {
 }{
 	{"ui.theme", func(c config.Config) string { return c.UI.Theme }},
 	{"ui.icons", func(c config.Config) string { return c.UI.Icons }},
+	{"ui.status_style", func(c config.Config) string { return c.UI.StatusStyle }},
 	{"ui.color", func(c config.Config) string { return c.UI.Color }},
 	{"workspace.layout", func(c config.Config) string { return c.Workspace.Layout }},
 	{"ui.alt_keys", func(c config.Config) string { return strconv.FormatBool(c.UI.AltKeys) }},

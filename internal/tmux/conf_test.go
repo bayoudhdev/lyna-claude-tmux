@@ -15,6 +15,7 @@ type confCase struct {
 	palette string
 	depth   theme.Depth
 	icons   string
+	status  string
 	altKeys bool
 	mouse   bool
 	local   string
@@ -23,13 +24,14 @@ type confCase struct {
 	top     bool
 }
 
-// confCases cover each tmux feature tier, every palette, color depth and icon
-// set, and the optional settings.
+// confCases cover each tmux feature tier, every palette, color depth, icon
+// set and status bar style, and the optional settings.
 var confCases = []confCase{
 	{name: "tmux3.3-lyna-true-unicode", version: Version{Major: 3, Minor: 3, Suffix: "a"}, palette: "lyna", depth: theme.DepthTrue, icons: "unicode", altKeys: true, mouse: true, local: "/home/dev/.config/lyna-tmux/tmux.local.conf"},
 	{name: "tmux3.4-lyna-256-unicode", version: Version{Major: 3, Minor: 4}, palette: "lyna", depth: theme.Depth256, icons: "unicode", altKeys: true, mouse: true, local: "/home/dev/.config/lyna-tmux/tmux.local.conf"},
 	{name: "tmux3.6-light-true-nerd", version: Version{Major: 3, Minor: 6}, palette: "light", depth: theme.DepthTrue, icons: "nerd", altKeys: true, mouse: true, top: true},
 	{name: "tmux3.7-ansi-16-ascii-noalt", version: Version{Major: 3, Minor: 7, Suffix: "c"}, palette: "ansi", depth: theme.Depth16, icons: "ascii", prefix: "C-a", shell: "/bin/zsh"},
+	{name: "tmux3.7-monokai-true-nerd-powerline", version: Version{Major: 3, Minor: 7}, palette: "monokai", depth: theme.DepthTrue, icons: "nerd", status: theme.StatusPowerline, altKeys: true, mouse: true},
 }
 
 func (c confCase) options(t *testing.T) ConfOptions {
@@ -42,13 +44,17 @@ func (c confCase) options(t *testing.T) ConfOptions {
 	if err != nil {
 		t.Fatal(err)
 	}
+	seps, err := theme.GetSeps(theme.ResolveStatusStyle(c.status, icons))
+	if err != nil {
+		t.Fatal(err)
+	}
 	pos := "bottom"
 	if c.top {
 		pos = "top"
 	}
 	return ConfOptions{
 		Version: c.version,
-		Look:    Look{Palette: p, Depth: c.depth, Icons: icons, Clock: true},
+		Look:    Look{Palette: p, Depth: c.depth, Icons: icons, Seps: seps, Clock: true},
 		Env: Env{
 			Bin:         "/home/dev/.local/bin/lmux",
 			ConfPath:    "/home/dev/.local/state/lyna-tmux/tmux.conf",

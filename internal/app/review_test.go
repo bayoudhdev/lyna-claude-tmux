@@ -188,7 +188,7 @@ func TestReviewLaunch(t *testing.T) {
 					t.Fatalf("launch %q %q, want %q", l.Path, l.Args, want)
 				}
 				reviewAssertEnv(t, l.Env, map[string]string{domain.EnvDir: repo, domain.EnvArgs: `["--exit-on-close"]`, domain.EnvNoAutoInstall: "1", "HOME": h.root})
-				reviewAssertInit(t, h, []string{`line_insert = "#163b24"`, "vim.o.termguicolors = true", `vim.o.background = "dark"`, `filler_text = "╱"`}, []string{"layout ="})
+				reviewAssertInit(t, h, []string{`line_insert = "#3b4918"`, "vim.o.termguicolors = true", `vim.o.background = "dark"`, `filler_text = "╱"`}, []string{"layout ="})
 			},
 		},
 		{

@@ -269,6 +269,59 @@ func TestCheckTruecolor(t *testing.T) {
 	})
 }
 
+func TestCheckStatusBar(t *testing.T) {
+	utf8 := map[string]string{"LANG": "en_US.UTF-8"}
+	runCheckCases(t, checkStatusBar, []checkCase{
+		{
+			name: "auto with unicode icons is plain",
+			sys:  fakeSystem{env: utf8},
+			edit: func(d *Deps) { d.Icons, d.StatusStyle = "auto", "auto" },
+			want: []Result{{
+				ID: "status-bar", Title: "Status bar", Status: StatusOK,
+				Detail: "plain: every segment ends where its background does, which any font draws",
+			}},
+		},
+		{
+			name: "auto with a patched font is powerline",
+			sys:  fakeSystem{env: utf8},
+			edit: func(d *Deps) { d.Icons, d.StatusStyle = "nerd", "auto" },
+			want: []Result{{
+				ID: "status-bar", Title: "Status bar", Status: StatusOK,
+				Detail: "powerline: pointed separators from the patched font the nerd icon set already needs",
+			}},
+		},
+		{
+			name: "powerline asked for without a patched font",
+			sys:  fakeSystem{env: utf8},
+			edit: func(d *Deps) { d.Icons, d.StatusStyle = "unicode", "powerline" },
+			want: []Result{{
+				ID: "status-bar", Title: "Status bar", Status: StatusWarn,
+				Detail: "powerline separators are private use area glyphs and the icon set is unicode, so a terminal without a patched font draws a box where each separator should be",
+				Fix:    `set ui.icons = "nerd" in config.toml once a patched font is installed, or ui.status_style = "plain"`,
+			}},
+		},
+		{
+			name: "plain asked for with a patched font",
+			sys:  fakeSystem{env: utf8},
+			edit: func(d *Deps) { d.Icons, d.StatusStyle = "nerd", "plain" },
+			want: []Result{{
+				ID: "status-bar", Title: "Status bar", Status: StatusOK,
+				Detail: "plain: every segment ends where its background does, which any font draws",
+			}},
+		},
+		{
+			name: "an icon set nothing draws",
+			sys:  fakeSystem{env: utf8},
+			edit: func(d *Deps) { d.Icons, d.StatusStyle = "emoji", "auto" },
+			want: []Result{{
+				ID: "status-bar", Title: "Status bar", Status: StatusFail,
+				Detail: `theme: unknown icon set "emoji" (want unicode, nerd or ascii)`,
+				Fix:    `set ui.icons to auto, unicode, nerd or ascii in config.toml`,
+			}},
+		},
+	})
+}
+
 func TestCheckClipboard(t *testing.T) {
 	runCheckCases(t, checkClipboard, []checkCase{
 		{

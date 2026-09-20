@@ -118,7 +118,9 @@ type InitOptions struct {
 	// PluginDir is the absolute directory of the installed plugin.
 	PluginDir string
 	Colors    Colors
-	Icons     Icons
+	// Scheme colors the editor itself; the zero value keeps Neovim's colors.
+	Scheme Scheme
+	Icons  Icons
 	// TrueColor turns on 24-bit colors; otherwise the plugin's 256-color
 	// fallbacks are used.
 	TrueColor bool
@@ -175,6 +177,9 @@ func RenderInit(opts InitOptions) ([]byte, error) {
 	if err := opts.Colors.Validate(); err != nil {
 		return nil, err
 	}
+	if err := opts.Scheme.Validate(); err != nil {
+		return nil, err
+	}
 	icons := opts.Icons
 	if icons == "" {
 		icons = IconsUnicode
@@ -197,6 +202,7 @@ func RenderInit(opts InitOptions) ([]byte, error) {
 		background = "light"
 	}
 	fmt.Fprintf(&b, "vim.o.background = %s\n", LuaString(background))
+	b.WriteString(opts.Scheme.Lua())
 
 	b.WriteString("\nlocal ok, err = pcall(function()\n  require(\"codediff\").setup({\n")
 	var hl []string

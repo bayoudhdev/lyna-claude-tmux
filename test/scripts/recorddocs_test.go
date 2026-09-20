@@ -32,10 +32,28 @@ if [ "$dry" = 1 ]; then
   exit 0
 fi
 echo "record $* cwd=$PWD path=$PATH shell=$SHELL" >> "$DOCS_LOG"
+if [ -f "$XDG_CONFIG_HOME/lyna-tmux/config.toml" ]; then
+  echo "config $(tr '\n' ' ' < "$XDG_CONFIG_HOME/lyna-tmux/config.toml")" >> "$DOCS_LOG"
+fi
 `
 
+// fakeLyna answers the two commands the driver needs of the binary: writing
+// the recording configuration and saying where it is.
 const fakeLyna = `#!/bin/sh
 echo "lmux $*" >> "$DOCS_LOG"
+config=$XDG_CONFIG_HOME/lyna-tmux/config.toml
+if [ "$1" = config ] && [ "$2" = init ]; then
+  mkdir -p "$(dirname "$config")"
+  icons='icons = "auto"'
+  [ -z "$FAKE_ICONS_RENAMED" ] || icons='icon_set = "auto"'
+  printf '[ui]\ntheme = "monokai"\n%s\nstatus_style = "auto"\n' "$icons" > "$config"
+fi
+if [ "$1" = config ] && [ "$2" = path ]; then
+  echo "$config"
+fi
+if [ "$1" = review ] && [ "$2" = status ]; then
+  [ -z "$FAKE_REVIEW_MISSING" ] || exit 1
+fi
 `
 
 type docsEnv struct {
@@ -99,6 +117,78 @@ func runRecordDocs(t *testing.T, env []string, args ...string) (stdout, stderr s
 		t.Fatal(err)
 	}
 	return out.String(), errOut.String(), exit
+}
+
+// TestRecordDocsConfiguration checks the configuration the scenes run against:
+// written by the binary itself rather than taken from the account, and set to
+// the icon set the patched font the frames are drawn with is for, which is
+// what gives the status bar its pointed separators.
+func TestRecordDocsConfiguration(t *testing.T) {
+	e := newDocsEnv(t, map[string]string{"doctor": "frames: 1\n"})
+	_, stderr, exit := runRecordDocs(t, e.env(), e.args()...)
+	if exit != 0 {
+		t.Fatalf("exit %d\nstderr:\n%s", exit, stderr)
+	}
+	log := string(mustRead(t, e.log))
+	if !strings.Contains(log, "lmux config init") {
+		t.Fatalf("no configuration was written:\n%s", log)
+	}
+	// The recorder takes its configuration away with it, so what the scenes
+	// ran against is read from what the recorder was handed.
+	got := log
+	cases := []struct {
+		name string
+		want string
+	}{
+		{name: "the icon set of the recording font", want: `icons = "nerd"`},
+		{name: "the theme a workspace opens with", want: `theme = "monokai"`},
+		{name: "the status bar follows the icon set", want: `status_style = "auto"`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if !strings.Contains(got, tc.want) {
+				t.Fatalf("the recording configuration lacks %q:\n%s", tc.want, got)
+			}
+		})
+	}
+	for _, dir := range []string{".config", ".reccfg"} {
+		if _, err := os.Stat(filepath.Join(e.dir, dir, "lyna-tmux")); err == nil {
+			t.Errorf("the recorder left %s behind in the account", dir)
+		}
+	}
+}
+
+// TestRecordDocsNeedsTheIconSet holds the driver to the configuration it
+// edits: the scenes are drawn with a patched font and must run with the icon
+// set that font is for, so a template that no longer names the key it reads
+// records nothing rather than a picture drawn with the wrong glyphs.
+func TestRecordDocsNeedsTheIconSet(t *testing.T) {
+	e := newDocsEnv(t, map[string]string{"doctor": "frames: 1\n"})
+	_, stderr, exit := runRecordDocs(t, append(e.env(), "FAKE_ICONS_RENAMED=1"), e.args()...)
+	if exit != 1 || !strings.Contains(stderr, "no longer sets the icon set") {
+		t.Fatalf("exit %d\nstderr:\n%s", exit, stderr)
+	}
+	if _, err := os.Stat(e.log); err == nil {
+		if log := string(mustRead(t, e.log)); strings.Contains(log, "record ") {
+			t.Fatalf("a scene was recorded anyway:\n%s", log)
+		}
+	}
+}
+
+// TestRecordDocsNeedsTheReviewPlugin holds the driver to what the scenes
+// need: a machine whose review cannot start would be recorded showing the
+// warning rather than the editor, so nothing is recorded at all.
+func TestRecordDocsNeedsTheReviewPlugin(t *testing.T) {
+	e := newDocsEnv(t, map[string]string{"review": "frames: 3\n"})
+	_, stderr, exit := runRecordDocs(t, append(e.env(), "FAKE_REVIEW_MISSING=1"), e.args()...)
+	if exit != 1 || !strings.Contains(stderr, "lmux review install") {
+		t.Fatalf("exit %d\nstderr:\n%s", exit, stderr)
+	}
+	if _, err := os.Stat(e.log); err == nil {
+		if log := string(mustRead(t, e.log)); strings.Contains(log, "record ") {
+			t.Fatalf("a scene was recorded anyway:\n%s", log)
+		}
+	}
 }
 
 // TestRecordDocsOutputs pins the rule that decides what a scene produces: one
@@ -417,6 +507,43 @@ func TestRecordDocsArguments(t *testing.T) {
 			}
 			if strings.Contains(tc.name, "dry run") && log != "" {
 				t.Fatalf("a dry run ran the recorder:\n%s", log)
+			}
+		})
+	}
+}
+
+// TestRecordDocsEndsItsWorkspaces pins what a pass leaves behind: the scenes
+// open workspaces on the recorder's own server, and the last thing the driver
+// does is end them, while the binary and the configuration they were opened
+// with are still in place.
+func TestRecordDocsEndsItsWorkspaces(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+		want bool
+	}{
+		{name: "a pass ends what it opened", want: true},
+		{name: "a dry run opened nothing to end", args: []string{"--dry-run"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newDocsEnv(t, map[string]string{"doctor": "frames: 1\n"})
+			_, stderr, exit := runRecordDocs(t, e.env(), e.args(tc.args...)...)
+			if exit != 0 {
+				t.Fatalf("exit %d\nstderr:\n%s", exit, stderr)
+			}
+			log := ""
+			if data, err := os.ReadFile(e.log); err == nil {
+				log = string(data)
+			}
+			if got := strings.Contains(log, "lmux kill --all"); got != tc.want {
+				t.Fatalf("every workspace ended: %v, want %v\n%s", got, tc.want, log)
+			}
+			if !tc.want {
+				return
+			}
+			if last := strings.LastIndex(log, "lmux kill --all"); last < strings.LastIndex(log, "record ") {
+				t.Fatalf("a scene was recorded after the workspaces were ended:\n%s", log)
 			}
 		})
 	}

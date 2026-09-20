@@ -37,6 +37,12 @@ for arg in "$@"; do url=$arg; done
 host=${url#https://}
 if grep -qxF "$host" "$STUB_REACHABLE"; then exit 0; fi
 exit 7`,
+	// head refuses: the script reads the allowlist in the shell rather than
+	// through a pipeline, because a reader that stops at the first line
+	// leaves the writer on a closed pipe, and pipefail reads that signal as
+	// a firewall that failed to come up.
+	"head": `echo "head $*" >> "$STUB_LOG"
+exit 1`,
 }
 
 const (

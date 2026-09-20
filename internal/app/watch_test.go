@@ -198,7 +198,7 @@ func TestOpenWatch(t *testing.T) {
 			req:  WatchRequest{Dir: dir},
 			check: func(t *testing.T, v WatchView) {
 				o := v.Options
-				if o.Popup || o.Dir != dir || o.Home != h.Home || o.Styles.Theme.Palette.Name != "lyna" || o.Updates != nil {
+				if o.Popup || o.Dir != dir || o.Home != h.Home || o.Styles.Theme.Palette.Name != "monokai" || o.Updates != nil {
 					t.Fatalf("options %+v", o)
 				}
 				if o.Open == nil || o.OpenReview == nil {

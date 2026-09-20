@@ -37,6 +37,28 @@ type Palette struct {
 // these bounds). The agent states are three distinct colors in every palette,
 // because the status line tells them apart by color alone.
 var palettes = map[string]Palette{
+	// monokai is the set a workspace opens with: the colors of the monokai
+	// family, whose green, blue, orange and magenta are far enough apart to
+	// tell an agent's states from each other at a glance, on a charcoal
+	// background that the bar, the borders and the popups all sit on.
+	"monokai": {
+		Name:    "monokai",
+		Dark:    true,
+		Bg:      RGB(0x1e, 0x1e, 0x1e),
+		Surface: RGB(0x31, 0x31, 0x31),
+		Overlay: RGB(0x3e, 0x3e, 0x3e),
+		Border:  RGB(0x44, 0x44, 0x44),
+		Muted:   RGB(0x8a, 0x8a, 0x8a),
+		Text:    RGB(0xe6, 0xe6, 0xe6),
+		Accent:  RGB(0xa4, 0xe4, 0x00),
+		Accent2: RGB(0x62, 0xd8, 0xf1),
+		Busy:    RGB(0xff, 0x97, 0x00),
+		Waiting: RGB(0xfc, 0x1a, 0x70),
+		Idle:    RGB(0xa4, 0xe4, 0x00),
+		Danger:  RGB(0xff, 0x00, 0x5f),
+		Success: RGB(0xa4, 0xe4, 0x00),
+		Warning: RGB(0xf6, 0xf5, 0x57),
+	},
 	"lyna": {
 		Name:    "lyna",
 		Dark:    true,

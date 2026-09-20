@@ -119,9 +119,10 @@ Look and input model of the workspace.
 
 | Key | Type | Values | Default | Effect |
 | --- | --- | --- | --- | --- |
-| `theme` | string | `lyna`, `slate`, `dusk`, `contrast`, `nord`, `rose`, `mono`, `solar-dark`, `earth-dark`, `light`, `solar-light`, `earth-light`, `ansi` | `"lyna"` | Palette of the status line, pane borders, menus and popups. The first nine are dark, the next three light, and `ansi` uses the terminal's own palette. `lmux theme` lists them with swatches and `lmux theme preview [name]` draws a workspace in each one. |
+| `theme` | string | `monokai`, `lyna`, `slate`, `dusk`, `contrast`, `nord`, `rose`, `mono`, `solar-dark`, `earth-dark`, `light`, `solar-light`, `earth-light`, `ansi` | `"monokai"` | Palette of the status line, pane borders, menus and popups. The first ten are dark, the next three light, and `ansi` uses the terminal's own palette. `lmux theme` lists them with swatches and `lmux theme preview [name]` draws a workspace in each one. |
 | `icons` | string | `auto`, `unicode`, `nerd`, `ascii` | `"auto"` | Glyph set in the status line, borders and pickers. `auto` picks `unicode` when the effective locale (`LC_ALL`, then `LC_CTYPE`, then `LANG`) is UTF-8, and `ascii` otherwise, including under the East Asian locales (`ja`, `zh`, `ko`), where terminals draw the ambiguous width glyphs two cells wide and every segment would sit one cell further right than the layout expects. Set `icons = "unicode"` to use them anyway. `nerd` needs a patched font and is never chosen automatically. |
 | `color` | string | `auto`, `truecolor`, `256`, `16` | `"auto"` | Color depth the theme is rendered at. `auto` reads `COLORTERM=truecolor` or `24bit` as 24-bit, a `TERM` containing `256color` as 256 colors, `xterm-direct` and `tmux-direct` as 24-bit, anything else as the basic 16. |
+| `status_style` | string | `auto`, `powerline`, `plain` | `"auto"` | How the status bar joins its segments. `powerline` ends each segment with a pointed separator, the look the workspace name, the active tab, the agents block and the clock are drawn with; the glyphs come from the private use area and need a patched font. `plain` lets a segment end where its background does. `auto` takes `powerline` only with `icons = "nerd"`, which already asks for such a font, so no terminal draws a box where a separator should be. The separators spend seven columns the plain bar keeps, which a narrow terminal pays for by scrolling its window list: `plain` is the setting that gives those columns back. |
 | `status_position` | string | `top`, `bottom` | `"bottom"` | Which edge the status line sits on. |
 | `clock` | boolean | `true`, `false` | `true` | Draws the `%H:%M` clock at the right end of the status line. |
 | `alt_keys` | boolean | `true`, `false` | `true` | Installs the prefix-free Alt bindings. See [keys.md](keys.md). |
@@ -210,6 +211,11 @@ percent by 95 percent; `popup.width` and `popup.height` do not change them.
 
 The live code review: a side-by-side diff explorer that refreshes as files change.
 
+The isolated editor is drawn in `ui.theme`: the chrome, the diff colors, the syntax groups and
+the capture groups nvim-treesitter sets on a parsed buffer all come from the palette, and the
+parser is started for the languages Neovim has one for. Your own editor (`editor = "user"`)
+keeps your colors, as it keeps the rest of your configuration.
+
 | Key | Type | Values | Default | Effect |
 | --- | --- | --- | --- | --- |
 | `editor` | string | `isolated`, `user` | `"isolated"` | `isolated` runs `nvim` without your configuration, with the pinned and checksum-verified `codediff.nvim` that `lmux review install` puts in the data directory. `user` runs your own `nvim` configuration and plugin install. |
@@ -261,14 +267,18 @@ every key is present or shown commented out, next to what it does.
 # unknown key is an error. Check this file with `lmux config validate`.
 
 [ui]
-# Color theme. Dark: lyna, slate, dusk, contrast, nord, rose, mono, solar-dark,
-# earth-dark. Light: light, solar-light, earth-light. ansi uses the terminal's
-# own palette. Preview them with `lmux theme preview`.
-theme = "lyna"
+# Color theme. Dark: monokai, lyna, slate, dusk, contrast, nord, rose, mono,
+# solar-dark, earth-dark. Light: light, solar-light, earth-light. ansi uses the
+# terminal's own palette. Preview them with `lmux theme preview`.
+theme = "monokai"
 # Icon set: auto, unicode, nerd (needs a Nerd Font), ascii.
 icons = "auto"
 # Color depth: auto (detected), truecolor, 256, 16.
 color = "auto"
+# Status bar segments: powerline draws pointed separators (needs a patched
+# font), plain ends a segment where its background does, auto takes powerline
+# only with the nerd icon set.
+status_style = "auto"
 # Status bar position: top or bottom.
 status_position = "bottom"
 clock = true

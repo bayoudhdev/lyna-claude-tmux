@@ -77,10 +77,10 @@ func TestThemePreview(t *testing.T) {
 		wantErr     string
 		wantIs      error
 	}{
-		{name: "every theme at the detected depth", env: map[string]string{"COLORTERM": "truecolor", "LANG": "en_US.UTF-8"}, wantCurrent: "lyna", wantDepth: theme.DepthTrue, wantIcons: "unicode"},
-		{name: "one theme", env: map[string]string{"TERM": "xterm-256color"}, theme: "nord", wantThemes: []string{"nord"}, wantCurrent: "lyna", wantDepth: theme.Depth256, wantIcons: "ascii"},
+		{name: "every theme at the detected depth", env: map[string]string{"COLORTERM": "truecolor", "LANG": "en_US.UTF-8"}, wantCurrent: "monokai", wantDepth: theme.DepthTrue, wantIcons: "unicode"},
+		{name: "one theme", env: map[string]string{"TERM": "xterm-256color"}, theme: "nord", wantThemes: []string{"nord"}, wantCurrent: "monokai", wantDepth: theme.Depth256, wantIcons: "ascii"},
 		{name: "configured depth and icons win", env: map[string]string{"COLORTERM": "truecolor", "LANG": "en_US.UTF-8"}, config: "[ui]\ntheme = \"rose\"\ncolor = \"16\"\nicons = \"nerd\"\n", theme: "light", wantThemes: []string{"light"}, wantCurrent: "rose", wantDepth: theme.Depth16, wantIcons: "nerd"},
-		{name: "unknown theme", theme: "neon", wantIs: ErrThemeUnknown, wantErr: "choose lyna, slate"},
+		{name: "unknown theme", theme: "neon", wantIs: ErrThemeUnknown, wantErr: "choose monokai, lyna"},
 		{name: "invalid configuration", config: "[ui]\ntheme = 1\n", wantErr: "theme"},
 		{name: "unknown theme before the configuration", config: "[ui]\ntheme = 1\n", theme: "neon", wantIs: ErrThemeUnknown},
 	}
@@ -116,7 +116,7 @@ func TestThemePreview(t *testing.T) {
 			names := make([]string, len(got.Themes))
 			for i, m := range got.Themes {
 				names[i] = m.Palette.Name
-				if want := theme.Preview(m.Palette, got.Icons); !reflect.DeepEqual(m.Lines, want) {
+				if want := theme.Preview(m.Palette, got.Icons, got.Seps); !reflect.DeepEqual(m.Lines, want) {
 					t.Errorf("%s: rows differ from theme.Preview", m.Palette.Name)
 				}
 			}
@@ -198,6 +198,13 @@ func TestThemePalettesLoadInTmux(t *testing.T) {
 // session menu draw, so a renamed button or state cannot leave the preview
 // showing the old one.
 func TestThemePreviewMatchesWorkspace(t *testing.T) {
+	for _, style := range []string{theme.StatusPlain, theme.StatusPowerline} {
+		t.Run(style, func(t *testing.T) { previewMatchesWorkspace(t, style) })
+	}
+}
+
+func previewMatchesWorkspace(t *testing.T, style string) {
+	t.Helper()
 	p, err := theme.Get("lyna")
 	if err != nil {
 		t.Fatal(err)
@@ -206,7 +213,11 @@ func TestThemePreviewMatchesWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	look := tmux.Look{Palette: p, Depth: theme.DepthTrue, Icons: icons, Clock: true, Buttons: true}
+	seps, err := theme.GetSeps(style)
+	if err != nil {
+		t.Fatal(err)
+	}
+	look := tmux.Look{Palette: p, Depth: theme.DepthTrue, Icons: icons, Seps: seps, Clock: true, Buttons: true}
 	formats := look.StatusLeft() + look.WindowFormat() + look.WindowCurrentFormat() + look.StatusRight() + look.BorderFormat()
 	env := tmux.Env{Bindings: keys.Defaults(keys.Options{AltKeys: true, Prefix: "C-b"})}
 	menu := map[string]string{}
@@ -214,7 +225,7 @@ func TestThemePreviewMatchesWorkspace(t *testing.T) {
 		menu[item.Label] = item.Hint
 	}
 
-	lines := theme.Preview(p, icons)
+	lines := theme.Preview(p, icons, seps)
 	var status, border, menus []theme.Line
 	for _, l := range lines {
 		switch l.Kind {
@@ -284,9 +295,9 @@ func TestThemeList(t *testing.T) {
 		wantDepth   theme.Depth
 		wantErr     string
 	}{
-		{name: "defaults detect the depth", env: map[string]string{"COLORTERM": "truecolor"}, wantCurrent: "lyna", wantDepth: theme.DepthTrue},
+		{name: "defaults detect the depth", env: map[string]string{"COLORTERM": "truecolor"}, wantCurrent: "monokai", wantDepth: theme.DepthTrue},
 		{name: "configured theme", env: map[string]string{"TERM": "xterm-256color"}, config: "[ui]\ntheme = \"ansi\"\n", wantCurrent: "ansi", wantDepth: theme.Depth256},
-		{name: "configured depth wins", env: map[string]string{"COLORTERM": "truecolor"}, config: "[ui]\ncolor = \"16\"\n", wantCurrent: "lyna", wantDepth: theme.Depth16},
+		{name: "configured depth wins", env: map[string]string{"COLORTERM": "truecolor"}, config: "[ui]\ncolor = \"16\"\n", wantCurrent: "monokai", wantDepth: theme.Depth16},
 		{name: "invalid configuration", config: "[ui]\ntheme = 1\n", wantErr: "theme"},
 		{name: "no home", env: map[string]string{"LYNA_TMUX_HOME": ""}, noHome: true, wantErr: xdg.ErrNoHome.Error()},
 	}

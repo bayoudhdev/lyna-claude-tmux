@@ -4,14 +4,18 @@
 # unknown key is an error. Check this file with `lmux config validate`.
 
 [ui]
-# Color theme. Dark: lyna, slate, dusk, contrast, nord, rose, mono, solar-dark,
-# earth-dark. Light: light, solar-light, earth-light. ansi uses the terminal's
-# own palette. Preview them with `lmux theme preview`.
-theme = "lyna"
+# Color theme. Dark: monokai, lyna, slate, dusk, contrast, nord, rose, mono,
+# solar-dark, earth-dark. Light: light, solar-light, earth-light. ansi uses the
+# terminal's own palette. Preview them with `lmux theme preview`.
+theme = "monokai"
 # Icon set: auto, unicode, nerd (needs a Nerd Font), ascii.
 icons = "auto"
 # Color depth: auto (detected), truecolor, 256, 16.
 color = "auto"
+# Status bar segments: powerline draws pointed separators (needs a patched
+# font), plain ends a segment where its background does, auto takes powerline
+# only with the nerd icon set.
+status_style = "auto"
 # Status bar position: top or bottom.
 status_position = "bottom"
 clock = true

@@ -1,9 +1,11 @@
 # The built-in layouts, one after the other, driven from the shell of the
 # workspace itself. Each one opens a window of its own and selects it, so the
 # scene goes back to the first window between them. The last frame is quad:
-# one agent per worktree.
+# one agent per worktree. The window is wide enough for the whole bar: four
+# windows, a worktree branch and the pointed separators do not fit a narrower
+# one, which would scroll the window list instead.
 title lmux layout solo, duo, trio, quad
-size 112 34
+size 130 34
 pre lmux kill --all
 pre rm -rf .devcontainer
 pre lmux create . --layout duo --detach

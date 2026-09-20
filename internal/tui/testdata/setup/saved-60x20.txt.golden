@@ -1,12 +1,12 @@
  λ setup
 
- saving 5 changes
-   ui.theme: lyna -> light
+ saving 6 changes
+   ui.theme: monokai -> light
    ui.icons: auto -> ascii
+   ui.status_style: auto -> powerline
    ui.color: auto -> 256
    workspace.layout: auto -> git
    ui.alt_keys: true -> false
-
 
 
 

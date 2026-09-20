@@ -3,6 +3,7 @@
 
   [1;38;2;57;211;83m1/5  Look[m
   [38;2;57;211;83m [m [38;2;125;133;144mTheme[m                                                                     
+  [38;2;57;211;83m [m   [38;2;230;237;243mmonokai the colors a workspace opens with[m                               
   [38;2;57;211;83m [m   [38;2;230;237;243mlyna    dark with a green accent[m                                        
   [38;2;57;211;83m [m   [38;2;57;211;83mlight   for light terminal backgrounds[m                                  
   [38;2;57;211;83m [m   [38;2;230;237;243mansi    your terminal's own 16 colors[m                                   
@@ -13,17 +14,16 @@
   [38;2;57;211;83m┃[m   [38;2;230;237;243mnerd      glyphs from a patched icon font[m                               
   [38;2;57;211;83m┃[m [38;2;57;211;83m> [m[38;2;57;211;83mascii     plain characters only[m                                         
                                                                               
+  [38;2;57;211;83m [m [38;2;125;133;144mStatus bar[m                                                                
+  [38;2;57;211;83m [m   [38;2;57;211;83mauto        pointed separators with a patched icon font[m                 
+  [38;2;57;211;83m [m   [38;2;230;237;243mpowerline   pointed separators, whatever the icons[m                      
+  [38;2;57;211;83m [m   [38;2;230;237;243mplain       no separators[m                                               
+                                                                              
   [38;2;57;211;83m [m [38;2;125;133;144mColor depth[m                                                               
   [38;2;57;211;83m [m   [38;2;57;211;83mauto        detected from COLORTERM and TERM[m                            
   [38;2;57;211;83m [m   [38;2;230;237;243mtruecolor   24-bit color[m                                                
   [38;2;57;211;83m [m   [38;2;230;237;243m256         the xterm 256-color palette[m                                 
-  [38;2;57;211;83m [m   [38;2;230;237;243m16          the basic terminal palette[m                                  
-                                                                              
-                                                                              
-                                                                             
-
-
-
+  [38;2;57;211;83m [m   [38;2;230;237;243m16          the basic terminal palette[m                                 
 
 
 

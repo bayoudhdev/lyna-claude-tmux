@@ -125,7 +125,7 @@ func TestSetStringTemplate(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			want := bytes.Replace(Template(), []byte(`theme = "lyna"`), []byte(`theme = "`+name+`"`), 1)
+			want := bytes.Replace(Template(), []byte(`theme = "monokai"`), []byte(`theme = "`+name+`"`), 1)
 			if !bytes.Equal(got, want) {
 				t.Fatalf("template edit differs:\n%s", got)
 			}
