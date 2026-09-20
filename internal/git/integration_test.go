@@ -2035,3 +2035,162 @@ func TestResetModeString(t *testing.T) {
 		})
 	}
 }
+
+func TestIntegrationTags(t *testing.T) {
+	ctx := t.Context()
+	r := history(t)
+	t.Run("a tag that is only a ref", func(t *testing.T) {
+		if err := r.Runner.Tag(ctx, r.Dir, Tag{Name: "light", Rev: "main~1"}); err != nil {
+			t.Fatalf("Tag() error = %v", err)
+		}
+		got := tagNamed(t, r, "light")
+		if got.Annotated || got.OID != got.Commit {
+			t.Fatalf("the tag reads as %+v, want one that is only a ref", got)
+		}
+		if want := strings.TrimSpace(r.Git("rev-parse", "main~1")); got.Commit != want {
+			t.Fatalf("the tag names %s, want %s", got.Commit, want)
+		}
+	})
+	t.Run("a tag carrying a message", func(t *testing.T) {
+		if err := r.Runner.Tag(ctx, r.Dir, Tag{Name: "v1.0.0", Message: "the first release\n\nwith a body\n"}); err != nil {
+			t.Fatalf("Tag() error = %v", err)
+		}
+		got := tagNamed(t, r, "v1.0.0")
+		if !got.Annotated || got.Subject != "the first release" {
+			t.Fatalf("the tag reads as %+v", got)
+		}
+		if body := r.Git("tag", "-l", "--format=%(contents)", "v1.0.0"); !strings.Contains(body, "with a body") {
+			t.Fatalf("the message reads as %q", body)
+		}
+	})
+	t.Run("a tag written over another", func(t *testing.T) {
+		if err := r.Runner.Tag(ctx, r.Dir, Tag{Name: "light", Rev: "main"}); err == nil {
+			t.Fatal("Tag() wrote over a tag that was there")
+		}
+		if err := r.Runner.Tag(ctx, r.Dir, Tag{Name: "light", Rev: "main", Force: true}); err != nil {
+			t.Fatalf("Tag() error = %v", err)
+		}
+		if got, want := tagNamed(t, r, "light").Commit, strings.TrimSpace(r.Git("rev-parse", "main")); got != want {
+			t.Fatalf("the tag names %s, want %s", got, want)
+		}
+	})
+	t.Run("a tag removed", func(t *testing.T) {
+		head := strings.TrimSpace(r.Git("rev-parse", "HEAD"))
+		if err := r.Runner.DeleteTag(ctx, r.Dir, "light"); err != nil {
+			t.Fatalf("DeleteTag() error = %v", err)
+		}
+		list, err := r.Runner.Tags(ctx, r.Dir)
+		if err != nil {
+			t.Fatalf("Tags() error = %v", err)
+		}
+		for _, tag := range list {
+			if tag.Name == "light" {
+				t.Fatalf("Tags() still lists %+v", tag)
+			}
+		}
+		if got := strings.TrimSpace(r.Git("rev-parse", "HEAD")); got != head {
+			t.Fatalf("the commit moved to %s", got)
+		}
+	})
+	t.Run("the refusals", func(t *testing.T) {
+		cases := []struct {
+			name string
+			act  func() error
+		}{
+			{name: "a name that would be an option", act: func() error { return r.Runner.Tag(ctx, r.Dir, Tag{Name: "-f"}) }},
+			{name: "a name git refuses", act: func() error { return r.Runner.Tag(ctx, r.Dir, Tag{Name: "feat/.x"}) }},
+			{name: "a name of nothing", act: func() error { return r.Runner.Tag(ctx, r.Dir, Tag{}) }},
+			{
+				name: "a revision that would be an option",
+				act:  func() error { return r.Runner.Tag(ctx, r.Dir, Tag{Name: "ok", Rev: "--exec=id"}) },
+			},
+			{name: "a tag removed by a name that is none", act: func() error { return r.Runner.DeleteTag(ctx, r.Dir, "-d") }},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				if err := tc.act(); err == nil {
+					t.Fatal("the command went through, want it refused")
+				}
+			})
+		}
+	})
+}
+
+func tagNamed(t *testing.T, r *repo, name string) vcs.Tag {
+	t.Helper()
+	list, err := r.Runner.Tags(t.Context(), r.Dir)
+	if err != nil {
+		t.Fatalf("Tags() error = %v", err)
+	}
+	for _, tag := range list {
+		if tag.Name == name {
+			return tag
+		}
+	}
+	t.Fatalf("Tags() = %+v, want %s among them", list, name)
+	return vcs.Tag{}
+}
+
+func TestIntegrationFormatPatch(t *testing.T) {
+	ctx := t.Context()
+	r := history(t)
+	out := filepath.Join(filepath.Dir(r.Dir), "patches")
+	if err := os.Mkdir(out, 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("a range of commits", func(t *testing.T) {
+		files, err := r.Runner.FormatPatch(ctx, r.Dir, Patch{Revs: []string{"main~2..main"}, Dir: out})
+		if err != nil {
+			t.Fatalf("FormatPatch() error = %v", err)
+		}
+		if len(files) != 2 {
+			t.Fatalf("FormatPatch() wrote %v, want two files", files)
+		}
+		for _, f := range files {
+			if filepath.Dir(f) != out {
+				t.Fatalf("FormatPatch() wrote %s, outside %s", f, out)
+			}
+			data, err := os.ReadFile(f)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(data), "diff --git") {
+				t.Fatalf("%s holds no patch", f)
+			}
+		}
+	})
+	t.Run("what the branch holds that its upstream has not got", func(t *testing.T) {
+		remote := filepath.Join(filepath.Dir(r.Dir), "origin.git")
+		r.Git("init", "-q", "--bare", remote)
+		r.Git("remote", "add", "origin", remote)
+		r.Git("push", "-q", "-u", "origin", "main~1:refs/heads/main")
+		r.Git("branch", "--set-upstream-to=origin/main", "main")
+		files, err := r.Runner.FormatPatch(ctx, r.Dir, Patch{Dir: out, Numbered: true})
+		if err != nil {
+			t.Fatalf("FormatPatch() error = %v", err)
+		}
+		if len(files) != 1 {
+			t.Fatalf("FormatPatch() wrote %v, want the one commit that is not pushed", files)
+		}
+	})
+	t.Run("the refusals", func(t *testing.T) {
+		cases := []struct {
+			name string
+			p    Patch
+		}{
+			{name: "a directory that is not there", p: Patch{Dir: filepath.Join(out, "nowhere"), Revs: []string{"main"}}},
+			{name: "a path that is a file", p: Patch{Dir: filepath.Join(r.Dir, "a.txt"), Revs: []string{"main"}}},
+			{name: "a path that is relative", p: Patch{Dir: "patches", Revs: []string{"main"}}},
+			{name: "a directory of nothing", p: Patch{Revs: []string{"main"}}},
+			{name: "a revision that would be an option", p: Patch{Dir: out, Revs: []string{"--exec=id"}}},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				if got, err := r.Runner.FormatPatch(ctx, r.Dir, tc.p); err == nil {
+					t.Fatalf("FormatPatch() = %v, want it refused", got)
+				}
+			})
+		}
+	})
+}

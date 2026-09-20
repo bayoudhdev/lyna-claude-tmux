@@ -171,8 +171,6 @@ func parseRefs(decoration string) ([]Ref, error) {
 	return refs, nil
 }
 
-// The ref namespaces a decoration is read in.
-const (
-	remotesPrefix = "refs/remotes/"
-	tagsPrefix    = "refs/tags/"
-)
+// remotesPrefix is the namespace a branch of a remote lives in; tagsPrefix is
+// the one a tag lives in, beside the tags themselves.
+const remotesPrefix = "refs/remotes/"

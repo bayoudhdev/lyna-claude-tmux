@@ -1151,3 +1151,114 @@ func TestRunnerPickArgv(t *testing.T) {
 		})
 	}
 }
+
+// TestRunnerTagArgv holds the commands the tag and patch actions build.
+func TestRunnerTagArgv(t *testing.T) {
+	out := t.TempDir()
+	cases := []struct {
+		name    string
+		act     func(r Runner) error
+		want    []string
+		prefix  []string
+		wantErr bool
+	}{
+		{
+			name: "a tag that is only a ref",
+			act:  func(r Runner) error { return r.Tag(context.Background(), "/repo", Tag{Name: "v1.0.0", Rev: "main"}) },
+			want: []string{"tag", "--", "v1.0.0", "main"},
+		},
+		{
+			name: "a tag carrying a message",
+			act: func(r Runner) error {
+				return r.Tag(context.Background(), "/repo", Tag{Name: "v1.0.0", Message: "the release"})
+			},
+			prefix: []string{"tag", "--annotate"},
+		},
+		{
+			name: "a tag written over another",
+			act:  func(r Runner) error { return r.Tag(context.Background(), "/repo", Tag{Name: "v1.0.0", Force: true}) },
+			want: []string{"tag", "--force", "--", "v1.0.0"},
+		},
+		{
+			name: "a tag removed",
+			act:  func(r Runner) error { return r.DeleteTag(context.Background(), "/repo", "v1.0.0") },
+			want: []string{"tag", "--delete", "--", "v1.0.0"},
+		},
+		{
+			name: "the tags read",
+			act: func(r Runner) error {
+				_, err := r.Tags(context.Background(), "/repo")
+				return err
+			},
+			want: []string{"for-each-ref", "--format=" + vcs.TagFormat, "refs/tags/"},
+		},
+		{
+			name: "a patch per commit of a range",
+			act: func(r Runner) error {
+				_, err := r.FormatPatch(context.Background(), "/repo", Patch{Revs: []string{"main..side"}, Dir: out})
+				return err
+			},
+			want: []string{"format-patch", "--output-directory", out, "main..side"},
+		},
+		{
+			name: "what the branch holds that its upstream has not got",
+			act: func(r Runner) error {
+				_, err := r.FormatPatch(context.Background(), "/repo", Patch{Dir: out, Numbered: true})
+				return err
+			},
+			want: []string{"format-patch", "--output-directory", out, "--numbered", "@{upstream}..HEAD"},
+		},
+		{
+			name:    "a tag name that would be an option",
+			act:     func(r Runner) error { return r.Tag(context.Background(), "/repo", Tag{Name: "-f"}) },
+			wantErr: true,
+		},
+		{
+			name:    "a tag on a revision that would be an option",
+			act:     func(r Runner) error { return r.Tag(context.Background(), "/repo", Tag{Name: "ok", Rev: "-x"}) },
+			wantErr: true,
+		},
+		{
+			name: "a patch written where nothing is",
+			act: func(r Runner) error {
+				_, err := r.FormatPatch(context.Background(), "/repo", Patch{Dir: filepath.Join(out, "nowhere")})
+				return err
+			},
+			wantErr: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeGit{outputs: map[string]Result{"tag": {}, "for-each-ref": {}, "format-patch": {}}}
+			err := tc.act(Runner{Executor: f})
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("the command went through, want it refused")
+				}
+				if len(f.calls) != 0 {
+					t.Fatalf("the command ran %v, want nothing run at all", f.calls)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("the command failed: %v", err)
+			}
+			args := f.calls[0][5:]
+			if tc.prefix != nil {
+				if !slices.Equal(args[:len(tc.prefix)], tc.prefix) {
+					t.Fatalf("the command ran %v, want it to start with %v", args, tc.prefix)
+				}
+				// The message goes through a file, never on the command line.
+				for _, a := range args {
+					if a == "the release" {
+						t.Fatalf("the message was passed as %q", a)
+					}
+				}
+				return
+			}
+			if !slices.Equal(args, tc.want) {
+				t.Fatalf("the command ran %v, want %v", args, tc.want)
+			}
+		})
+	}
+}
