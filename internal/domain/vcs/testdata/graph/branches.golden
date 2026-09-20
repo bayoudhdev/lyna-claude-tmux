@@ -1,0 +1,11 @@
+●    f commit f
+│
+│ ●  t commit t
+│ │
+● │  e commit e
+├─╯
+●    d commit d
+│
+│ ●  s commit s
+├─╯
+●    c commit c
