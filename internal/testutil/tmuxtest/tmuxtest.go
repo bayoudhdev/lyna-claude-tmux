@@ -189,8 +189,11 @@ func WaitFor(t testing.TB, what string, cond func() bool) {
 	}
 }
 
-// pollTimeout bounds every poll; generous so loaded CI runners do not flake.
-const pollTimeout = 10 * time.Second
+// pollTimeout bounds every poll. It is generous on purpose: the slowest
+// runner of the matrix draws a menu and a popup several times slower than a
+// developer's machine, and a deadline it cannot meet fails a release over a
+// screen that was about to be right.
+const pollTimeout = 20 * time.Second
 
 func poll(cond func() bool) bool {
 	deadline := time.Now().Add(pollTimeout)
