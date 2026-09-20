@@ -197,24 +197,34 @@ fetch() {
   esac
 }
 
-# The latest release page redirects to .../tag/<version>; only the redirect
-# target is read, not the page.
+# The latest release page redirects to .../tag/<version>, and a repository that
+# has been renamed answers with a hop of its own first, so the chain is
+# followed until it names a tag. Only the redirect targets are read, never a
+# page, and every hop is https.
 resolve_latest() {
   latest_url=$base_url/latest
-  case $downloader in
-  curl)
-    target=$(curl --proto '=https' --tlsv1.2 -sS -o /dev/null -w '%{redirect_url}' "$latest_url") ||
-      fail "cannot reach $latest_url"
-    ;;
-  wget)
-    target=$(location "$(wget_request "$latest_url" /dev/null || true)")
-    ;;
-  esac
-  version=${target##*/}
-  case $target in
-  */tag/"$version") ;;
-  *) fail "cannot determine the latest release from $latest_url; pass --version vX.Y.Z" ;;
-  esac
+  latest_hops=0
+  latest_next=$latest_url
+  while :; do
+    require_https "$latest_next"
+    case $downloader in
+    curl)
+      target=$(curl --proto '=https' --tlsv1.2 -sS -o /dev/null -w '%{redirect_url}' "$latest_next") ||
+        fail "cannot reach $latest_next"
+      ;;
+    wget)
+      target=$(location "$(wget_request "$latest_next" /dev/null || true)")
+      ;;
+    esac
+    version=${target##*/}
+    case $target in
+    */tag/"$version") break ;;
+    "") fail "cannot determine the latest release from $latest_url; pass --version vX.Y.Z" ;;
+    esac
+    latest_hops=$((latest_hops + 1))
+    [ "$latest_hops" -le "$max_redirects" ] || fail "too many redirects: $latest_url"
+    latest_next=$target
+  done
   valid_version "$version" || fail "latest release has an unexpected tag: $version"
 }
 
