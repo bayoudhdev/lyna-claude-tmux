@@ -317,3 +317,199 @@ func FuzzValidateRefName(f *testing.F) {
 		}
 	})
 }
+
+func TestParseRemoteBranches(t *testing.T) {
+	cases := []struct {
+		name    string
+		data    string
+		want    []RemoteBranch
+		wantErr bool
+	}{
+		{name: "no remote at all", data: ""},
+		{
+			name: "a branch of a remote",
+			data: branchRecord("refs/remotes/origin/main", branchOID, "", "1789473600", "the first commit"),
+			want: []RemoteBranch{{
+				Name: "origin/main", Ref: "refs/remotes/origin/main", Remote: "origin", OID: branchOID,
+				Tip: time.Unix(1789473600, 0).UTC(), Subject: "the first commit",
+			}},
+		},
+		{
+			name: "a branch whose name holds a slash",
+			data: branchRecord("refs/remotes/origin/feat/git", branchOID, "", "", ""),
+			want: []RemoteBranch{{
+				Name: "origin/feat/git", Ref: "refs/remotes/origin/feat/git", Remote: "origin", OID: branchOID,
+			}},
+		},
+		{
+			name: "the branch a remote is on",
+			data: branchRecord("refs/remotes/origin/HEAD", branchOID, "refs/remotes/origin/main", "", "s"),
+			want: []RemoteBranch{{
+				Name: "origin/HEAD", Ref: "refs/remotes/origin/HEAD", Remote: "origin", OID: branchOID,
+				Target: "refs/remotes/origin/main", Subject: "s",
+			}},
+		},
+		{
+			name: "two remotes",
+			data: branchRecord("refs/remotes/backup/main", branchOID, "", "", "s") + "\n" +
+				branchRecord("refs/remotes/origin/main", branchOID, "", "", "s"),
+			want: []RemoteBranch{
+				{Name: "backup/main", Ref: "refs/remotes/backup/main", Remote: "backup", OID: branchOID, Subject: "s"},
+				{Name: "origin/main", Ref: "refs/remotes/origin/main", Remote: "origin", OID: branchOID, Subject: "s"},
+			},
+		},
+		{
+			name:    "a record cut short",
+			data:    branchRecord("refs/remotes/origin/main", branchOID, "", ""),
+			wantErr: true,
+		},
+		{
+			name:    "a ref of another namespace",
+			data:    branchRecord("refs/heads/main", branchOID, "", "", "s"),
+			wantErr: true,
+		},
+		{
+			name:    "a remote with no branch",
+			data:    branchRecord("refs/remotes/origin", branchOID, "", "", "s"),
+			wantErr: true,
+		},
+		{
+			name:    "a branch of no remote",
+			data:    branchRecord("refs/remotes//main", branchOID, "", "", "s"),
+			wantErr: true,
+		},
+		{
+			name:    "an object name that is not one",
+			data:    branchRecord("refs/remotes/origin/main", "nothex", "", "", "s"),
+			wantErr: true,
+		},
+		{
+			name:    "a symbolic ref standing for another namespace",
+			data:    branchRecord("refs/remotes/origin/HEAD", branchOID, "refs/heads/main", "", "s"),
+			wantErr: true,
+		},
+		{
+			name:    "a date that is not a number",
+			data:    branchRecord("refs/remotes/origin/main", branchOID, "", "yesterday", "s"),
+			wantErr: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := ParseRemoteBranches([]byte(tc.data))
+			switch {
+			case tc.wantErr && err == nil:
+				t.Fatalf("ParseRemoteBranches() = %+v, want a failure", got)
+			case tc.wantErr:
+				if !errors.Is(err, ErrMalformed) {
+					t.Fatalf("ParseRemoteBranches() error = %v, want %v", err, ErrMalformed)
+				}
+				return
+			case err != nil:
+				t.Fatalf("ParseRemoteBranches() error = %v", err)
+			}
+			if len(got) != len(tc.want) {
+				t.Fatalf("ParseRemoteBranches() = %+v, want %+v", got, tc.want)
+			}
+			for i := range got {
+				if got[i].Name != tc.want[i].Name || got[i].Ref != tc.want[i].Ref ||
+					got[i].Remote != tc.want[i].Remote || got[i].OID != tc.want[i].OID ||
+					got[i].Target != tc.want[i].Target || got[i].Subject != tc.want[i].Subject ||
+					!got[i].Tip.Equal(tc.want[i].Tip) {
+					t.Fatalf("remote branch %d = %+v, want %+v", i, got[i], tc.want[i])
+				}
+				if got[i].Symbolic() != (tc.want[i].Target != "") {
+					t.Fatalf("remote branch %+v disagrees with itself about being symbolic", got[i])
+				}
+			}
+		})
+	}
+}
+
+// TestParseRemoteBranchesReadsGitItself reads the refs two remotes left in a
+// real repository: the branch a remote is on, a name holding a slash and a
+// subject holding quotes.
+func TestParseRemoteBranchesReadsGitItself(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("testdata", "remotes.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := ParseRemoteBranches(data)
+	if err != nil {
+		t.Fatalf("ParseRemoteBranches() error = %v", err)
+	}
+	if len(got) != 5 {
+		t.Fatalf("ParseRemoteBranches() read %d branches, want the five of the fixture", len(got))
+	}
+	remotes := map[string]int{}
+	var symbolic int
+	for _, b := range got {
+		remotes[b.Remote]++
+		if b.Symbolic() {
+			symbolic++
+			if b.Target != "refs/remotes/origin/main" {
+				t.Fatalf("the symbolic ref stands for %q, want the main branch of the remote", b.Target)
+			}
+		}
+		if b.Tip.IsZero() || b.OID == "" || b.Name == "" {
+			t.Fatalf("remote branch %+v was read empty", b)
+		}
+	}
+	if remotes["origin"] != 4 || remotes["backup"] != 1 {
+		t.Fatalf("the branches read belong to %v, want four of origin and one of backup", remotes)
+	}
+	if symbolic != 1 {
+		t.Fatalf("%d symbolic refs were read, want the one git writes for a remote", symbolic)
+	}
+	var slashed, quoted bool
+	for _, b := range got {
+		slashed = slashed || b.Name == "origin/feat/git-workstation"
+		quoted = quoted || strings.Contains(b.Subject, `"quotes"`)
+	}
+	if !slashed || !quoted {
+		t.Fatalf("the branches read are %+v, want the name with a slash and the subject with quotes", got)
+	}
+}
+
+func TestParseRemoteBranchesCapsTheList(t *testing.T) {
+	var b strings.Builder
+	for range MaxBranches + 10 {
+		b.WriteString(branchRecord("refs/remotes/origin/main", branchOID, "", "1", "s") + "\n")
+	}
+	got, err := ParseRemoteBranches([]byte(b.String()))
+	if err != nil {
+		t.Fatalf("ParseRemoteBranches() error = %v", err)
+	}
+	if len(got) != MaxBranches {
+		t.Fatalf("ParseRemoteBranches() read %d branches, want the cap %d", len(got), MaxBranches)
+	}
+}
+
+func FuzzParseRemoteBranches(f *testing.F) {
+	f.Add(branchRecord("refs/remotes/origin/main", branchOID, "", "1789473600", "a subject"))
+	f.Add(branchRecord("refs/remotes/origin/HEAD", branchOID, "refs/remotes/origin/main", "", ""))
+	f.Add("refs/remotes/\x00\x00\x00\x00")
+	f.Fuzz(func(t *testing.T, data string) {
+		got, err := ParseRemoteBranches([]byte(data))
+		if err != nil {
+			if !errors.Is(err, ErrMalformed) {
+				t.Fatalf("ParseRemoteBranches() error = %v, want %v", err, ErrMalformed)
+			}
+			return
+		}
+		if len(got) > MaxBranches {
+			t.Fatalf("ParseRemoteBranches() read %d branches, past the cap %d", len(got), MaxBranches)
+		}
+		for _, b := range got {
+			if !IsObjectName(b.OID) {
+				t.Fatalf("remote branch object name %q is not one", b.OID)
+			}
+			if b.Remote == "" || remotesPrefix+b.Name != b.Ref {
+				t.Fatalf("remote branch %+v is not named by its ref", b)
+			}
+			if b.Symbolic() && !strings.HasPrefix(b.Target, remotesPrefix) {
+				t.Fatalf("symbolic ref %+v stands for a ref of another namespace", b)
+			}
+		}
+	})
+}

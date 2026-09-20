@@ -156,3 +156,88 @@ func ValidateRefName(name string) error {
 	}
 	return nil
 }
+
+// RemoteBranchFormat is the format ParseRemoteBranches reads, to be passed to
+// `git for-each-ref --format=<this> refs/remotes/`. A branch of a remote owes
+// nothing to an upstream of its own, so the fields are the ref, what it
+// points at, the ref it stands for when it is symbolic (which is what
+// refs/remotes/<remote>/HEAD is), and the commit it names.
+const RemoteBranchFormat = "%(refname)%00%(objectname)%00%(symref)%00%(committerdate:unix)%00%(contents:subject)"
+
+// remoteBranchFields is how many fields RemoteBranchFormat writes per ref.
+const remoteBranchFields = 5
+
+// RemoteBranch is one branch of a remote, as the refs the last fetch left
+// behind record it.
+type RemoteBranch struct {
+	// Name is the branch with its remote and without the namespace
+	// ("origin/main"), Ref the whole ref. Both are untrusted display data.
+	Name string
+	Ref  string
+	// Remote is the remote the branch belongs to ("origin").
+	Remote string
+	// OID is the commit the ref points at.
+	OID string
+	// Target is the ref a symbolic ref stands for, empty for every other
+	// branch. refs/remotes/<remote>/HEAD is the one git writes, and it names
+	// the branch that remote is on.
+	Target string
+	// Tip is when the commit was committed, and Subject its first line.
+	Tip     time.Time
+	Subject string
+}
+
+// Symbolic reports a ref that stands for another one rather than for a branch
+// of its own.
+func (b RemoteBranch) Symbolic() bool { return b.Target != "" }
+
+// ParseRemoteBranches reads
+// `git for-each-ref --format=RemoteBranchFormat refs/remotes/`.
+func ParseRemoteBranches(data []byte) ([]RemoteBranch, error) {
+	var list []RemoteBranch
+	for _, line := range strings.Split(strings.TrimSuffix(string(data), "\n"), "\n") {
+		if line == "" {
+			continue
+		}
+		if len(list) == MaxBranches {
+			break
+		}
+		b, err := parseRemoteBranch(line)
+		if err != nil {
+			return nil, err
+		}
+		list = append(list, b)
+	}
+	return list, nil
+}
+
+func parseRemoteBranch(rec string) (RemoteBranch, error) {
+	fields := strings.Split(rec, "\x00")
+	if len(fields) != remoteBranchFields {
+		return RemoteBranch{}, fmt.Errorf("%w: remote branch record of %d fields", ErrMalformed, len(fields))
+	}
+	b := RemoteBranch{Ref: fields[0], OID: fields[1], Target: fields[2], Subject: fields[4]}
+	if !strings.HasPrefix(b.Ref, remotesPrefix) {
+		return RemoteBranch{}, fmt.Errorf("%w: remote branch ref %q", ErrMalformed, b.Ref)
+	}
+	b.Name = strings.TrimPrefix(b.Ref, remotesPrefix)
+	remote, rest, ok := strings.Cut(b.Name, "/")
+	if !ok || remote == "" || rest == "" {
+		return RemoteBranch{}, fmt.Errorf("%w: remote branch ref %q names no branch of a remote", ErrMalformed, b.Ref)
+	}
+	b.Remote = remote
+	if !IsObjectName(b.OID) {
+		return RemoteBranch{}, fmt.Errorf("%w: remote branch object name %q", ErrMalformed, b.OID)
+	}
+	if b.Target != "" && !strings.HasPrefix(b.Target, remotesPrefix) {
+		return RemoteBranch{}, fmt.Errorf("%w: symbolic ref %q stands for %q", ErrMalformed, b.Ref, b.Target)
+	}
+	if fields[3] != "" {
+		seconds, err := strconv.ParseInt(fields[3], 10, 64)
+		if err != nil {
+			return RemoteBranch{}, fmt.Errorf("%w: remote branch date %q", ErrMalformed, fields[3])
+		}
+		b.Tip = time.Unix(seconds, 0).UTC()
+	}
+	return b, nil
+}
