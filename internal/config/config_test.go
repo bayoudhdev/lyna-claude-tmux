@@ -491,7 +491,7 @@ func TestLoad(t *testing.T) {
 		wantProblems bool
 		errPrefix    string
 	}{
-		{"missing uses defaults", filepath.Join(dir, "missing.toml"), false, "lyna", nil, false, ""},
+		{"missing uses defaults", filepath.Join(dir, "missing.toml"), false, "monokai", nil, false, ""},
 		{"valid", valid, true, "ansi", nil, false, ""},
 		{"symlink followed", link, true, "ansi", nil, false, ""},
 		{"invalid names file", invalid, true, "", nil, true, invalid + ": invalid config"},
@@ -587,7 +587,7 @@ func TestChoices(t *testing.T) {
 		key  string
 		want []string
 	}{
-		{"ui.theme", []string{"lyna", "slate", "dusk", "contrast", "nord", "rose", "mono", "solar-dark", "earth-dark", "light", "solar-light", "earth-light", "ansi"}},
+		{"ui.theme", []string{"monokai", "lyna", "slate", "dusk", "contrast", "nord", "rose", "mono", "solar-dark", "earth-dark", "light", "solar-light", "earth-light", "ansi"}},
 		{"sandbox.profile", []string{"standard", "strict", "off"}},
 		{"workspace.layout", []string{"solo", "duo", "trio", "quad", "review", "team", "git", "auto"}},
 		{"layouts.panes.role", []string{"claude", "shell", "changes", "review", "command", "agents", "git"}},

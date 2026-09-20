@@ -57,6 +57,7 @@ func TestGenerateEveryPalette(t *testing.T) {
 		wantName string
 		wantBase string
 	}{
+		{palette: "monokai", wantName: "Lyna Monokai", wantBase: "dark"},
 		{palette: "lyna", wantName: "Lyna", wantBase: "dark"},
 		{palette: "light", wantName: "Lyna Light", wantBase: "light"},
 		{palette: "ansi", wantName: "Lyna ANSI", wantBase: "dark-ansi"},

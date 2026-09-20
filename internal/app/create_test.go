@@ -163,7 +163,7 @@ func TestCreateWorkspace(t *testing.T) {
 		want := map[string]string{
 			"LYNA_TMUX_MANAGED": "1", "LYNA_TMUX_SESSION": "api", "LYNA_TMUX_SANDBOX": "standard",
 			"LYNA_TMUX_SOCKET": socket, "CLAUDE_CODE_TMUX_TRUECOLOR": "1",
-			"LYNA_TMUX_BELL": "1", "LYNA_TMUX_THEME": "lyna", "LYNA_TMUX_ICONS": "auto", "LYNA_TMUX_COLOR": "auto",
+			"LYNA_TMUX_BELL": "1", "LYNA_TMUX_THEME": "monokai", "LYNA_TMUX_ICONS": "auto", "LYNA_TMUX_COLOR": "auto",
 		}
 		for k, v := range want {
 			if inv.Env[k] != v {
@@ -332,7 +332,7 @@ func TestCreateWorkspaceRequests(t *testing.T) {
 				}
 				s.Config.Claude.Bell, s.Config.UI.Theme, s.Config.UI.Icons, s.Config.UI.Color = false, "light", "nerd", "256"
 				t.Cleanup(func() {
-					s.Config.Claude.Bell, s.Config.UI.Theme, s.Config.UI.Icons, s.Config.UI.Color = true, "lyna", "auto", "auto"
+					s.Config.Claude.Bell, s.Config.UI.Theme, s.Config.UI.Icons, s.Config.UI.Color = true, "monokai", "auto", "auto"
 				})
 			},
 			check: func(t *testing.T, _ CreateResult) {

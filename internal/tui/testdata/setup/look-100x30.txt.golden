@@ -3,7 +3,8 @@
 
   1/5  Look
   ┃ Theme
-  ┃ > lyna    dark with a green accent
+  ┃ > monokai the colors a workspace opens with
+  ┃   lyna    dark with a green accent
   ┃   light   for light terminal backgrounds
   ┃   ansi    your terminal's own 16 colors
 
@@ -18,7 +19,6 @@
       truecolor   24-bit color
       256         the xterm 256-color palette
       16          the basic terminal palette
-
 
 
 

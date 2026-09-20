@@ -147,6 +147,7 @@ func (m *SetupModel) buildForm() *huh.Form {
 	return huh.NewForm(
 		huh.NewGroup(
 			huh.NewSelect[string]().Title("Theme").Options(
+				huh.NewOption("monokai the colors a workspace opens with", "monokai"),
 				huh.NewOption("lyna    dark with a green accent", "lyna"),
 				huh.NewOption("light   for light terminal backgrounds", "light"),
 				huh.NewOption("ansi    your terminal's own 16 colors", "ansi"),

@@ -138,7 +138,7 @@ type Pane struct {
 func Default() Config {
 	return Config{
 		UI: UI{
-			Theme:          "lyna",
+			Theme:          "monokai",
 			Icons:          "auto",
 			Color:          "auto",
 			StatusPosition: "bottom",

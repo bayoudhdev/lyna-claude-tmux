@@ -4,10 +4,10 @@
 # unknown key is an error. Check this file with `lmux config validate`.
 
 [ui]
-# Color theme. Dark: lyna, slate, dusk, contrast, nord, rose, mono, solar-dark,
-# earth-dark. Light: light, solar-light, earth-light. ansi uses the terminal's
-# own palette. Preview them with `lmux theme preview`.
-theme = "lyna"
+# Color theme. Dark: monokai, lyna, slate, dusk, contrast, nord, rose, mono,
+# solar-dark, earth-dark. Light: light, solar-light, earth-light. ansi uses the
+# terminal's own palette. Preview them with `lmux theme preview`.
+theme = "monokai"
 # Icon set: auto, unicode, nerd (needs a Nerd Font), ascii.
 icons = "auto"
 # Color depth: auto (detected), truecolor, 256, 16.

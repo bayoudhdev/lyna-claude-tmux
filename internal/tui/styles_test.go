@@ -63,16 +63,16 @@ func TestThemeFromConfig(t *testing.T) {
 		palette string
 		wantErr string
 	}{
-		{name: "auto resolves from the environment", getenv: utf8Truecolor, depth: theme.DepthTrue, icons: "unicode", palette: "lyna"},
+		{name: "auto resolves from the environment", getenv: utf8Truecolor, depth: theme.DepthTrue, icons: "unicode", palette: "monokai"},
 		{
 			name: "auto on a plain terminal", getenv: env(map[string]string{"TERM": "xterm", "LANG": "C"}),
-			depth: theme.Depth16, icons: "ascii", palette: "lyna",
+			depth: theme.Depth16, icons: "ascii", palette: "monokai",
 		},
 		{
 			name: "explicit values win", getenv: utf8Truecolor, depth: theme.Depth256, icons: "nerd", palette: "light",
 			mutate: func(ui *config.UI) { ui.Theme, ui.Color, ui.Icons = "light", "256", "nerd" },
 		},
-		{name: "empty color means auto", getenv: utf8Truecolor, depth: theme.DepthTrue, icons: "unicode", palette: "lyna", mutate: func(ui *config.UI) { ui.Color = "" }},
+		{name: "empty color means auto", getenv: utf8Truecolor, depth: theme.DepthTrue, icons: "unicode", palette: "monokai", mutate: func(ui *config.UI) { ui.Color = "" }},
 		{name: "unknown theme", getenv: utf8Truecolor, mutate: func(ui *config.UI) { ui.Theme = "neon" }, wantErr: "unknown theme"},
 		{name: "unknown depth", getenv: utf8Truecolor, mutate: func(ui *config.UI) { ui.Color = "65k" }, wantErr: "unknown color depth"},
 		{name: "unknown icons", getenv: utf8Truecolor, mutate: func(ui *config.UI) { ui.Icons = "emoji" }, wantErr: "unknown icon set"},

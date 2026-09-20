@@ -77,10 +77,10 @@ func TestThemePreview(t *testing.T) {
 		wantErr     string
 		wantIs      error
 	}{
-		{name: "every theme at the detected depth", env: map[string]string{"COLORTERM": "truecolor", "LANG": "en_US.UTF-8"}, wantCurrent: "lyna", wantDepth: theme.DepthTrue, wantIcons: "unicode"},
-		{name: "one theme", env: map[string]string{"TERM": "xterm-256color"}, theme: "nord", wantThemes: []string{"nord"}, wantCurrent: "lyna", wantDepth: theme.Depth256, wantIcons: "ascii"},
+		{name: "every theme at the detected depth", env: map[string]string{"COLORTERM": "truecolor", "LANG": "en_US.UTF-8"}, wantCurrent: "monokai", wantDepth: theme.DepthTrue, wantIcons: "unicode"},
+		{name: "one theme", env: map[string]string{"TERM": "xterm-256color"}, theme: "nord", wantThemes: []string{"nord"}, wantCurrent: "monokai", wantDepth: theme.Depth256, wantIcons: "ascii"},
 		{name: "configured depth and icons win", env: map[string]string{"COLORTERM": "truecolor", "LANG": "en_US.UTF-8"}, config: "[ui]\ntheme = \"rose\"\ncolor = \"16\"\nicons = \"nerd\"\n", theme: "light", wantThemes: []string{"light"}, wantCurrent: "rose", wantDepth: theme.Depth16, wantIcons: "nerd"},
-		{name: "unknown theme", theme: "neon", wantIs: ErrThemeUnknown, wantErr: "choose lyna, slate"},
+		{name: "unknown theme", theme: "neon", wantIs: ErrThemeUnknown, wantErr: "choose monokai, lyna"},
 		{name: "invalid configuration", config: "[ui]\ntheme = 1\n", wantErr: "theme"},
 		{name: "unknown theme before the configuration", config: "[ui]\ntheme = 1\n", theme: "neon", wantIs: ErrThemeUnknown},
 	}
@@ -284,9 +284,9 @@ func TestThemeList(t *testing.T) {
 		wantDepth   theme.Depth
 		wantErr     string
 	}{
-		{name: "defaults detect the depth", env: map[string]string{"COLORTERM": "truecolor"}, wantCurrent: "lyna", wantDepth: theme.DepthTrue},
+		{name: "defaults detect the depth", env: map[string]string{"COLORTERM": "truecolor"}, wantCurrent: "monokai", wantDepth: theme.DepthTrue},
 		{name: "configured theme", env: map[string]string{"TERM": "xterm-256color"}, config: "[ui]\ntheme = \"ansi\"\n", wantCurrent: "ansi", wantDepth: theme.Depth256},
-		{name: "configured depth wins", env: map[string]string{"COLORTERM": "truecolor"}, config: "[ui]\ncolor = \"16\"\n", wantCurrent: "lyna", wantDepth: theme.Depth16},
+		{name: "configured depth wins", env: map[string]string{"COLORTERM": "truecolor"}, config: "[ui]\ncolor = \"16\"\n", wantCurrent: "monokai", wantDepth: theme.Depth16},
 		{name: "invalid configuration", config: "[ui]\ntheme = 1\n", wantErr: "theme"},
 		{name: "no home", env: map[string]string{"LYNA_TMUX_HOME": ""}, noHome: true, wantErr: xdg.ErrNoHome.Error()},
 	}

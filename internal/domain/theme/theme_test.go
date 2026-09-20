@@ -199,7 +199,7 @@ func TestDetectDepth(t *testing.T) {
 // order Names returns. Adding a palette means adding it here too.
 var paletteNames = []string{
 	"ansi", "contrast", "dusk", "earth-dark", "earth-light", "light", "lyna",
-	"mono", "nord", "rose", "slate", "solar-dark", "solar-light",
+	"mono", "monokai", "nord", "rose", "slate", "solar-dark", "solar-light",
 }
 
 func TestPalettes(t *testing.T) {

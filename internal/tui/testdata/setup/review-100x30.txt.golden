@@ -3,7 +3,7 @@
 
   5/5  Review
   ┃ Write config.toml?
-  ┃ ui.theme: lyna -> light
+  ┃ ui.theme: monokai -> light
   ┃ ui.icons: auto -> ascii
   ┃ ui.color: auto -> 256
   ┃ workspace.layout: auto -> git

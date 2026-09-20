@@ -119,7 +119,7 @@ Look and input model of the workspace.
 
 | Key | Type | Values | Default | Effect |
 | --- | --- | --- | --- | --- |
-| `theme` | string | `lyna`, `slate`, `dusk`, `contrast`, `nord`, `rose`, `mono`, `solar-dark`, `earth-dark`, `light`, `solar-light`, `earth-light`, `ansi` | `"lyna"` | Palette of the status line, pane borders, menus and popups. The first nine are dark, the next three light, and `ansi` uses the terminal's own palette. `lmux theme` lists them with swatches and `lmux theme preview [name]` draws a workspace in each one. |
+| `theme` | string | `monokai`, `lyna`, `slate`, `dusk`, `contrast`, `nord`, `rose`, `mono`, `solar-dark`, `earth-dark`, `light`, `solar-light`, `earth-light`, `ansi` | `"monokai"` | Palette of the status line, pane borders, menus and popups. The first ten are dark, the next three light, and `ansi` uses the terminal's own palette. `lmux theme` lists them with swatches and `lmux theme preview [name]` draws a workspace in each one. |
 | `icons` | string | `auto`, `unicode`, `nerd`, `ascii` | `"auto"` | Glyph set in the status line, borders and pickers. `auto` picks `unicode` when the effective locale (`LC_ALL`, then `LC_CTYPE`, then `LANG`) is UTF-8, and `ascii` otherwise, including under the East Asian locales (`ja`, `zh`, `ko`), where terminals draw the ambiguous width glyphs two cells wide and every segment would sit one cell further right than the layout expects. Set `icons = "unicode"` to use them anyway. `nerd` needs a patched font and is never chosen automatically. |
 | `color` | string | `auto`, `truecolor`, `256`, `16` | `"auto"` | Color depth the theme is rendered at. `auto` reads `COLORTERM=truecolor` or `24bit` as 24-bit, a `TERM` containing `256color` as 256 colors, `xterm-direct` and `tmux-direct` as 24-bit, anything else as the basic 16. |
 | `status_position` | string | `top`, `bottom` | `"bottom"` | Which edge the status line sits on. |
@@ -261,10 +261,10 @@ every key is present or shown commented out, next to what it does.
 # unknown key is an error. Check this file with `lmux config validate`.
 
 [ui]
-# Color theme. Dark: lyna, slate, dusk, contrast, nord, rose, mono, solar-dark,
-# earth-dark. Light: light, solar-light, earth-light. ansi uses the terminal's
-# own palette. Preview them with `lmux theme preview`.
-theme = "lyna"
+# Color theme. Dark: monokai, lyna, slate, dusk, contrast, nord, rose, mono,
+# solar-dark, earth-dark. Light: light, solar-light, earth-light. ansi uses the
+# terminal's own palette. Preview them with `lmux theme preview`.
+theme = "monokai"
 # Icon set: auto, unicode, nerd (needs a Nerd Font), ascii.
 icons = "auto"
 # Color depth: auto (detected), truecolor, 256, 16.

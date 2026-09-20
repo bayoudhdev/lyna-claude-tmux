@@ -45,7 +45,7 @@ func startSetup(t *testing.T, cfg config.Config, width, height int, msgs ...tea.
 func TestSetupFrames(t *testing.T) {
 	t.Parallel()
 	changed := seq(
-		[]string{"down", "enter", "down", "down", "down", "enter", "down", "down", "enter"},
+		[]string{"down", "down", "enter", "down", "down", "down", "enter", "down", "down", "enter"},
 		[]string{"up", "enter", "n", "y"},
 	)
 	states := []struct {
@@ -53,7 +53,7 @@ func TestSetupFrames(t *testing.T) {
 		msgs []tea.Msg
 	}{
 		{name: "look"},
-		{name: "look-changed", msgs: keys("down", "enter", "down", "down", "down")},
+		{name: "look-changed", msgs: keys("down", "down", "enter", "down", "down", "down")},
 		{name: "workspace", msgs: seq(setupLookDefaults)},
 		{name: "claude", msgs: seq(setupLookDefaults, setupWorkspaceDefaults)},
 		{name: "invalid-model", msgs: append(append(seq(setupLookDefaults, setupWorkspaceDefaults), typeText("bad model!")...), press("enter"))},
@@ -99,7 +99,7 @@ func TestSetupResults(t *testing.T) {
 		{
 			name: "every step edits", cfg: config.Default(),
 			msgs: append(append(seq(
-				[]string{"down", "enter", "down", "down", "down", "enter", "down", "down", "enter"},
+				[]string{"down", "down", "enter", "down", "down", "down", "enter", "down", "down", "enter"},
 				[]string{"up", "enter", "n", "n"},
 			), typeText("  opus ")...), seq(
 				[]string{"enter", "down", "down", "down", "enter", "down", "down", "enter"},
@@ -108,7 +108,7 @@ func TestSetupResults(t *testing.T) {
 			)...),
 			done: true, saved: true, quit: true,
 			changes: []ConfigChange{
-				{Key: "ui.theme", From: "lyna", To: "light"},
+				{Key: "ui.theme", From: "monokai", To: "light"},
 				{Key: "ui.icons", From: "auto", To: "ascii"},
 				{Key: "ui.color", From: "auto", To: "256"},
 				{Key: "workspace.layout", From: "auto", To: "git"},
@@ -132,11 +132,11 @@ func TestSetupResults(t *testing.T) {
 		},
 		{
 			name: "review cancel writes nothing", cfg: config.Default(),
-			msgs: seq([]string{"down", "enter", "enter", "enter"}, setupWorkspaceDefaults, setupClaudeDefaults, setupSandboxDefaults, []string{"n"}),
+			msgs: seq([]string{"down", "down", "enter", "enter", "enter"}, setupWorkspaceDefaults, setupClaudeDefaults, setupSandboxDefaults, []string{"n"}),
 			done: true, quit: true,
 			check: func(t *testing.T, c config.Config) {
 				t.Helper()
-				if c.UI.Theme != "lyna" {
+				if c.UI.Theme != "monokai" {
 					t.Errorf("canceled wizard returned edits: theme %q", c.UI.Theme)
 				}
 			},
@@ -152,9 +152,9 @@ func TestSetupResults(t *testing.T) {
 		},
 		{
 			name: "shift+tab goes back", cfg: config.Default(),
-			msgs: seq([]string{"enter", "shift+tab", "down", "enter", "enter", "enter"}, setupWorkspaceDefaults, setupClaudeDefaults, setupSandboxDefaults, []string{"y"}),
+			msgs: seq([]string{"enter", "shift+tab", "down", "down", "enter", "enter", "enter"}, setupWorkspaceDefaults, setupClaudeDefaults, setupSandboxDefaults, []string{"y"}),
 			done: true, saved: true, quit: true,
-			changes: []ConfigChange{{Key: "ui.theme", From: "lyna", To: "light"}},
+			changes: []ConfigChange{{Key: "ui.theme", From: "monokai", To: "light"}},
 		},
 		{
 			name: "keeps the review layout and custom values", cfg: custom,
@@ -223,10 +223,10 @@ func TestSetupInvalidModelMessage(t *testing.T) {
 func TestSetupReviewSummary(t *testing.T) {
 	t.Parallel()
 	m, _ := startSetup(t, config.Default(), 100, 30, seq(
-		[]string{"down", "enter", "enter", "enter"}, setupWorkspaceDefaults, setupClaudeDefaults, []string{"down", "down", "enter", "enter"},
+		[]string{"down", "down", "enter", "enter", "enter"}, setupWorkspaceDefaults, setupClaudeDefaults, []string{"down", "down", "enter", "enter"},
 	)...)
 	frame := ansi.Strip(m.View().Content)
-	for _, want := range []string{"ui.theme: lyna -> light", "sandbox.profile: standard -> off"} {
+	for _, want := range []string{"ui.theme: monokai -> light", "sandbox.profile: standard -> off"} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("review lacks %q:\n%s", want, frame)
 		}
@@ -240,7 +240,7 @@ func TestSetupPreviewFollowsSelection(t *testing.T) {
 	t.Parallel()
 	m, _ := startSetup(t, config.Default(), 100, 30)
 	before := m.preview()
-	drive(t, m, nil, keys("down", "enter", "down", "down", "down")...)
+	drive(t, m, nil, keys("down", "down", "enter", "down", "down", "down")...)
 	after := m.preview()
 	if before == after {
 		t.Error("preview did not change with the theme and icons")
@@ -272,7 +272,7 @@ func TestDiffConfig(t *testing.T) {
 		{name: "ignores keys the wizard does not edit", mutate: func(c *config.Config) { c.UI.Clock = false; c.Workspace.SplitRatio = 50 }},
 		{
 			name: "wizard order", mutate: func(c *config.Config) { c.Sandbox.Isolation = "container"; c.UI.Theme = "ansi" },
-			want: []ConfigChange{{Key: "ui.theme", From: "lyna", To: "ansi"}, {Key: "sandbox.isolation", From: "bash", To: "container"}},
+			want: []ConfigChange{{Key: "ui.theme", From: "monokai", To: "ansi"}, {Key: "sandbox.isolation", From: "bash", To: "container"}},
 		},
 	}
 	for _, tc := range cases {

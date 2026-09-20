@@ -1,5 +1,6 @@
   THEME        STYLE            COLORS (256)
-* lyna         dark             color77 color75 color214 color203 color255 color102
+* monokai      dark             color148 color81 color208 color197 color254 color245
+  lyna         dark             color77 color75 color214 color203 color255 color102
   slate        dark             color75 color176 color180 color210 color254 color103
   dusk         dark             color179 color248 color179 color173 color187 color138
   contrast     dark             color220 color81 color214 color203 color231 color249

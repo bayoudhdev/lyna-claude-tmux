@@ -162,7 +162,7 @@ func TestThemePreviewCLI(t *testing.T) {
 		},
 		{
 			name: "every theme in documented order", env: map[string]string{"TERM": "xterm-256color"}, args: []string{"theme", "preview"},
-			outHas:   []string{"lyna: dark (configured)\n", "\nslate: dark\n", "\nlight: light\n", "\nansi: terminal colors\n", "  colors  bg=color0 ", "\nSwitch with: lmux theme <name>\n"},
+			outHas:   []string{"monokai: dark (configured)\n", "\nslate: dark\n", "\nlight: light\n", "\nansi: terminal colors\n", "  colors  bg=color0 ", "\nSwitch with: lmux theme <name>\n"},
 			outLacks: []string{"\x1b"},
 		},
 		{name: "configured theme is marked", config: "[ui]\ntheme = \"rose\"\n", args: []string{"theme", "preview"}, outHas: []string{"\nrose: dark (configured)\n", "lyna: dark\n"}},
@@ -273,7 +273,7 @@ func TestThemeSetCLI(t *testing.T) {
 	e := newGlueEnv(t)
 	file := e.configFile()
 	withTheme := func(name string) []byte {
-		return bytes.Replace(config.Template(), []byte(`theme = "lyna"`), []byte(`theme = "`+name+`"`), 1)
+		return bytes.Replace(config.Template(), []byte(`theme = "monokai"`), []byte(`theme = "`+name+`"`), 1)
 	}
 	fileIs := func(t *testing.T, want []byte) {
 		t.Helper()
@@ -334,7 +334,7 @@ func TestThemeSetCLI(t *testing.T) {
 		{
 			name:  "default theme on a missing file",
 			setup: func(t *testing.T) { t.Helper(); mustRemove(t, file) },
-			args:  []string{"theme", "lyna"}, outHas: []string{"Created " + file, "Theme set to lyna in " + file},
+			args:  []string{"theme", "monokai"}, outHas: []string{"Created " + file, "Theme set to monokai in " + file},
 			check: func(t *testing.T) { t.Helper(); fileIs(t, config.Template()) },
 		},
 		{

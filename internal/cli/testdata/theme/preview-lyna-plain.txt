@@ -1,4 +1,4 @@
-lyna: dark (configured)
+lyna: dark
   status   λ  api   ○ 1:main  ● 2:auth [z]  ◆ 3:docs    ⊞ split  ± review  ≡  ◆ 1 waiting  ▣ strict  ⎇ main  ◷ 12:00 
   border  ━━ ✻ claude ● working +2 subagents ━━━━
   border  ━━ › shell ━━━━━━━━━━━━━━━━━━━━

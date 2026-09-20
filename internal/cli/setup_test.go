@@ -167,7 +167,7 @@ func TestSetupWizardSaves(t *testing.T) {
 	edited := config.Default()
 	edited.UI.Theme = "light"
 	edited.UI.StatusPosition = "top"
-	changes := []tui.ConfigChange{{Key: "ui.theme", From: "lyna", To: "light"}, {Key: "claude.model", From: "", To: "opus"}}
+	changes := []tui.ConfigChange{{Key: "ui.theme", From: "monokai", To: "light"}, {Key: "claude.model", From: "", To: "opus"}}
 	cases := []struct {
 		name       string
 		model      setupFinished
@@ -186,7 +186,7 @@ func TestSetupWizardSaves(t *testing.T) {
 		{
 			name:  "saved to a running server",
 			model: setupFinished{res: tui.SetupResult{Config: edited, Changes: changes, Saved: true}, done: true}, running: true, existing: "[ui]\ntheme = \"ansi\"\n",
-			outHas:    []string{"Saved the previous file to", "Wrote ", "ui.theme: lyna -> light", "claude.model: (default) -> opus", "Applied to the running lyna-tmux server", "Shell completion for zsh", "Alt keys"},
+			outHas:    []string{"Saved the previous file to", "Wrote ", "ui.theme: monokai -> light", "claude.model: (default) -> opus", "Applied to the running lyna-tmux server", "Shell completion for zsh", "Alt keys"},
 			wantTheme: "light", wantBackup: true,
 		},
 		{
@@ -369,7 +369,7 @@ func TestSetupStartsFromLoadedConfig(t *testing.T) {
 		config   string
 		selected string
 	}{
-		{name: "defaults without a file", selected: "> lyna"},
+		{name: "defaults without a file", selected: "> monokai"},
 		{name: "configured theme", config: "[ui]\ntheme = \"ansi\"\n", selected: "> ansi"},
 	}
 	for _, tc := range cases {

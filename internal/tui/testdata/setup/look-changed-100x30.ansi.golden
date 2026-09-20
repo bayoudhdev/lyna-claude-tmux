@@ -3,6 +3,7 @@
 
   [1;38;2;57;211;83m1/5  Look[m
   [38;2;57;211;83m [m [38;2;125;133;144mTheme[m                                                                     
+  [38;2;57;211;83m [m   [38;2;230;237;243mmonokai the colors a workspace opens with[m                               
   [38;2;57;211;83m [m   [38;2;230;237;243mlyna    dark with a green accent[m                                        
   [38;2;57;211;83m [m   [38;2;57;211;83mlight   for light terminal backgrounds[m                                  
   [38;2;57;211;83m [m   [38;2;230;237;243mansi    your terminal's own 16 colors[m                                   
@@ -18,7 +19,6 @@
   [38;2;57;211;83m [m   [38;2;230;237;243mtruecolor   24-bit color[m                                                
   [38;2;57;211;83m [m   [38;2;230;237;243m256         the xterm 256-color palette[m                                 
   [38;2;57;211;83m [m   [38;2;230;237;243m16          the basic terminal palette[m                                  
-                                                                              
                                                                               
                                                                              
 
