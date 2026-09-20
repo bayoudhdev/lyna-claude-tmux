@@ -1,0 +1,21 @@
+# The dashboard: every workspace and every agent on the machine.
+title lmux
+env LYNA_TMUX_DEMO_AGENTS=1
+size 134 36
+pre lmux kill --all
+pre rm -rf .devcontainer
+pre lmux create ../acme-web --layout duo --detach
+pre lmux create . --layout trio --detach
+run lmux
+wait 2.5
+chapter The dashboard
+caption lmux | the workspaces, and the agents under them
+frame 3
+caption down | the cursor moves, enter attaches
+keys Down
+wait 0.7
+frame 2
+caption a | every agent on the machine, from here too
+keys a
+wait 2
+frame 3

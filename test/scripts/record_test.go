@@ -140,7 +140,7 @@ func TestRecordArguments(t *testing.T) {
 		{name: "scene is not a file", args: []string{"--scene", "/nonexistent/x.scene", "--out", "/tmp/x.gif"}, wantExit: 2, wantErr: "is not a file"},
 		{
 			name: "no output", scene: "run true\nframe\n", args: []string{"--out", ""},
-			wantExit: 2, wantErr: "one of --out, --still or --mp4 is required",
+			wantExit: 2, wantErr: "one of --out, --still, --mp4 or --srt is required",
 		},
 		{
 			name: "width is a number", scene: "run true\nframe\n", args: []string{"--out", "/tmp/x.gif", "--width", "wide"},
@@ -205,6 +205,9 @@ frame 1.8
 type git status
 enter
 film 3 0.4
+chapter Panes and windows
+caption lmux split right | a pane beside the agent
+frame 1.2
 `,
 			golden: "record/scene.txt",
 		},
@@ -218,6 +221,7 @@ film 3 0.4
 		{name: "env takes an assignment", scene: "env DEMO\nrun true\nframe\n", wantExit: 2, wantErr: "env takes NAME=VALUE"},
 		{name: "film takes a count", scene: "run true\nfilm many 0.3\n", wantExit: 2, wantErr: "film takes a whole COUNT"},
 		{name: "film takes a gap", scene: "run true\nfilm 3\n", wantExit: 2, wantErr: "film takes COUNT and GAP"},
+		{name: "chapter takes a title", scene: "run true\nchapter\nframe\n", wantExit: 2, wantErr: "chapter takes a title"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -493,6 +497,131 @@ func TestRecordScenesAreValid(t *testing.T) {
 			}
 			if !strings.Contains(stdout, "run: ") {
 				t.Fatalf("no run directive reported:\n%s", stdout)
+			}
+		})
+	}
+}
+
+// TestRecordCaptionsAndChapters covers what turns the recorder into a film
+// recorder: the subtitle a frame carries, the band it is drawn in, the title
+// card a chapter opens with, and the sidecar track that says the same thing
+// at the same moment.
+func TestRecordCaptionsAndChapters(t *testing.T) {
+	e := newRecordEnv(t)
+	scene := e.scene(t, `title A chapter
+size 40 8
+run cat
+chapter Panes and windows
+caption lmux split right | a pane beside the agent
+frame 0.5
+frame 1.5
+caption
+frame 1
+`)
+	keep := filepath.Join(e.dir, "keep")
+	mp4 := filepath.Join(e.dir, "assets", "demo.mp4")
+	srt := filepath.Join(e.dir, "assets", "demo.srt")
+	stdout, stderr, exit := runRecord(t, e.env(t), "--scene", scene, "--mp4", mp4, "--srt", srt, "--keep", keep)
+	if exit != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", exit, stdout, stderr)
+	}
+	// The chapter is announced with the second it starts at, which is what a
+	// chapter list is built from.
+	if !strings.Contains(stdout, "chapter: 0\tPanes and windows") {
+		t.Fatalf("stdout does not report the chapter:\n%s", stdout)
+	}
+	// The card is a screen the recorder writes, not one it captured.
+	card := string(mustRead(t, filepath.Join(keep, "frames", "0001.ansi")))
+	if !strings.Contains(card, "Panes and windows") {
+		t.Fatalf("the title card does not name the chapter:\n%s", card)
+	}
+	// One cue for the run of frames that share a caption: it opens when the
+	// card ends and lasts as long as those frames do, and its two halves are
+	// the command and what it does.
+	want := "1\n00:00:02,000 --> 00:00:04,000\nlmux split right\na pane beside the agent\n"
+	if got := string(mustRead(t, srt)); !strings.Contains(got, want) {
+		t.Fatalf("the subtitle track is\n%s\nwant a cue\n%s", got, want)
+	}
+	cases := []struct {
+		name   string
+		frame  string
+		want   []string
+		unwant string
+	}{
+		{name: "a captioned frame carries its two lines", frame: "0002.html", want: []string{`id="caption"`, "lmux split right", "a pane beside the agent"}},
+		{name: "a frame after an empty caption keeps the band", frame: "0004.html", want: []string{`id="caption"`}, unwant: "lmux split right"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			html := string(mustRead(t, filepath.Join(keep, "frames", tc.frame)))
+			for _, w := range tc.want {
+				if !strings.Contains(html, w) {
+					t.Fatalf("%s lacks %q", tc.frame, w)
+				}
+			}
+			if tc.unwant != "" && strings.Contains(html, tc.unwant) {
+				t.Fatalf("%s still holds %q", tc.frame, tc.unwant)
+			}
+		})
+	}
+	// The band is reserved in the window the frames are drawn in, so a film
+	// keeps one size and no caption is ever drawn over the status bar.
+	log := string(mustRead(t, e.log))
+	if !strings.Contains(log, "--window-size=418,337") {
+		t.Fatalf("the window does not make room for the band:\n%s", log)
+	}
+}
+
+// TestRecordBandIsOnlyForFilms pins that a scene which captions nothing is
+// drawn exactly as before: the pictures of the documentation keep their size.
+func TestRecordBandIsOnlyForFilms(t *testing.T) {
+	cases := []struct {
+		name  string
+		scene string
+		want  string
+	}{
+		{name: "a scene without captions reserves nothing", scene: "title A frame\nsize 20 5\nrun cat\nframe 0.5\n", want: "band: 0"},
+		{name: "a caption reserves the band", scene: "title A frame\nsize 20 5\nrun cat\ncaption lmux doctor\nframe 0.5\n", want: "band: 1"},
+		{name: "a chapter reserves the band", scene: "title A frame\nsize 20 5\nrun cat\nchapter Install\nframe 0.5\n", want: "band: 1"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newRecordEnv(t)
+			scene := e.scene(t, tc.scene)
+			stdout, stderr, exit := runRecord(t, e.env(t), "--scene", scene, "--still", filepath.Join(e.dir, "x.png"), "--dry-run")
+			if exit != 0 {
+				t.Fatalf("exit %d\nstderr:\n%s", exit, stderr)
+			}
+			if !strings.Contains(stdout, tc.want) {
+				t.Fatalf("stdout does not report %q:\n%s", tc.want, stdout)
+			}
+		})
+	}
+}
+
+// TestScriptUsageIsOnlyTheHeader keeps every script's --help to the comment it
+// is written from. The help is printed by reading a range of lines out of the
+// script itself, so a line added to the header spills the shell below it into
+// the help, which is how each of these scripts has already been caught once.
+func TestScriptUsageIsOnlyTheHeader(t *testing.T) {
+	for _, name := range []string{"record.sh", "record-docs.sh", "record-video.sh", "bench.sh"} {
+		t.Run(name, func(t *testing.T) {
+			bash, err := exec.LookPath("bash")
+			if err != nil {
+				t.Skip("bash is not installed")
+			}
+			out, err := exec.Command(bash, scriptPath(t, name), "--help").CombinedOutput()
+			if err != nil {
+				t.Fatalf("%v\n%s", err, out)
+			}
+			help := string(out)
+			if !strings.Contains(help, "Usage: scripts/"+name) {
+				t.Fatalf("the help does not say how to run it:\n%s", help)
+			}
+			for _, code := range []string{"set -euo pipefail", "#!/usr/bin/env bash", "fail()"} {
+				if strings.Contains(help, code) {
+					t.Errorf("the help carries the line %q of the script:\n%s", code, help)
+				}
 			}
 		})
 	}

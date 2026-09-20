@@ -14,6 +14,13 @@ termshot_cell_height=187
 termshot_pad_width=50
 termshot_pad_height=84
 
+# termshot_band_height is the caption band a film reserves under the terminal,
+# in whole pixels: two lines of subtitle and the space around them. The band
+# is drawn inside the frame rather than over the screen, so a caption never
+# covers the status bar, and it is reserved for every frame of a scene that
+# captions anything, because a film has one size throughout.
+termshot_band_height=104
+
 # The frames are drawn with a patched font, so the separators of the status bar
 # and the nerd icon set appear as they do in a terminal that has one. It is the
 # Meslo Nerd Font, whose advance width is the Menlo one the image sizes above
@@ -121,18 +128,40 @@ with open(sys.argv[2], "w") as f:
 PY
 }
 
+# termshot_caption_html prints the caption $1 as the two spans the band
+# draws: the first line is the command as it is typed, the second says what it
+# does. The text comes from a scene file, so it is escaped rather than trusted.
+termshot_caption_html() {
+  python3 - "$1" <<'CAPTION'
+import html
+import sys
+
+lines = [line for line in sys.argv[1].split("\n") if line.strip()]
+classes = ["cmd", "say"]
+out = []
+for i, line in enumerate(lines[:2]):
+    out.append('<div class="%s">%s</div>' % (classes[i], html.escape(line)))
+print("".join(out))
+CAPTION
+}
+
 # termshot_html writes a page that draws the capture $1 at $2 columns by $3
 # rows under the window title $4, to the file $5. $6 is a scratch directory,
 # and $7 the patched font the page draws with; the font is copied next to the
-# page so its URL needs no quoting, whatever the directory is called.
+# page so its URL needs no quoting, whatever the directory is called. $8 is 1
+# to reserve the caption band under the terminal, and $9 the caption itself,
+# whose two lines are separated by a newline.
 termshot_html() {
-  local ansi=$1 cols=$2 rows=$3 title=$4 out=$5 work=$6 font=${7:-}
-  local json family="Menlo, ui-monospace, monospace" face=""
+  local ansi=$1 cols=$2 rows=$3 title=$4 out=$5 work=$6 font=${7:-} band=${8:-0} caption=${9:-}
+  local json family="Menlo, ui-monospace, monospace" face="" band_html=""
   json=$work/$(basename "$out").json
   if [[ -n $font ]]; then
     cp -f "$font" "$(dirname "$out")/font.ttf"
     family="LynaRecorder, Menlo, ui-monospace, monospace"
     face='@font-face { font-family: "LynaRecorder"; src: url("font.ttf") format("truetype"); }'
+  fi
+  if ((band)); then
+    band_html="<div id=\"caption\">$(termshot_caption_html "$caption")</div>"
   fi
   termshot_json "$ansi" "$json"
   cat >"$out" <<HTML
@@ -147,6 +176,19 @@ termshot_html() {
   .dot { width: 12px; height: 12px; border-radius: 50%; }
   #title { color: #7d8590; font-size: 13px; margin-left: 8px; }
   .xterm-viewport { overflow: hidden !important; }
+  #caption {
+    height: ${termshot_band_height}px;
+    box-sizing: border-box;
+    padding: 18px 10px 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 6px;
+    font-family: $family;
+    text-align: center;
+  }
+  #caption .cmd { color: #a4e400; font-size: 19px; font-weight: 700; }
+  #caption .say { color: #e6e6e6; font-size: 17px; }
 </style>
 <div id="frame">
   <div id="bar">
@@ -156,6 +198,7 @@ termshot_html() {
     <span id="title"></span>
   </div>
   <div id="term"></div>
+  $band_html
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
 <script>
@@ -183,11 +226,13 @@ HTML
 }
 
 # termshot_png renders the page $2 with the Chrome $1 at $3 columns by $4 rows
-# into the image $5.
+# into the image $5. $6 is 1 when the page reserves the caption band, whose
+# height the window must make room for.
 termshot_png() {
-  local chrome=$1 html=$2 cols=$3 rows=$4 out=$5
+  local chrome=$1 html=$2 cols=$3 rows=$4 out=$5 band=${6:-0}
   local width=$((cols * termshot_cell_width / 10 + termshot_pad_width))
   local height=$((rows * termshot_cell_height / 10 + termshot_pad_height))
+  if ((band)); then height=$((height + termshot_band_height)); fi
   # The page loads its font from the file beside it, which a file:// document
   # may only do with this flag.
   "$chrome" --headless --disable-gpu --no-sandbox --hide-scrollbars \

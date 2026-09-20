@@ -1,0 +1,25 @@
+# One agent per branch, each in a git worktree of its own.
+title lmux task rate-limit
+size 134 36
+pre lmux kill --all
+pre rm -rf .devcontainer
+pre rm -rf .claude/worktrees
+pre rm -rf .git/worktrees
+pre lmux create . --layout duo --detach
+run lmux create . --nested
+wait 3
+chapter Tasks in worktrees
+caption lmux task rate-limit "add a token bucket to the API gateway" | a window, an agent and a branch of its own
+frame 1.6
+keys M-]
+type lmux task rate-limit "add a token bucket to the API gateway"
+enter
+wait 8
+frame 2.4
+caption git worktree list | the checkout the agent works in, beside the project
+keys M-1
+wait 0.8
+type git worktree list
+enter
+wait 1.5
+frame 4

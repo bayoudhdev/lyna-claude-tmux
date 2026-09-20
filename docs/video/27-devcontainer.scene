@@ -1,0 +1,21 @@
+# Container isolation: the files lyna-tmux renders for the project.
+title lmux sandbox devcontainer init
+size 134 36
+pre lmux kill --all
+pre rm -rf .devcontainer
+run demo-shell
+wait 1
+type clear
+enter
+wait 0.5
+chapter Containers
+caption lmux sandbox devcontainer init | the container files of the project, written for it
+type lmux sandbox devcontainer init
+enter
+wait 2.5
+frame 3.5
+caption ls -la .devcontainer | the image, the firewall and the allowlist it comes up with
+type clear; ls -la .devcontainer
+enter
+wait 1.5
+frame 3.5

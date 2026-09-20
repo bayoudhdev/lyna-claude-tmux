@@ -1,0 +1,32 @@
+# Splitting a pane and zooming one, with real commands running in them.
+title Alt+backslash splits right, Alt+minus splits down, Alt+z zooms
+size 134 36
+pre lmux kill --all
+pre git config log.excludeDecoration refs/heads/worktree-*
+pre rm -rf .devcontainer
+pre lmux create . --layout solo --detach
+run lmux create . --nested
+wait 4
+chapter Split and zoom
+caption Alt+backslash | a shell beside the agent
+frame 1.6
+keys M-\
+wait 1.8
+type git log --oneline -5
+enter
+wait 1.2
+frame 2.4
+caption Alt+minus | another one below it
+keys M--
+wait 1.8
+type go test ./internal/ratelimit/
+enter
+wait 3
+frame 2.4
+caption Alt+z | one pane fills the window, and comes back
+keys M-z
+wait 1.5
+frame 2
+keys M-z
+wait 1.5
+frame 2.4

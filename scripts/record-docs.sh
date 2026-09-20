@@ -11,9 +11,14 @@
 # anything else that must go. A scene whose first lines contain
 # "# fixtures: off" runs without the fixture binaries on PATH.
 #
+# With --film every scene becomes an MP4 and a subtitle track instead, which
+# is how the chapters of the demonstration film are recorded; the environment
+# a scene runs in is the same either way.
+#
 # Usage: scripts/record-docs.sh --project DIR [--bin PATH] [--assets DIR]
-#                               [--home NAME] [--redact FROM=TO]...
-#                               [--only NAME]... [--dry-run]
+#                               [--scenes DIR] [--fixtures DIR] [--home NAME]
+#                               [--redact FROM=TO]... [--only NAME]...
+#                               [--film] [--width PIXELS] [--fps N] [--dry-run]
 set -euo pipefail
 
 fail() {
@@ -28,7 +33,7 @@ usage_error() {
 }
 
 usage() {
-  sed -n '2,15p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,21p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -38,23 +43,33 @@ project=""
 bin=""
 assets=$root/docs/assets
 scenes=$root/docs/scenes
+# The recording shell and the fixture binaries belong to the recorder rather
+# than to one set of scenes, so a second set, the chapters of the film, runs
+# with the same ones.
+fixtures=""
 record=$here/record.sh
 demo_home=""
 only=()
 extra_redactions=()
 dry_run=0
+film=0
+width=1280
+fps=20
 while (($# > 0)); do
   case $1 in
-  --project | --bin | --assets | --scenes | --record | --only | --home | --redact)
+  --project | --bin | --assets | --scenes | --fixtures | --record | --only | --home | --redact | --width | --fps)
     (($# >= 2)) || usage_error "$1 needs a value"
     case $1 in
     --project) project=$2 ;;
     --bin) bin=$2 ;;
     --assets) assets=$2 ;;
     --scenes) scenes=$2 ;;
+    --fixtures) fixtures=$2 ;;
     --record) record=$2 ;;
     --only) only+=("$2") ;;
     --home) demo_home=$2 ;;
+    --width) width=$2 ;;
+    --fps) fps=$2 ;;
     --redact)
       [[ $2 == *=* ]] || usage_error "--redact takes FROM=TO"
       extra_redactions+=(--redact "$2")
@@ -64,6 +79,10 @@ while (($# > 0)); do
     ;;
   --dry-run)
     dry_run=1
+    shift
+    ;;
+  --film)
+    film=1
     shift
     ;;
   -h | --help)
@@ -77,7 +96,18 @@ done
 [[ -n $project ]] || usage_error "--project is required"
 [[ -d $project ]] || fail "$project is not a directory"
 [[ -d $scenes ]] || fail "$scenes is not a directory"
+[[ -n $fixtures ]] || fixtures=$scenes
+[[ -d $fixtures ]] || fail "$fixtures is not a directory"
 [[ -x $record ]] || fail "$record is not executable"
+# Every scene is recorded from the project directory, where a relative path
+# would name something else, so the paths are resolved while the directory is
+# still the one the command line was written in. The assets directory is not
+# created here: a dry run writes nothing.
+project=$(cd "$project" && pwd)
+scenes=$(cd "$scenes" && pwd)
+fixtures=$(cd "$fixtures" && pwd)
+record=$(cd "$(dirname "$record")" && pwd)/$(basename "$record")
+[[ $assets == /* ]] || assets=$PWD/$assets
 # A scene that prints where the binary is, as uninstall does, must print a path
 # a reader could have: the one given is copied under a directory named with as
 # many characters as ".local/bin", which the redaction below puts back.
@@ -99,21 +129,21 @@ command -v lmux >/dev/null 2>&1 || fail "lmux is not on PATH; build it or pass -
 # "# fixtures: off" line and runs against the machine's own PATH.
 # The recording shell comes before the fixtures, so a scene that opts out of
 # them still opens its panes with it.
-if [[ -d $scenes/bin ]]; then
-  PATH=$scenes/bin:$PATH
+if [[ -d $fixtures/bin ]]; then
+  PATH=$fixtures/bin:$PATH
   export PATH
 fi
 machine_path=$PATH
-if [[ -d $scenes/fixtures/bin ]]; then
-  PATH=$scenes/fixtures/bin:$PATH
+if [[ -d $fixtures/fixtures/bin ]]; then
+  PATH=$fixtures/fixtures/bin:$PATH
   export PATH
 fi
 # Every pane the scenes open runs this shell rather than the account's own,
 # which would draw its own prompt into the pictures. tmux takes the shell of a
 # new pane from SHELL, and hands it down to the workspace tmux server a scene
 # starts; a scene that opens a shell of its own runs it by name, as demo-shell.
-if [[ -x $scenes/bin/demo-shell ]]; then
-  SHELL=$scenes/bin/demo-shell
+if [[ -x $fixtures/bin/demo-shell ]]; then
+  SHELL=$fixtures/bin/demo-shell
   export SHELL
 fi
 
@@ -191,6 +221,17 @@ for address in \
   redact+=(--redact "$address=$(neutral_like "$address" dev@example.com)")
 done
 
+# A screen truncates what does not fit: a long path reaches a capture as its
+# first characters and an ellipsis, which the rule for the whole path never
+# matches. Every prefix of the home directory past its parent is rewritten as
+# well, to the same prefix of the neutral one. A prefix is the same length as
+# what it replaces by construction, and text that starts with the account's
+# home directory is the thing being hidden wherever it was cut.
+home_parent=$(dirname "$HOME")
+for ((cut = ${#home_parent} + 2; cut < ${#HOME} && cut <= ${#demo_dir}; cut++)); do
+  redact+=(--redact "${HOME:0:cut}=${demo_dir:0:cut}")
+done
+
 redact+=(${extra_redactions[@]+"${extra_redactions[@]}"})
 
 # wanted is true when the scene was asked for, or when none was.
@@ -239,9 +280,16 @@ for scene in "$scenes"/*.scene; do
   wanted "$name" || continue
   frames=$("$record" --scene "$scene" --still /dev/null --dry-run | sed -n 's/^frames: //p')
   [[ -n $frames ]] || fail "$scene: the recorder reported no frame count"
-  args=(--scene "$scene" --still "$assets/$name.png" "${redact[@]}")
-  if ((frames > 1)); then
-    args+=(--out "$assets/$name.gif")
+  if ((film)); then
+    # A chapter is a film and the subtitles that go with it; the still of a
+    # documentation page is not what this pass is for.
+    args=(--scene "$scene" --mp4 "$assets/$name.mp4" --srt "$assets/$name.srt"
+      --width "$width" --fps "$fps" "${redact[@]}")
+  else
+    args=(--scene "$scene" --still "$assets/$name.png" "${redact[@]}")
+    if ((frames > 1)); then
+      args+=(--out "$assets/$name.gif")
+    fi
   fi
   scene_path=$PATH
   if grep -q '^# fixtures: off' "$scene"; then

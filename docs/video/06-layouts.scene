@@ -1,0 +1,30 @@
+# Every built-in layout, one after the other, from the shell of the workspace.
+title lmux layout
+size 134 36
+pre lmux kill --all
+pre rm -rf .devcontainer
+pre lmux create . --layout duo --detach
+run lmux create . --nested
+wait 4
+chapter Layouts
+caption lmux layout solo | the agent alone, the whole window
+keys M-]
+wait 0.6
+type lmux layout solo
+enter
+wait 3
+frame 2.6
+caption lmux layout trio | the agent, a shell, and what is changing
+keys M-1
+wait 0.8
+type lmux layout trio
+enter
+wait 3
+frame 2.6
+caption lmux layout quad | one agent per worktree
+keys M-1
+wait 0.8
+type lmux layout quad
+enter
+wait 8
+frame 3.5

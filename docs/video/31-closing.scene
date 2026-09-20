@@ -1,0 +1,13 @@
+# The last picture: the workspace the film opened with, and where to read the
+# rest.
+title lyna-tmux
+size 134 36
+pre lmux kill --all
+pre rm -rf .devcontainer
+chapter lyna-tmux
+caption lmux create ~/src/acme-api | one command, and the workspace is yours
+run lmux create . --layout trio --nested
+wait 7
+frame 4
+caption github.com/bayoudhdev/lyna-claude-tmux | the documentation is in docs/, the releases on the repository page
+frame 6

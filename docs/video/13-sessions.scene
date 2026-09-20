@@ -1,0 +1,31 @@
+# Listing, renaming and ending workspaces from the command line.
+title lmux ls, rename and kill
+size 134 36
+pre lmux kill --all
+pre rm -rf .devcontainer
+pre lmux create ../acme-web --layout duo --detach
+pre lmux create . --layout trio --detach
+run demo-shell
+wait 1
+type clear
+enter
+wait 0.5
+chapter Workspaces
+caption lmux ls | what is open, where, and how it is laid out
+type lmux ls
+enter
+wait 2
+frame 3
+caption lmux rename acme-api gateway | a workspace is named, not numbered
+type lmux rename acme-api gateway
+enter
+wait 1.5
+type lmux ls
+enter
+wait 1.5
+frame 3
+caption lmux kill --all | and ended when you are done
+type lmux kill --all
+enter
+wait 2
+frame 2.6

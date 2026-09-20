@@ -1,0 +1,19 @@
+# Picking a past conversation and carrying on with it in the workspace.
+title lmux resume
+size 134 36
+pre lmux kill --all
+pre rm -rf .devcontainer
+pre lmux create . --layout duo --detach
+run lmux create . --nested
+wait 5
+chapter Resume
+caption lmux resume | a past conversation, continued in a window of the workspace
+frame 1.6
+keys M-]
+wait 1.2
+type lmux resume
+enter
+wait 5
+frame 4
+caption the picker | the conversations of this project, newest first
+frame 3

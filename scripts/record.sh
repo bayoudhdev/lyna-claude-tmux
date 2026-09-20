@@ -7,8 +7,9 @@
 # frames are assembled into an animated GIF. Nothing is simulated.
 #
 # Usage: scripts/record.sh --scene FILE [--out FILE.gif] [--still FILE.png]
-#                          [--mp4 FILE.mp4] [--width PIXELS] [--fps N]
-#                          [--redact FROM=TO]... [--dry-run] [--keep DIR]
+#                          [--mp4 FILE.mp4] [--srt FILE.srt] [--width PIXELS]
+#                          [--fps N] [--redact FROM=TO]... [--dry-run]
+#                          [--keep DIR]
 #
 # --redact rewrites every capture before it is drawn, which is how a recording
 # made in a real home directory ships without naming it.
@@ -27,6 +28,15 @@
 #   wait SECONDS        let the screen settle, captures nothing
 #   frame [SECONDS]     capture the screen, held SECONDS, default 1.2
 #   film COUNT GAP      capture COUNT frames GAP seconds apart
+#   caption TEXT        the subtitle every frame after it carries, until the
+#                       next caption; TEXT is one line, or two separated by
+#                       ' | ': the command as typed, then what it does. An
+#                       empty caption clears it.
+#   chapter TEXT        a title card held two seconds, and a chapter mark
+#
+# A scene that captions or opens a chapter draws a band under the terminal in
+# every one of its frames, so the film keeps one size, and --srt writes the
+# same captions as a sidecar track.
 set -euo pipefail
 
 fail() {
@@ -43,7 +53,7 @@ usage_error() {
 }
 
 usage() {
-  sed -n '2,29p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,39p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -54,6 +64,7 @@ scene=""
 out=""
 still=""
 mp4=""
+srt=""
 width=900
 fps=20
 dry_run=0
@@ -61,13 +72,14 @@ keep=""
 redactions=()
 while (($# > 0)); do
   case $1 in
-  --scene | --out | --still | --mp4 | --width | --fps | --keep | --redact)
+  --scene | --out | --still | --mp4 | --srt | --width | --fps | --keep | --redact)
     (($# >= 2)) || usage_error "$1 needs a value"
     case $1 in
     --scene) scene=$2 ;;
     --out) out=$2 ;;
     --still) still=$2 ;;
     --mp4) mp4=$2 ;;
+    --srt) srt=$2 ;;
     --width) width=$2 ;;
     --fps) fps=$2 ;;
     --keep) keep=$2 ;;
@@ -99,7 +111,7 @@ done
 
 [[ -n $scene ]] || usage_error "--scene is required"
 [[ -f $scene ]] || usage_error "$scene is not a file"
-[[ -n $out || -n $still || -n $mp4 ]] || usage_error "one of --out, --still or --mp4 is required"
+[[ -n $out || -n $still || -n $mp4 || -n $srt ]] || usage_error "one of --out, --still, --mp4 or --srt is required"
 [[ $width =~ ^[0-9]+$ ]] || usage_error "--width takes a whole number of pixels"
 if ! [[ $fps =~ ^[1-9][0-9]*$ ]]; then usage_error "--fps takes a whole number of frames"; fi
 
@@ -115,6 +127,10 @@ pres=()
 # steps are the timed directives, in order, one per line: the verb and its
 # arguments. They are replayed once the session is up.
 steps=()
+# band is set by the first caption or chapter: a film draws its subtitle in a
+# band under the terminal, and every frame of the scene reserves it so the
+# image keeps one size from beginning to end.
+band=0
 line_no=0
 while IFS= read -r line || [[ -n $line ]]; do
   line_no=$((line_no + 1))
@@ -156,6 +172,15 @@ while IFS= read -r line || [[ -n $line ]]; do
   keys | type | wait | frame | film | enter)
     steps+=("$verb${rest:+ $rest}")
     ;;
+  caption)
+    band=1
+    steps+=("caption${rest:+ $rest}")
+    ;;
+  chapter)
+    [[ -n $rest ]] || usage_error "$scene:$line_no: chapter takes a title"
+    band=1
+    steps+=("chapter $rest")
+    ;;
   *) usage_error "$scene:$line_no: unknown directive: $verb" ;;
   esac
 done <"$scene"
@@ -165,6 +190,7 @@ frames_wanted=0
 for step in ${steps[@]+"${steps[@]}"}; do
   case $step in
   "frame"*) frames_wanted=$((frames_wanted + 1)) ;;
+  "chapter "*) frames_wanted=$((frames_wanted + 1)) ;;
   "film "*)
     # shellcheck disable=SC2086 # count and gap
     set -- ${step#film }
@@ -185,6 +211,7 @@ if ((dry_run)); then
   for p in ${pres[@]+"${pres[@]}"}; do printf 'pre: %s\n' "$p"; done
   for r in ${redactions[@]+"${redactions[@]}"}; do printf 'redact: %s\n' "$r"; done
   printf 'run: %s\n' "${run[*]}"
+  printf 'band: %s\n' "$band"
   printf 'frames: %s\n' "$frames_wanted"
   for step in ${steps[@]+"${steps[@]}"}; do printf 'step: %s\n' "$step"; done
   exit 0
@@ -241,6 +268,11 @@ new_session+=("$quoted; sleep 900")
 
 frame_no=0
 durations=()
+# captions[n] is what the nth frame carries, and chapters holds one
+# "SECONDS<tab>TITLE" line per chapter, timed from the durations before it.
+captions=()
+chapters=()
+caption_now=""
 capture_frame() {
   frame_no=$((frame_no + 1))
   local file
@@ -291,6 +323,50 @@ with open(path, "w") as f:
 PY
   fi
   durations+=("$1")
+  captions+=("$caption_now")
+}
+
+# elapsed prints the seconds the frames captured so far are worth, which is
+# where the next one starts in the film.
+elapsed() {
+  local total=0 d
+  for d in ${durations[@]+"${durations[@]}"}; do
+    total=$(awk -v a="$total" -v b="$d" 'BEGIN { printf "%.3f", a + b }')
+  done
+  printf '%s' "$total"
+}
+
+# card_frame draws the title card of a chapter: the same renderer, the same
+# font, a screen written by the recorder rather than captured from a pane.
+card_frame() {
+  frame_no=$((frame_no + 1))
+  local file
+  file=$(printf '%s/frames/%04d.ansi' "$work" "$frame_no")
+  python3 - "$file" "$cols" "$rows" "$1" <<'CARD'
+import io
+import sys
+
+path, cols, rows, title = sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), sys.argv[4]
+# The card is a screen of its own: the title in the accent, centered, on the
+# background every other frame has, so a chapter opens without a cut.
+accent = "\x1b[1m\x1b[38;2;164;228;0m"
+reset = "\x1b[0m"
+rule = "\u2501" * len(title)
+dim = "\x1b[38;2;68;68;68m"
+lines = []
+top = max(0, (rows - 2) // 2)
+pad = " " * max(0, (cols - len(title)) // 2)
+for row in range(rows):
+    if row == top:
+        lines.append(pad + accent + title + reset)
+    elif row == top + 1:
+        lines.append(pad + dim + rule + reset)
+    else:
+        lines.append("")
+io.open(path, "w", encoding="utf-8").write("\r\n".join(lines) + reset)
+CARD
+  durations+=("2")
+  captions+=("")
 }
 
 for step in ${steps[@]+"${steps[@]}"}; do
@@ -306,6 +382,12 @@ for step in ${steps[@]+"${steps[@]}"}; do
   enter) tmux -L "$socket" send-keys -t shot Enter ;;
   wait) sleep "${rest:-1}" ;;
   frame) capture_frame "${rest:-1.2}" ;;
+  caption) caption_now=${rest//" | "/$'\n'} ;;
+  chapter)
+    chapters+=("$(elapsed)"$'\t'"$rest")
+    caption_now=""
+    card_frame "$rest"
+    ;;
   film)
     # shellcheck disable=SC2086 # count and gap
     set -- $rest
@@ -352,8 +434,8 @@ for ((n = 1; n <= frame_no; n++)); do
   ansi=$(printf '%s/frames/%04d.ansi' "$work" "$n")
   html=$(printf '%s/frames/%04d.html' "$work" "$n")
   png=$(printf '%s/frames/%04d.png' "$work" "$n")
-  termshot_html "$ansi" "$cols" "$rows" "$title" "$html" "$work" "$font"
-  termshot_png "$chrome" "$html" "$cols" "$rows" "$png" &
+  termshot_html "$ansi" "$cols" "$rows" "$title" "$html" "$work" "$font" "$band" "${captions[n - 1]}"
+  termshot_png "$chrome" "$html" "$cols" "$rows" "$png" "$band" &
   pending=$((pending + 1))
   if ((pending >= 4)); then
     # A frame that failed to render is reported below, by name.
@@ -393,6 +475,59 @@ if [[ -n $out ]]; then
     -loop 0 "$work/out.gif"
   write_to "$out" "$work/out.gif"
 fi
+
+if [[ -n $srt ]]; then
+  # One cue per run of frames that carry the same caption, timed from the
+  # durations the film is assembled with, so the sidecar track and the band
+  # drawn into the frames say the same thing at the same moment.
+  {
+    printf '%s\n' "${durations[@]}"
+    printf '%s\n' "--captions--"
+    printf '%s\n' ${captions[@]+"${captions[@]//$'\n'/\\n}"}
+  } >"$work/cues.txt"
+  python3 - "$work/cues.txt" <<'SRT' >"$work/out.srt"
+import io
+import sys
+
+rows = io.open(sys.argv[1], encoding="utf-8").read().split("\n")
+split = rows.index("--captions--")
+durations = [float(d) for d in rows[:split] if d != ""]
+captions = [c.replace("\\n", "\n") for c in rows[split + 1:][:len(durations)]]
+
+
+def stamp(seconds):
+    ms = int(round(seconds * 1000))
+    h, ms = divmod(ms, 3600000)
+    m, ms = divmod(ms, 60000)
+    s, ms = divmod(ms, 1000)
+    return "%02d:%02d:%02d,%03d" % (h, m, s, ms)
+
+
+out = []
+start = 0.0
+n = 0
+while n < len(durations):
+    end = n
+    while end + 1 < len(durations) and captions[end + 1] == captions[n]:
+        end += 1
+    span = sum(durations[n:end + 1])
+    if captions[n].strip():
+        out.append((start, start + span, captions[n]))
+    start += span
+    n = end + 1
+
+for i, (a, b, text) in enumerate(out, 1):
+    print(i)
+    print("%s --> %s" % (stamp(a), stamp(b)))
+    print(text)
+    print()
+SRT
+  write_to "$srt" "$work/out.srt"
+fi
+
+for chapter in ${chapters[@]+"${chapters[@]}"}; do
+  printf 'chapter: %s\n' "$chapter"
+done
 
 if [[ -n $mp4 ]]; then
   ffmpeg -y -loglevel error -f concat -safe 0 -i "$work/frames.txt" \

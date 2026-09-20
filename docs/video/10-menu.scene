@@ -1,0 +1,14 @@
+# Every action on a key, without learning a single one.
+title Alt+Space opens the menu
+size 134 36
+pre lmux kill --all
+pre rm -rf .devcontainer
+pre lmux create . --layout trio --detach
+run lmux create . --nested
+wait 4
+chapter The menu
+caption Alt+Space | every action with its key, and a letter to run it
+frame 1.6
+keys M-Space
+wait 1.4
+frame 5

@@ -100,14 +100,24 @@ func TestIntegrationDescribeAndSplitPane(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := srv.Client.Display(ctx, id, "#{window_id}|#{pane_active}|#{"+tmux.OptRole+"}|#{"+tmux.OptSettings+"}|#{pane_current_path}")
-			if err != nil {
-				t.Fatal(err)
-			}
 			wantRow := st.window + "|1|" + string(st.role) + "|" + st.proc.Options[tmux.OptSettings] + "|" + dir
-			if got != wantRow {
-				t.Fatalf("new pane %s = %q, want %q", id, got, wantRow)
-			}
+			// The directory of a pane is read from the process tmux started,
+			// which on a loaded runner is not yet where it will be when the
+			// split returns: the row is polled rather than read once.
+			var got string
+			t.Cleanup(func() {
+				if t.Failed() {
+					t.Logf("pane %s last described itself as %q", id, got)
+				}
+			})
+			tmuxtest.WaitFor(t, "pane "+id+" to describe itself as "+wantRow, func() bool {
+				out, err := srv.Client.Display(ctx, id, "#{window_id}|#{pane_active}|#{"+tmux.OptRole+"}|#{"+tmux.OptSettings+"}|#{pane_current_path}")
+				if err != nil {
+					t.Fatal(err)
+				}
+				got = out
+				return got == wantRow
+			})
 			pl, pt := geometry(t, st.pane)
 			nl, nt := geometry(t, id)
 			if st.down && (nt <= pt || nl != pl) || !st.down && (nl <= pl || nt != pt) {

@@ -1,0 +1,32 @@
+# A team: the lead and the agents it starts, in panes of the workspace.
+title lmux team
+size 134 36
+pre lmux kill --all
+pre rm -rf .devcontainer
+run lmux team . --nested
+wait 8
+chapter Teams
+caption lmux team ~/src/acme-api | the lead opens its agents in the workspace
+frame 2
+type Start two agents in parallel: one describes internal/gateway in five lines, the other describes the README in five lines. Neither changes a file.
+enter
+wait 20
+frame 3
+film 3 1.4
+caption Alt+[ | the rail, with a row per agent and what it has spent
+keys M-[
+wait 1.5
+frame 3
+caption r | what an agent is writing, read from its own transcript
+keys Down
+wait 0.5
+keys Down
+wait 0.5
+keys Down
+wait 0.8
+keys r
+wait 3.5
+frame 4
+keys q
+wait 1.4
+frame 2

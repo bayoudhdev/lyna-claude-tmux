@@ -1,0 +1,41 @@
+# The git workstation: the refs, the history and what is in front of you.
+title The git workstation
+size 134 36
+pre lmux kill --all
+pre demo-repo ../acme-gateway
+run lmux create ../acme-gateway --layout git --nested
+wait 6
+chapter The git workstation
+caption Alt+G | the refs, the history with its lanes, the commit in front of you
+frame 2
+keys M-]
+wait 1.2
+keys M-z
+wait 1.5
+frame 3
+caption down, down | the commit follows the cursor
+keys Down
+wait 0.7
+keys Down
+wait 0.7
+frame 2.4
+caption shift+tab | the branches, the remotes, the worktrees, the stashes, the tags
+keys BTab
+wait 1
+frame 3
+caption w | the working tree, staged and unstaged
+keys Tab
+wait 0.8
+keys w
+wait 1.2
+frame 3
+caption shift+h | what cannot be undone shows the command it will run
+keys H
+wait 1.5
+frame 4
+keys Escape
+wait 0.8
+caption ? | every key of the region the cursor is in
+keys ?
+wait 1.2
+frame 4.5

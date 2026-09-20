@@ -1,0 +1,25 @@
+# The sandbox: what it is doing now, what strict adds, and the profile table.
+title lmux sandbox
+size 134 36
+pre lmux kill --all
+run demo-shell
+wait 1
+type clear
+enter
+wait 0.5
+chapter Sandbox
+caption lmux sandbox status | what the sandbox is doing in this project, right now
+type lmux sandbox status
+enter
+wait 2
+frame 3.5
+caption lmux sandbox show strict | the rules a profile writes, byte for byte
+type clear; lmux sandbox show strict | head -26
+enter
+wait 2
+frame 3.5
+caption lmux sandbox profiles | what each profile allows and what it blocks
+type clear; lmux sandbox profiles
+enter
+wait 2
+frame 4

@@ -548,3 +548,156 @@ func TestRecordDocsEndsItsWorkspaces(t *testing.T) {
 		})
 	}
 }
+
+// TestRecordDocsFilm covers the other output the driver has: a chapter of the
+// demonstration film is an MP4 and the subtitles that go with it, recorded in
+// the same environment as a picture of the documentation.
+func TestRecordDocsFilm(t *testing.T) {
+	e := newDocsEnv(t, map[string]string{"04-panes": "frames: 5\n"})
+	_, stderr, exit := runRecordDocs(t, e.env(), e.args("--film", "--width", "1280", "--fps", "24")...)
+	if exit != 0 {
+		t.Fatalf("exit %d\nstderr:\n%s", exit, stderr)
+	}
+	log := string(mustRead(t, e.log))
+	cases := []struct {
+		name string
+		want string
+	}{
+		{name: "the chapter is a film", want: "--mp4 " + e.assets + "/04-panes.mp4"},
+		{name: "its subtitles travel with it", want: "--srt " + e.assets + "/04-panes.srt"},
+		{name: "the film is recorded at the size asked for", want: "--width 1280"},
+		{name: "and at the rate asked for", want: "--fps 24"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if !strings.Contains(log, tc.want) {
+				t.Fatalf("the recorder was not called with %q:\n%s", tc.want, log)
+			}
+		})
+	}
+	for _, unwanted := range []string{"--still ", "--out "} {
+		if strings.Contains(log, unwanted) {
+			t.Fatalf("a film pass still wrote a picture (%q):\n%s", unwanted, log)
+		}
+	}
+}
+
+// TestRecordDocsFixturesElsewhere covers the chapters of the film: they live
+// in a directory of their own, and run with the recording shell and the
+// fixture binaries that belong to the recorder rather than to one set of
+// scenes.
+func TestRecordDocsFixturesElsewhere(t *testing.T) {
+	e := newDocsEnv(t, nil)
+	shell := filepath.Join(e.scenes, "bin", "demo-shell")
+	writeExecutable(t, shell, "#!/bin/sh\nexit 0\n")
+	chapters := filepath.Join(e.dir, "video")
+	if err := os.MkdirAll(chapters, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(chapters, "01-open.scene"), []byte("frames: 2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, stderr, exit := runRecordDocs(t, e.env(),
+		"--project", e.project, "--scenes", chapters, "--fixtures", e.scenes,
+		"--assets", e.assets, "--record", e.record, "--film")
+	if exit != 0 {
+		t.Fatalf("exit %d\nstderr:\n%s", exit, stderr)
+	}
+	log := string(mustRead(t, e.log))
+	cases := []struct {
+		name string
+		want string
+	}{
+		{name: "the chapter is the scene that was asked for", want: chapters + "/01-open.scene"},
+		{name: "it runs the recording shell", want: "shell=" + shell},
+		{name: "with the fixture binaries of the recorder", want: "path=" + filepath.Join(e.scenes, "fixtures", "bin") + ":"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if !strings.Contains(log, tc.want) {
+				t.Fatalf("the recorder was not called with %q:\n%s", tc.want, log)
+			}
+		})
+	}
+}
+
+// TestRecordDocsRelativePaths covers a command line written in the repository
+// and run from it: the recorder is run from the project directory, where a
+// relative scene, asset or recorder path names something else, or nothing.
+func TestRecordDocsRelativePaths(t *testing.T) {
+	e := newDocsEnv(t, map[string]string{"open": "frames: 2\n"})
+	bash, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash is not installed")
+	}
+	cmd := exec.Command(bash, scriptPath(t, "record-docs.sh"),
+		"--project", "project", "--scenes", "scenes", "--assets", "assets",
+		"--record", "bin/record.sh", "--film")
+	cmd.Dir = e.dir
+	cmd.Env = e.env()
+	var out, errOut bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &errOut
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("%v\nstdout:\n%s\nstderr:\n%s", err, out.String(), errOut.String())
+	}
+	log := string(mustRead(t, e.log))
+	// The shell reads its directory from the kernel, which answers with the
+	// path the temporary directory has once its symbolic links are followed.
+	scenes, assets, project := resolved(t, e.scenes), resolved(t, e.assets), resolved(t, e.project)
+	cases := []struct {
+		name string
+		want string
+	}{
+		{name: "the scene is the one beside the command line", want: filepath.Join(scenes, "open.scene")},
+		{name: "the film is written where it was asked for", want: filepath.Join(assets, "open.mp4")},
+		{name: "the recorder runs in the project", want: "cwd=" + project},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if !strings.Contains(log, tc.want) {
+				t.Fatalf("the recorder was not called with %q:\n%s", tc.want, log)
+			}
+		})
+	}
+}
+
+// resolved is a path with its symbolic links followed, which is the form a
+// process reads back from the kernel.
+func resolved(t *testing.T, path string) string {
+	t.Helper()
+	out, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+// TestRecordDocsRedactsTruncatedHomePaths covers what a screen does to a path
+// that does not fit: it keeps the first characters and adds an ellipsis, which
+// the rule for the whole home directory never matches. Every prefix of it is a
+// rule too, and each replacement is as long as what it replaces, which is what
+// keeps a screen laid out in columns in line.
+func TestRecordDocsRedactsTruncatedHomePaths(t *testing.T) {
+	e := newDocsEnv(t, map[string]string{"open": "frames: 1\n"})
+	_, stderr, exit := runRecordDocs(t, e.env(), e.args("--film")...)
+	if exit != 0 {
+		t.Fatalf("exit %d\nstderr:\n%s", exit, stderr)
+	}
+	log := string(mustRead(t, e.log))
+	// The home directory of this test stands for the account's own, and the
+	// neutral directory it is rewritten to is beside it.
+	home := e.dir
+	parent := filepath.Dir(home)
+	neutral := filepath.Join(parent, "developerxxxxx")
+	rules := 0
+	for cut := len(parent) + 2; cut < len(home) && cut <= len(neutral); cut++ {
+		want := "--redact " + home[:cut] + "=" + neutral[:cut]
+		if !strings.Contains(log, want) {
+			t.Fatalf("no rule for the truncated path %q:\n%s", home[:cut], log)
+		}
+		rules++
+	}
+	if rules == 0 {
+		t.Fatal("the home directory of the test is too short to be cut")
+	}
+}

@@ -1,0 +1,15 @@
+# The key map, both columns: with no prefix, and after the tmux prefix.
+title lmux keys
+size 134 36
+pre lmux kill --all
+run demo-shell
+wait 1
+type clear
+enter
+wait 0.5
+chapter The key map
+caption lmux keys | the keys with no prefix, and the same after Ctrl+b
+type lmux keys | head -33
+enter
+wait 1.5
+frame 6

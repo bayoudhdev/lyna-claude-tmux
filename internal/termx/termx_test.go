@@ -309,7 +309,7 @@ func TestOptionAsMeta(t *testing.T) {
 		{"alacritty", ProgramAlacritty, "darwin", true, `[window] option_as_alt = "Both"`},
 		{"vscode", ProgramVSCode, "darwin", true, `"terminal.integrated.macOptionIsMeta": true`},
 		{"unknown on macOS", ProgramUnknown, "darwin", true, `"Option as Meta"`},
-		{"custom program on macOS", Program("SomeTerm"), "darwin", true, "tmux prefix"},
+		{"custom program on macOS", Program("SomeTerm"), "darwin", true, `"Option as Alt"`},
 		{"linux kitty", ProgramKitty, "linux", false, "Alt sends Meta by default"},
 		{"linux unknown", ProgramUnknown, "linux", false, "Alt sends Meta by default"},
 	}
@@ -388,6 +388,33 @@ func TestNotifyChannel(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := NotifyChannel(tc.program); got != tc.want {
 				t.Fatalf("NotifyChannel(%q) = %q, want %q", tc.program, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestMetaSettingsNameOnlyTheTerminal keeps Setting what it says it is: the
+// setting to change and where it lives. What lyna-tmux offers instead belongs
+// to the report that prints it, which wraps its own prose; a clause carried
+// here reaches the report as part of a fix written over several lines, which
+// is printed verbatim, and the terminal breaks it mid-word.
+func TestMetaSettingsNameOnlyTheTerminal(t *testing.T) {
+	programs := []Program{
+		ProgramAppleTerminal, ProgramITerm2, ProgramWezTerm, ProgramGhostty,
+		ProgramKitty, ProgramAlacritty, ProgramVSCode, ProgramUnknown, Program("SomeTerm"),
+	}
+	for _, program := range programs {
+		t.Run(string(program), func(t *testing.T) {
+			for _, goos := range []string{"darwin", "linux"} {
+				setting := OptionAsMeta(program, goos).Setting
+				if setting == "" {
+					t.Fatalf("OptionAsMeta(%q, %q) names no setting", program, goos)
+				}
+				for _, word := range []string{"tmux", "lmux", "prefix"} {
+					if strings.Contains(setting, word) {
+						t.Errorf("OptionAsMeta(%q, %q).Setting mentions %q: %s", program, goos, word, setting)
+					}
+				}
 			}
 		})
 	}
