@@ -42,7 +42,7 @@ func TestIntegrationAgentsRailOpensAtItsWidth(t *testing.T) {
 				Bin: bin, ConfPath: filepath.Join(dir, "tmux.conf"), PopupWidth: "90%", PopupHeight: "85%",
 				Bindings: keys.Defaults(keys.Options{AltKeys: true, Prefix: "C-b"}), RailWidth: tc.width,
 			}
-			o := confOptions(t, installedVersion(t), lookSpec{"lyna", "unicode", theme.DepthTrue}, env)
+			o := confOptions(t, installedVersion(t), lookSpec{palette: "lyna", icons: "unicode", depth: theme.DepthTrue}, env)
 			if out, err := srv.Client.Run(ctx, "source-file", writeConf(t, tmux.GenerateConf(o))); err != nil {
 				t.Fatalf("source-file: %v %s", err, out)
 			}
@@ -106,7 +106,7 @@ func TestIntegrationGitWorkstationToggle(t *testing.T) {
 				Bin: bin, ConfPath: filepath.Join(dir, "tmux.conf"), PopupWidth: "90%", PopupHeight: "85%",
 				Bindings: keys.Defaults(keys.Options{AltKeys: true, Prefix: "C-b"}), SplitRatio: tc.ratio,
 			}
-			o := confOptions(t, installedVersion(t), lookSpec{"lyna", "unicode", theme.DepthTrue}, env)
+			o := confOptions(t, installedVersion(t), lookSpec{palette: "lyna", icons: "unicode", depth: theme.DepthTrue}, env)
 			if out, err := srv.Client.Run(ctx, "source-file", writeConf(t, tmux.GenerateConf(o))); err != nil {
 				t.Fatalf("source-file: %v %s", err, out)
 			}

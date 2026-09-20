@@ -21,10 +21,10 @@
   [38;2;57;211;83m [m   [38;2;230;237;243moff    no status line from lyna-tmux[m                                    
                                                                               
                                                                               
+                                                                              
+                                                                              
+                                                                              
   
   [38;2;255;95;86m * must be a model alias or id such as opus or claude-opus-5 (got "bad[m
   [38;2;255;95;86mmodel!")[m
-
-
-
  [1;38;2;88;166;255menter[m [38;2;125;133;144mnext[m[38;2;125;133;144m  [m[1;38;2;88;166;255mshift+tab[m [38;2;125;133;144mback[m[38;2;125;133;144m  [m[1;38;2;88;166;255mctrl+c[m [38;2;125;133;144mcancel[m

@@ -7,8 +7,8 @@ import (
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/theme"
 )
 
-// allLooks returns every palette, color depth and icon set combination, with
-// buttons and clock toggled.
+// allLooks returns every palette, color depth, icon set and status bar style
+// combination, with buttons and clock toggled.
 func allLooks(t *testing.T) map[string]Look {
 	t.Helper()
 	out := map[string]Look{}
@@ -23,16 +23,29 @@ func allLooks(t *testing.T) map[string]Look {
 				if err != nil {
 					t.Fatal(err)
 				}
-				for _, flags := range []struct {
-					name           string
-					buttons, clock bool
-				}{{"plain", false, false}, {"buttons+clock", true, true}} {
-					out[pn+"/"+d.String()+"/"+in+"/"+flags.name] = Look{Palette: p, Depth: d, Icons: icons, Clock: flags.clock, Buttons: flags.buttons}
+				for _, sn := range []string{theme.StatusPlain, theme.StatusPowerline} {
+					seps := mustSeps(t, sn)
+					for _, flags := range []struct {
+						name           string
+						buttons, clock bool
+					}{{"plain", false, false}, {"buttons+clock", true, true}} {
+						key := pn + "/" + d.String() + "/" + in + "/" + sn + "/" + flags.name
+						out[key] = Look{Palette: p, Depth: d, Icons: icons, Seps: seps, Clock: flags.clock, Buttons: flags.buttons}
+					}
 				}
 			}
 		}
 	}
 	return out
+}
+
+func mustSeps(t *testing.T, style string) theme.Seps {
+	t.Helper()
+	s, err := theme.GetSeps(style)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s
 }
 
 func TestLookFormatsParse(t *testing.T) {
@@ -114,6 +127,68 @@ func mustIcons(t *testing.T, name string) theme.Icons {
 		t.Fatal(err)
 	}
 	return i
+}
+
+// TestStatusSegments holds the two status bar styles apart: the powerline one
+// draws a separator wherever a background changes and the plain one draws
+// none, in the bar, in the window tabs and on the border of the active pane.
+func TestStatusSegments(t *testing.T) {
+	p, err := theme.Get("monokai")
+	if err != nil {
+		t.Fatal(err)
+	}
+	icons := mustIcons(t, "nerd")
+	cases := []struct {
+		name  string
+		style string
+		// seps is how many separator glyphs each format draws.
+		seps map[string]int
+		// fixed is the width StatusLeft spends beside the session name.
+		fixed int
+	}{
+		{
+			name: "plain", style: theme.StatusPlain, fixed: 7,
+			seps: map[string]int{"status-left": 0, "status-right": 0, "window-status-current-format": 0, "pane-border-format": 0},
+		},
+		{
+			name: "powerline", style: theme.StatusPowerline, fixed: 8,
+			// The bar hands the brand block to the session name and the name
+			// back to the tabs; the right half opens its raised segment, opens
+			// the clock, draws a thin separator before the shield and before
+			// the branch, and points both ends of the sandbox block it draws
+			// when the sandbox is off; a tab is pointed at both ends and the
+			// label of the active pane once.
+			seps: map[string]int{"status-left": 2, "status-right": 6, "window-status-current-format": 2, "pane-border-format": 1},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			seps := mustSeps(t, tc.style)
+			l := Look{Palette: p, Depth: theme.DepthTrue, Icons: icons, Seps: seps, Clock: true, Buttons: true}
+			formats := map[string]string{
+				"status-left":                  l.StatusLeft(),
+				"status-right":                 l.StatusRight(),
+				"window-status-current-format": l.WindowCurrentFormat(),
+				"pane-border-format":           l.BorderFormat(),
+			}
+			powerline := mustSeps(t, theme.StatusPowerline)
+			for name, f := range formats {
+				count := 0
+				for _, g := range []string{powerline.Right, powerline.Left, powerline.Thin} {
+					count += strings.Count(f, g)
+				}
+				if count != tc.seps[name] {
+					t.Errorf("%s draws %d separators, want %d: %q", name, count, tc.seps[name], f)
+				}
+			}
+			if got := l.StatusLeftFixed(); got != tc.fixed {
+				t.Errorf("StatusLeftFixed = %d, want %d", got, tc.fixed)
+			}
+			if got := l.WindowFormat(); strings.Contains(got, powerline.Right) {
+				t.Errorf("an inactive tab is pointed: %q", got)
+			}
+		})
+	}
 }
 
 func TestLookColorsFollowDepth(t *testing.T) {

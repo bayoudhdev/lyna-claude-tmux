@@ -2,18 +2,18 @@
  theme                       icons * ! o @ # ~
 
   1/5  Look
-
   ┃ Icons
   ┃   auto      unicode on UTF-8 locales, ascii otherwise
   ┃   unicode   one-cell symbols that draw in common fonts
   ┃   nerd      glyphs from a patched icon font
   ┃ > ascii     plain characters only
 
-    Color depth
-      auto        detected from COLORTERM and TERM
-      truecolor   24-bit color
-      256         the xterm 256-color palette
-      16          the basic terminal palette
+    Status bar
+      auto        pointed separators with a patched icon
+      font
+      powerline   pointed separators, whatever the icons
+      plain       no separators
+
 
 
 

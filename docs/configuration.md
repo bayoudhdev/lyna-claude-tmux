@@ -122,6 +122,7 @@ Look and input model of the workspace.
 | `theme` | string | `monokai`, `lyna`, `slate`, `dusk`, `contrast`, `nord`, `rose`, `mono`, `solar-dark`, `earth-dark`, `light`, `solar-light`, `earth-light`, `ansi` | `"monokai"` | Palette of the status line, pane borders, menus and popups. The first ten are dark, the next three light, and `ansi` uses the terminal's own palette. `lmux theme` lists them with swatches and `lmux theme preview [name]` draws a workspace in each one. |
 | `icons` | string | `auto`, `unicode`, `nerd`, `ascii` | `"auto"` | Glyph set in the status line, borders and pickers. `auto` picks `unicode` when the effective locale (`LC_ALL`, then `LC_CTYPE`, then `LANG`) is UTF-8, and `ascii` otherwise, including under the East Asian locales (`ja`, `zh`, `ko`), where terminals draw the ambiguous width glyphs two cells wide and every segment would sit one cell further right than the layout expects. Set `icons = "unicode"` to use them anyway. `nerd` needs a patched font and is never chosen automatically. |
 | `color` | string | `auto`, `truecolor`, `256`, `16` | `"auto"` | Color depth the theme is rendered at. `auto` reads `COLORTERM=truecolor` or `24bit` as 24-bit, a `TERM` containing `256color` as 256 colors, `xterm-direct` and `tmux-direct` as 24-bit, anything else as the basic 16. |
+| `status_style` | string | `auto`, `powerline`, `plain` | `"auto"` | How the status bar joins its segments. `powerline` ends each segment with a pointed separator, the look the workspace name, the active tab, the agents block and the clock are drawn with; the glyphs come from the private use area and need a patched font. `plain` lets a segment end where its background does. `auto` takes `powerline` only with `icons = "nerd"`, which already asks for such a font, so no terminal draws a box where a separator should be. |
 | `status_position` | string | `top`, `bottom` | `"bottom"` | Which edge the status line sits on. |
 | `clock` | boolean | `true`, `false` | `true` | Draws the `%H:%M` clock at the right end of the status line. |
 | `alt_keys` | boolean | `true`, `false` | `true` | Installs the prefix-free Alt bindings. See [keys.md](keys.md). |
@@ -269,6 +270,10 @@ theme = "monokai"
 icons = "auto"
 # Color depth: auto (detected), truecolor, 256, 16.
 color = "auto"
+# Status bar segments: powerline draws pointed separators (needs a patched
+# font), plain ends a segment where its background does, auto takes powerline
+# only with the nerd icon set.
+status_style = "auto"
 # Status bar position: top or bottom.
 status_position = "bottom"
 clock = true

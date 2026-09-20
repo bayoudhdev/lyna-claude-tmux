@@ -70,6 +70,9 @@ type ThemeMockup struct {
 	// Icons is the resolved icon set (ui.icons), so the mock uses the glyphs
 	// the workspace would.
 	Icons theme.Icons
+	// Seps are the separators the status bar would join its segments with
+	// (ui.status_style, resolved against the icon set).
+	Seps theme.Seps
 }
 
 // ThemeMock is the workspace drawn in one palette.
@@ -96,6 +99,10 @@ func ThemePreview(h Host, name string) (ThemeMockup, error) {
 	if err != nil {
 		return ThemeMockup{}, err
 	}
+	seps, err := theme.GetSeps(theme.ResolveStatusStyle(cfg.UI.StatusStyle, icons))
+	if err != nil {
+		return ThemeMockup{}, err
+	}
 	names := ThemeNames()
 	if name != "" {
 		names = []string{name}
@@ -104,9 +111,9 @@ func ThemePreview(h Host, name string) (ThemeMockup, error) {
 	if err != nil {
 		return ThemeMockup{}, err
 	}
-	mockup := ThemeMockup{Current: cfg.UI.Theme, Depth: depth, Icons: icons, Themes: make([]ThemeMock, 0, len(palettes))}
+	mockup := ThemeMockup{Current: cfg.UI.Theme, Depth: depth, Icons: icons, Seps: seps, Themes: make([]ThemeMock, 0, len(palettes))}
 	for _, p := range palettes {
-		mockup.Themes = append(mockup.Themes, ThemeMock{Palette: p, Lines: theme.Preview(p, icons)})
+		mockup.Themes = append(mockup.Themes, ThemeMock{Palette: p, Lines: theme.Preview(p, icons, seps)})
 	}
 	return mockup, nil
 }

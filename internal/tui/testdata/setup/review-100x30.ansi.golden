@@ -5,6 +5,7 @@
   [38;2;57;211;83m┃[m [1;38;2;57;211;83mWrite config.toml?[m                                                        
   [38;2;57;211;83m┃[m [38;2;125;133;144mui.theme: monokai -> light[m                                                
   [38;2;57;211;83m┃[m [38;2;125;133;144mui.icons: auto -> ascii[m                                                   
+  [38;2;57;211;83m┃[m [38;2;125;133;144mui.status_style: auto -> powerline[m                                        
   [38;2;57;211;83m┃[m [38;2;125;133;144mui.color: auto -> 256[m                                                     
   [38;2;57;211;83m┃[m [38;2;125;133;144mworkspace.layout: auto -> git[m                                             
   [38;2;57;211;83m┃[m [38;2;125;133;144mui.alt_keys: true -> false[m                                                
@@ -20,10 +21,9 @@
                                                                               
                                                                               
                                                                               
+                                                                              
+                                                                              
                                                                              
-
-
-
 
 
 

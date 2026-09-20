@@ -124,7 +124,11 @@ func TestThemePreviewCLI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, s := range slices.Concat(theme.Preview(lyna, unicode)[0].Spans, theme.Preview(lyna, unicode)[0].Right) {
+	plain, err := theme.GetSeps(theme.StatusPlain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range slices.Concat(theme.Preview(lyna, unicode, plain)[0].Spans, theme.Preview(lyna, unicode, plain)[0].Right) {
 		statusCells += ansi.StringWidth(s.Text)
 	}
 	edgeGap := 140 - len(previewIndent) - previewLabel - statusCells

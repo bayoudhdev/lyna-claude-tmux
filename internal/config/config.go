@@ -16,6 +16,7 @@ import (
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/claudecfg"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/layout"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/review"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/theme"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/fsx"
 )
 
@@ -35,9 +36,13 @@ type Config struct {
 
 // UI controls the look and the input model of the tmux workspace.
 type UI struct {
-	Theme            string `toml:"theme"`
-	Icons            string `toml:"icons"`
-	Color            string `toml:"color"`
+	Theme string `toml:"theme"`
+	Icons string `toml:"icons"`
+	Color string `toml:"color"`
+	// StatusStyle is how the status bar joins its segments: powerline draws
+	// pointed separators, plain lets a background end where the next starts,
+	// auto takes powerline with the nerd icon set.
+	StatusStyle      string `toml:"status_style"`
 	StatusPosition   string `toml:"status_position"`
 	Clock            bool   `toml:"clock"`
 	AltKeys          bool   `toml:"alt_keys"`
@@ -141,6 +146,7 @@ func Default() Config {
 			Theme:          "monokai",
 			Icons:          "auto",
 			Color:          "auto",
+			StatusStyle:    theme.StatusAuto,
 			StatusPosition: "bottom",
 			Clock:          true,
 			AltKeys:        true,

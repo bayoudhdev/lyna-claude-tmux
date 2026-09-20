@@ -116,7 +116,7 @@ func TestThemePreview(t *testing.T) {
 			names := make([]string, len(got.Themes))
 			for i, m := range got.Themes {
 				names[i] = m.Palette.Name
-				if want := theme.Preview(m.Palette, got.Icons); !reflect.DeepEqual(m.Lines, want) {
+				if want := theme.Preview(m.Palette, got.Icons, got.Seps); !reflect.DeepEqual(m.Lines, want) {
 					t.Errorf("%s: rows differ from theme.Preview", m.Palette.Name)
 				}
 			}
@@ -198,6 +198,13 @@ func TestThemePalettesLoadInTmux(t *testing.T) {
 // session menu draw, so a renamed button or state cannot leave the preview
 // showing the old one.
 func TestThemePreviewMatchesWorkspace(t *testing.T) {
+	for _, style := range []string{theme.StatusPlain, theme.StatusPowerline} {
+		t.Run(style, func(t *testing.T) { previewMatchesWorkspace(t, style) })
+	}
+}
+
+func previewMatchesWorkspace(t *testing.T, style string) {
+	t.Helper()
 	p, err := theme.Get("lyna")
 	if err != nil {
 		t.Fatal(err)
@@ -206,7 +213,11 @@ func TestThemePreviewMatchesWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	look := tmux.Look{Palette: p, Depth: theme.DepthTrue, Icons: icons, Clock: true, Buttons: true}
+	seps, err := theme.GetSeps(style)
+	if err != nil {
+		t.Fatal(err)
+	}
+	look := tmux.Look{Palette: p, Depth: theme.DepthTrue, Icons: icons, Seps: seps, Clock: true, Buttons: true}
 	formats := look.StatusLeft() + look.WindowFormat() + look.WindowCurrentFormat() + look.StatusRight() + look.BorderFormat()
 	env := tmux.Env{Bindings: keys.Defaults(keys.Options{AltKeys: true, Prefix: "C-b"})}
 	menu := map[string]string{}
@@ -214,7 +225,7 @@ func TestThemePreviewMatchesWorkspace(t *testing.T) {
 		menu[item.Label] = item.Hint
 	}
 
-	lines := theme.Preview(p, icons)
+	lines := theme.Preview(p, icons, seps)
 	var status, border, menus []theme.Line
 	for _, l := range lines {
 		switch l.Kind {

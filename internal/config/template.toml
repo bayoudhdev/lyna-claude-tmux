@@ -12,6 +12,10 @@ theme = "monokai"
 icons = "auto"
 # Color depth: auto (detected), truecolor, 256, 16.
 color = "auto"
+# Status bar segments: powerline draws pointed separators (needs a patched
+# font), plain ends a segment where its background does, auto takes powerline
+# only with the nerd icon set.
+status_style = "auto"
 # Status bar position: top or bottom.
 status_position = "bottom"
 clock = true

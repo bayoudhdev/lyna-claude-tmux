@@ -14,7 +14,7 @@ import (
 
 // Key sequences through the wizard from the default configuration.
 var (
-	setupLookDefaults      = []string{"enter", "enter", "enter"}
+	setupLookDefaults      = []string{"enter", "enter", "enter", "enter"}
 	setupWorkspaceDefaults = []string{"enter", "y", "y"}
 	setupClaudeDefaults    = []string{"enter", "enter", "enter"}
 	setupSandboxDefaults   = []string{"enter", "enter"}
@@ -45,7 +45,7 @@ func startSetup(t *testing.T, cfg config.Config, width, height int, msgs ...tea.
 func TestSetupFrames(t *testing.T) {
 	t.Parallel()
 	changed := seq(
-		[]string{"down", "down", "enter", "down", "down", "down", "enter", "down", "down", "enter"},
+		[]string{"down", "down", "enter", "down", "down", "down", "enter", "down", "enter", "down", "down", "enter"},
 		[]string{"up", "enter", "n", "y"},
 	)
 	states := []struct {
@@ -99,7 +99,7 @@ func TestSetupResults(t *testing.T) {
 		{
 			name: "every step edits", cfg: config.Default(),
 			msgs: append(append(seq(
-				[]string{"down", "down", "enter", "down", "down", "down", "enter", "down", "down", "enter"},
+				[]string{"down", "down", "enter", "down", "down", "down", "enter", "down", "enter", "down", "down", "enter"},
 				[]string{"up", "enter", "n", "n"},
 			), typeText("  opus ")...), seq(
 				[]string{"enter", "down", "down", "down", "enter", "down", "down", "enter"},
@@ -110,6 +110,7 @@ func TestSetupResults(t *testing.T) {
 			changes: []ConfigChange{
 				{Key: "ui.theme", From: "monokai", To: "light"},
 				{Key: "ui.icons", From: "auto", To: "ascii"},
+				{Key: "ui.status_style", From: "auto", To: "powerline"},
 				{Key: "ui.color", From: "auto", To: "256"},
 				{Key: "workspace.layout", From: "auto", To: "git"},
 				{Key: "ui.alt_keys", From: "true", To: "false"},
@@ -132,7 +133,7 @@ func TestSetupResults(t *testing.T) {
 		},
 		{
 			name: "review cancel writes nothing", cfg: config.Default(),
-			msgs: seq([]string{"down", "down", "enter", "enter", "enter"}, setupWorkspaceDefaults, setupClaudeDefaults, setupSandboxDefaults, []string{"n"}),
+			msgs: seq([]string{"down", "down", "enter", "enter", "enter", "enter"}, setupWorkspaceDefaults, setupClaudeDefaults, setupSandboxDefaults, []string{"n"}),
 			done: true, quit: true,
 			check: func(t *testing.T, c config.Config) {
 				t.Helper()
@@ -152,7 +153,7 @@ func TestSetupResults(t *testing.T) {
 		},
 		{
 			name: "shift+tab goes back", cfg: config.Default(),
-			msgs: seq([]string{"enter", "shift+tab", "down", "down", "enter", "enter", "enter"}, setupWorkspaceDefaults, setupClaudeDefaults, setupSandboxDefaults, []string{"y"}),
+			msgs: seq([]string{"enter", "shift+tab", "down", "down", "enter", "enter", "enter", "enter"}, setupWorkspaceDefaults, setupClaudeDefaults, setupSandboxDefaults, []string{"y"}),
 			done: true, saved: true, quit: true,
 			changes: []ConfigChange{{Key: "ui.theme", From: "monokai", To: "light"}},
 		},
@@ -223,7 +224,7 @@ func TestSetupInvalidModelMessage(t *testing.T) {
 func TestSetupReviewSummary(t *testing.T) {
 	t.Parallel()
 	m, _ := startSetup(t, config.Default(), 100, 30, seq(
-		[]string{"down", "down", "enter", "enter", "enter"}, setupWorkspaceDefaults, setupClaudeDefaults, []string{"down", "down", "enter", "enter"},
+		[]string{"down", "down", "enter", "enter", "enter", "enter"}, setupWorkspaceDefaults, setupClaudeDefaults, []string{"down", "down", "enter", "enter"},
 	)...)
 	frame := ansi.Strip(m.View().Content)
 	for _, want := range []string{"ui.theme: monokai -> light", "sandbox.profile: standard -> off"} {

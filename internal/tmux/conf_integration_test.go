@@ -47,6 +47,9 @@ func unescapeKey(s string) string {
 type lookSpec struct {
 	palette, icons string
 	depth          theme.Depth
+	// status is the status bar style; empty resolves from the icon set, the
+	// way a workspace resolves ui.status_style.
+	status string
 }
 
 func confOptions(t *testing.T, v tmux.Version, look lookSpec, env tmux.Env) tmux.ConfOptions {
@@ -59,9 +62,13 @@ func confOptions(t *testing.T, v tmux.Version, look lookSpec, env tmux.Env) tmux
 	if err != nil {
 		t.Fatal(err)
 	}
+	seps, err := theme.GetSeps(theme.ResolveStatusStyle(look.status, icons))
+	if err != nil {
+		t.Fatal(err)
+	}
 	return tmux.ConfOptions{
 		Version:        v,
-		Look:           tmux.Look{Palette: p, Depth: look.depth, Icons: icons, Clock: true},
+		Look:           tmux.Look{Palette: p, Depth: look.depth, Icons: icons, Seps: seps, Clock: true},
 		Env:            env,
 		Prefix:         "C-a",
 		Mouse:          true,
@@ -89,9 +96,10 @@ func TestIntegrationConfLoads(t *testing.T) {
 	installed := installedVersion(t)
 	tiers := []tmux.Version{{Major: 3, Minor: 3}, {Major: 3, Minor: 4}, {Major: 3, Minor: 5}, {Major: 3, Minor: 6}, {Major: 3, Minor: 7}}
 	looks := []lookSpec{
-		{"lyna", "unicode", theme.DepthTrue},
-		{"light", "nerd", theme.Depth256},
-		{"ansi", "ascii", theme.Depth16},
+		{palette: "lyna", icons: "unicode", depth: theme.DepthTrue},
+		{palette: "light", icons: "nerd", depth: theme.Depth256},
+		{palette: "ansi", icons: "ascii", depth: theme.Depth16},
+		{palette: "monokai", icons: "nerd", depth: theme.DepthTrue, status: theme.StatusPowerline},
 	}
 	env := tmux.Env{
 		Bin:         "/opt/lyna tools/it's/lyna-tmux",
@@ -477,9 +485,10 @@ func TestIntegrationBorderShowsAFailedPane(t *testing.T) {
 func TestIntegrationStatusLeftFitsTheLongestName(t *testing.T) {
 	installed := installedVersion(t)
 	looks := []lookSpec{
-		{"lyna", "unicode", theme.DepthTrue},
-		{"light", "nerd", theme.Depth256},
-		{"ansi", "ascii", theme.Depth16},
+		{palette: "lyna", icons: "unicode", depth: theme.DepthTrue},
+		{palette: "light", icons: "nerd", depth: theme.Depth256},
+		{palette: "ansi", icons: "ascii", depth: theme.Depth16},
+		{palette: "monokai", icons: "nerd", depth: theme.DepthTrue, status: theme.StatusPowerline},
 	}
 	name := strings.Repeat("a", session.MaxNameLen)
 	for _, look := range looks {
@@ -510,7 +519,7 @@ func TestIntegrationStatusLeftFitsTheLongestName(t *testing.T) {
 			if !strings.Contains(got, name) {
 				t.Fatalf("the status bar lost the session name: %q", got)
 			}
-			if limit != strconv.Itoa(session.MaxNameLen+tmux.StatusLeftFixed) {
+			if limit != strconv.Itoa(session.MaxNameLen+o.Look.StatusLeftFixed()) {
 				t.Fatalf("status-left-length is %s, want the longest name plus its block", limit)
 			}
 		})
@@ -539,7 +548,7 @@ func TestIntegrationAgentsRailToggles(t *testing.T) {
 		Bin: bin, ConfPath: filepath.Join(dir, "tmux.conf"), PopupWidth: "90%", PopupHeight: "85%",
 		Bindings: keys.Defaults(keys.Options{AltKeys: true, Prefix: "C-a"}),
 	}
-	o := confOptions(t, installedVersion(t), lookSpec{"lyna", "unicode", theme.DepthTrue}, env)
+	o := confOptions(t, installedVersion(t), lookSpec{palette: "lyna", icons: "unicode", depth: theme.DepthTrue}, env)
 	if out, err := srv.Client.Run(ctx, "source-file", writeConf(t, tmux.GenerateConf(o))); err != nil {
 		t.Fatalf("source-file: %v %s", err, out)
 	}

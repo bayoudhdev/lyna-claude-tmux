@@ -14,16 +14,16 @@
   ┃   nerd      glyphs from a patched icon font
   ┃ > ascii     plain characters only
 
+    Status bar
+      auto        pointed separators with a patched icon font
+      powerline   pointed separators, whatever the icons
+      plain       no separators
+
     Color depth
       auto        detected from COLORTERM and TERM
       truecolor   24-bit color
       256         the xterm 256-color palette
       16          the basic terminal palette
-
-
-
-
-
 
 
 
