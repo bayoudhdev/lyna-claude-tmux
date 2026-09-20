@@ -1618,3 +1618,233 @@ func upstreamOf(t *testing.T, r *repo, branch string) string {
 	t.Fatalf("Branches() = %+v, want %s among them", list, branch)
 	return ""
 }
+
+func TestIntegrationMerge(t *testing.T) {
+	ctx := t.Context()
+	t.Run("a branch that only moves forward", func(t *testing.T) {
+		r := newRepo(t)
+		r.Commit("first commit subject", "a.txt", "a\n")
+		r.Git("checkout", "-q", "-b", "side")
+		r.Commit("a change of the branch", "side.txt", "s\n")
+		r.Git("checkout", "-q", "main")
+		if err := r.Runner.Merge(ctx, r.Dir, Merge{Rev: "side", FastForwardOnly: true}); err != nil {
+			t.Fatalf("Merge() error = %v", err)
+		}
+		if got := strings.TrimSpace(r.Git("log", "-1", "--format=%s")); got != "a change of the branch" {
+			t.Fatalf("the branch stands at %q, want the commit of the branch", got)
+		}
+	})
+	t.Run("a merge commit with a message of its own", func(t *testing.T) {
+		r := diverged(t)
+		if err := r.Runner.Merge(ctx, r.Dir, Merge{Rev: "side", NoFastForward: true, Message: "a merge of my own"}); err != nil {
+			t.Fatalf("Merge() error = %v", err)
+		}
+		if got := strings.TrimSpace(r.Git("log", "-1", "--format=%s")); got != "a merge of my own" {
+			t.Fatalf("the merge reads as %q", got)
+		}
+		if parents := strings.Fields(r.Git("log", "-1", "--format=%P")); len(parents) != 2 {
+			t.Fatalf("the merge holds %d parents", len(parents))
+		}
+	})
+	t.Run("a merge that cannot only move forward", func(t *testing.T) {
+		r := diverged(t)
+		head := strings.TrimSpace(r.Git("rev-parse", "HEAD"))
+		if err := r.Runner.Merge(ctx, r.Dir, Merge{Rev: "side", FastForwardOnly: true}); err == nil {
+			t.Fatal("Merge() wrote a merge although only moving forward was asked for")
+		}
+		if got := strings.TrimSpace(r.Git("rev-parse", "HEAD")); got != head {
+			t.Fatalf("HEAD moved to %s", got)
+		}
+	})
+	t.Run("the changes brought in and left staged", func(t *testing.T) {
+		r := diverged(t)
+		head := strings.TrimSpace(r.Git("rev-parse", "HEAD"))
+		if err := r.Runner.Merge(ctx, r.Dir, Merge{Rev: "side", Squash: true}); err != nil {
+			t.Fatalf("Merge() error = %v", err)
+		}
+		if got := strings.TrimSpace(r.Git("rev-parse", "HEAD")); got != head {
+			t.Fatalf("a squash wrote a commit at %s", got)
+		}
+		if got := state(t, r)["side.txt"]; got != "A." {
+			t.Fatalf("the working tree reads as %v, want the change staged", state(t, r))
+		}
+	})
+	t.Run("a merge stopped before the commit", func(t *testing.T) {
+		r := diverged(t)
+		if err := r.Runner.Merge(ctx, r.Dir, Merge{Rev: "side", NoCommit: true}); err != nil {
+			t.Fatalf("Merge() error = %v", err)
+		}
+		got, err := r.Runner.InProgress(ctx, r.Dir)
+		if err != nil {
+			t.Fatalf("InProgress() error = %v", err)
+		}
+		if got.Kind != vcs.OperationMerge {
+			t.Fatalf("InProgress() = %+v, want a merge waiting", got)
+		}
+	})
+	t.Run("a merge and a fast forward at once", func(t *testing.T) {
+		r := diverged(t)
+		if err := r.Runner.Merge(ctx, r.Dir, Merge{Rev: "side", NoFastForward: true, FastForwardOnly: true}); err == nil {
+			t.Fatal("Merge() accepted two answers to the same question")
+		}
+	})
+}
+
+// diverged is a repository whose branch and project each hold a commit the
+// other has not got, with no conflict between them.
+func diverged(t *testing.T) *repo {
+	t.Helper()
+	r := newRepo(t)
+	r.Commit("first commit subject", "a.txt", "a\n")
+	r.Git("checkout", "-q", "-b", "side")
+	r.Commit("a change of the branch", "side.txt", "s\n")
+	r.Git("checkout", "-q", "main")
+	r.Commit("a change of the project", "main.txt", "m\n")
+	return r
+}
+
+func TestIntegrationRebase(t *testing.T) {
+	ctx := t.Context()
+	t.Run("a branch replayed over the project", func(t *testing.T) {
+		r := diverged(t)
+		r.Git("checkout", "-q", "side")
+		if err := r.Runner.Rebase(ctx, r.Dir, Rebase{Upstream: "main"}); err != nil {
+			t.Fatalf("Rebase() error = %v", err)
+		}
+		subjects := strings.Fields(strings.ReplaceAll(r.Git("log", "--format=%f"), "\n", " "))
+		want := []string{"a-change-of-the-branch", "a-change-of-the-project", "first-commit-subject"}
+		if !slices.Equal(subjects, want) {
+			t.Fatalf("the branch reads as %v, want %v", subjects, want)
+		}
+	})
+	t.Run("a branch replayed without leaving the one it stands on", func(t *testing.T) {
+		r := diverged(t)
+		if err := r.Runner.Rebase(ctx, r.Dir, Rebase{Upstream: "main", Branch: "side"}); err != nil {
+			t.Fatalf("Rebase() error = %v", err)
+		}
+		if got := head(t, r); got != "side" {
+			t.Fatalf("the working tree stands on %q, want the branch that was replayed", got)
+		}
+	})
+	t.Run("a branch moved off the commits it was built on", func(t *testing.T) {
+		r := newRepo(t)
+		r.Commit("first commit subject", "a.txt", "a\n")
+		r.Git("checkout", "-q", "-b", "feature")
+		r.Commit("a change of the feature", "f.txt", "f\n")
+		r.Git("checkout", "-q", "-b", "on-top")
+		r.Commit("a change on top", "t.txt", "t\n")
+		if err := r.Runner.Rebase(ctx, r.Dir, Rebase{Upstream: "feature", Onto: "main"}); err != nil {
+			t.Fatalf("Rebase() error = %v", err)
+		}
+		subjects := strings.Fields(strings.ReplaceAll(r.Git("log", "--format=%f"), "\n", " "))
+		want := []string{"a-change-on-top", "first-commit-subject"}
+		if !slices.Equal(subjects, want) {
+			t.Fatalf("the branch reads as %v, want %v", subjects, want)
+		}
+	})
+	t.Run("the changes of the working tree carried across", func(t *testing.T) {
+		r := diverged(t)
+		r.Git("checkout", "-q", "side")
+		r.Write("side.txt", "changed while replaying\n")
+		if err := r.Runner.Rebase(ctx, r.Dir, Rebase{Upstream: "main"}); err == nil {
+			t.Fatal("Rebase() ran over a working tree holding changes")
+		}
+		if err := r.Runner.Rebase(ctx, r.Dir, Rebase{Upstream: "main", AutoStash: true}); err != nil {
+			t.Fatalf("Rebase() error = %v", err)
+		}
+		if got := state(t, r)["side.txt"]; got != ".M" {
+			t.Fatalf("the working tree reads as %v, want the change back", state(t, r))
+		}
+	})
+}
+
+func TestIntegrationContinueSkipAndAbort(t *testing.T) {
+	ctx := t.Context()
+	t.Run("a merge given up", func(t *testing.T) {
+		r := conflicting(t)
+		head := strings.TrimSpace(r.Git("rev-parse", "HEAD"))
+		mustConflict(t, r, "merge", "side")
+		if err := r.Runner.Abort(ctx, r.Dir); err != nil {
+			t.Fatalf("Abort() error = %v", err)
+		}
+		got, err := r.Runner.InProgress(ctx, r.Dir)
+		if err != nil {
+			t.Fatalf("InProgress() error = %v", err)
+		}
+		if got.Running() {
+			t.Fatalf("InProgress() = %+v, want nothing running", got)
+		}
+		if now := strings.TrimSpace(r.Git("rev-parse", "HEAD")); now != head {
+			t.Fatalf("HEAD stands at %s, want %s", now, head)
+		}
+	})
+	t.Run("a merge carried on once the conflict is resolved", func(t *testing.T) {
+		r := conflicting(t)
+		mustConflict(t, r, "merge", "side")
+		r.Write("a.txt", "resolved\n")
+		r.Git("add", "a.txt")
+		if err := r.Runner.Continue(ctx, r.Dir); err != nil {
+			t.Fatalf("Continue() error = %v", err)
+		}
+		if parents := strings.Fields(r.Git("log", "-1", "--format=%P")); len(parents) != 2 {
+			t.Fatalf("the merge holds %d parents", len(parents))
+		}
+	})
+	t.Run("a merge is never skipped", func(t *testing.T) {
+		r := conflicting(t)
+		mustConflict(t, r, "merge", "side")
+		if err := r.Runner.Skip(ctx, r.Dir); err == nil {
+			t.Fatal("Skip() answered a merge with a word it has not got")
+		}
+	})
+	t.Run("a rebase carried on", func(t *testing.T) {
+		r := conflicting(t)
+		r.Git("checkout", "-q", "side")
+		mustConflict(t, r, "rebase", "main")
+		r.Write("a.txt", "resolved\n")
+		r.Git("add", "a.txt")
+		if err := r.Runner.Continue(ctx, r.Dir); err != nil {
+			t.Fatalf("Continue() error = %v", err)
+		}
+		got, err := r.Runner.InProgress(ctx, r.Dir)
+		if err != nil {
+			t.Fatalf("InProgress() error = %v", err)
+		}
+		if got.Running() {
+			t.Fatalf("InProgress() = %+v, want the rebase through", got)
+		}
+	})
+	t.Run("a commit left out of a rebase", func(t *testing.T) {
+		r := conflicting(t)
+		r.Git("checkout", "-q", "side")
+		mustConflict(t, r, "rebase", "main")
+		if err := r.Runner.Skip(ctx, r.Dir); err != nil {
+			t.Fatalf("Skip() error = %v", err)
+		}
+		if got := strings.TrimSpace(r.Git("log", "-1", "--format=%s")); got != "a change of the project" {
+			t.Fatalf("the branch stands at %q, want the commit that was kept", got)
+		}
+	})
+	t.Run("a cherry pick given up", func(t *testing.T) {
+		r := conflicting(t)
+		mustConflict(t, r, "cherry-pick", "side")
+		if err := r.Runner.Abort(ctx, r.Dir); err != nil {
+			t.Fatalf("Abort() error = %v", err)
+		}
+		if got := state(t, r); len(got) != 0 {
+			t.Fatalf("the working tree reads as %v, want it clean", got)
+		}
+	})
+	t.Run("an answer with nothing running", func(t *testing.T) {
+		r := conflicting(t)
+		for name, act := range map[string]func() error{
+			"continue": func() error { return r.Runner.Continue(ctx, r.Dir) },
+			"skip":     func() error { return r.Runner.Skip(ctx, r.Dir) },
+			"abort":    func() error { return r.Runner.Abort(ctx, r.Dir) },
+		} {
+			if err := act(); err == nil {
+				t.Fatalf("%s() answered an operation that is not running", name)
+			}
+		}
+	})
+}

@@ -907,3 +907,139 @@ func TestRunnerBranchArgv(t *testing.T) {
 		})
 	}
 }
+
+// TestRunnerReplayArgv holds the commands a merge, a rebase and the answers
+// to a stopped operation build.
+func TestRunnerReplayArgv(t *testing.T) {
+	cases := []struct {
+		name    string
+		act     func(r Runner) error
+		want    []string
+		wantErr bool
+	}{
+		{
+			name: "a merge that writes a commit",
+			act: func(r Runner) error {
+				return r.Merge(context.Background(), "/repo", Merge{Rev: "side", NoFastForward: true})
+			},
+			want: []string{"merge", "--no-ff", "side"},
+		},
+		{
+			name: "a merge that only moves forward",
+			act: func(r Runner) error {
+				return r.Merge(context.Background(), "/repo", Merge{Rev: "origin/main", FastForwardOnly: true})
+			},
+			want: []string{"merge", "--ff-only", "origin/main"},
+		},
+		{
+			name: "a merge left staged",
+			act:  func(r Runner) error { return r.Merge(context.Background(), "/repo", Merge{Rev: "side", Squash: true}) },
+			want: []string{"merge", "--squash", "side"},
+		},
+		{
+			name: "a merge stopped before the commit",
+			act: func(r Runner) error {
+				return r.Merge(context.Background(), "/repo", Merge{Rev: "side", NoCommit: true})
+			},
+			want: []string{"merge", "--no-commit", "side"},
+		},
+		{
+			name:    "a merge of a revision that would be an option",
+			act:     func(r Runner) error { return r.Merge(context.Background(), "/repo", Merge{Rev: "--exec=id"}) },
+			wantErr: true,
+		},
+		{
+			name: "a merge that squashes and writes a commit",
+			act: func(r Runner) error {
+				return r.Merge(context.Background(), "/repo", Merge{Rev: "side", Squash: true, NoFastForward: true})
+			},
+			wantErr: true,
+		},
+		{
+			name: "a branch replayed over another",
+			act:  func(r Runner) error { return r.Rebase(context.Background(), "/repo", Rebase{Upstream: "main"}) },
+			want: []string{"rebase", "main"},
+		},
+		{
+			name: "a branch moved off what it was built on",
+			act: func(r Runner) error {
+				return r.Rebase(context.Background(), "/repo", Rebase{Upstream: "feature", Onto: "main", Branch: "on-top", AutoStash: true, KeepEmpty: true})
+			},
+			want: []string{"rebase", "--onto", "main", "--autostash", "--empty=keep", "feature", "on-top"},
+		},
+		{
+			name:    "a rebase over a revision that would be an option",
+			act:     func(r Runner) error { return r.Rebase(context.Background(), "/repo", Rebase{Upstream: "-x"}) },
+			wantErr: true,
+		},
+		{
+			name: "a rebase of a branch that is no branch",
+			act: func(r Runner) error {
+				return r.Rebase(context.Background(), "/repo", Rebase{Upstream: "main", Branch: "feat/.x"})
+			},
+			wantErr: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeGit{outputs: map[string]Result{"merge": {}, "rebase": {}}}
+			err := tc.act(Runner{Executor: f})
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("the command went through, want it refused")
+				}
+				if len(f.calls) != 0 {
+					t.Fatalf("the command ran %v, want nothing run at all", f.calls)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("the command failed: %v", err)
+			}
+			if args := f.calls[0][5:]; !slices.Equal(args, tc.want) {
+				t.Fatalf("the command ran %v, want %v", args, tc.want)
+			}
+		})
+	}
+}
+
+// TestOperationCommand holds which command answers which operation: the same
+// three words belong to five of them, and a merge has no word for skipping.
+func TestOperationCommand(t *testing.T) {
+	cases := []struct {
+		name    string
+		kind    vcs.Operation
+		verb    string
+		want    string
+		wantErr bool
+	}{
+		{name: "a merge carried on", kind: vcs.OperationMerge, verb: "--continue", want: "merge"},
+		{name: "a merge given up", kind: vcs.OperationMerge, verb: "--abort", want: "merge"},
+		{name: "a merge skipped", kind: vcs.OperationMerge, verb: "--skip", wantErr: true},
+		{name: "a rebase carried on", kind: vcs.OperationRebase, verb: "--continue", want: "rebase"},
+		{name: "a rebase skipped", kind: vcs.OperationRebase, verb: "--skip", want: "rebase"},
+		{name: "a mailbox carried on", kind: vcs.OperationApply, verb: "--continue", want: "am"},
+		{name: "a cherry pick given up", kind: vcs.OperationCherryPick, verb: "--abort", want: "cherry-pick"},
+		{name: "a revert skipped", kind: vcs.OperationRevert, verb: "--skip", want: "revert"},
+		{name: "a bisection", kind: vcs.OperationBisect, verb: "--abort", wantErr: true},
+		{name: "nothing running", kind: vcs.OperationNone, verb: "--continue", wantErr: true},
+		{name: "an operation this does not know", kind: vcs.Operation(42), verb: "--continue", wantErr: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := operationCommand(tc.kind, tc.verb)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("operationCommand() = %q, want it refused", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("operationCommand() error = %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("operationCommand() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
