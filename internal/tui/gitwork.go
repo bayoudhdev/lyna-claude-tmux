@@ -96,6 +96,11 @@ type GitWorkOptions struct {
 	// Open opens the diff of a file: rev is the commit it belongs to, empty
 	// for the working tree.
 	Open func(path, rev string) tea.Cmd
+	// Run answers an operation the keys asked for, against the reading the
+	// workstation is drawing. It is nil where nothing can run git, and the
+	// keys then ask for operations nobody carries out, which is what a view
+	// of a repository somebody else owns would want.
+	Run func(op GitOp, st GitState) tea.Cmd
 	// Root is the project the workstation is about and Home the directory
 	// paths are shortened against.
 	Root, Home string
@@ -116,6 +121,14 @@ type (
 
 // GitReadCommit is the message a ReadCommit command reports.
 func GitReadCommit(read GitCommitRead) tea.Msg { return gitCommitReadM{read: read} }
+
+// GitCommitReadOf reads the answer of a ReadCommit command back. The message
+// itself stays the workstation's own, so nothing outside can put a reading in
+// front of it that it did not ask for.
+func GitCommitReadOf(msg tea.Msg) (GitCommitRead, bool) {
+	m, ok := msg.(gitCommitReadM)
+	return m.read, ok
+}
 
 // GitWorkNoteMsg is one line for the command bar: what something the
 // workstation started has to say when it could not be carried out. The next
@@ -253,6 +266,13 @@ func (m *GitWorkModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case GitWorkNoteMsg:
 		m.note = sanitize.Line(msg.Text)
 		return m, nil
+	case GitOpMsg:
+		// The operation was asked for; what it runs and whether a form
+		// stands before it belongs to whoever answers.
+		if m.opts.Run == nil {
+			return m, nil
+		}
+		return m, m.opts.Run(msg.Op, m.state)
 	case GitAskMsg:
 		m.asked = msg.Op
 		m.form.Ask(msg.Form)

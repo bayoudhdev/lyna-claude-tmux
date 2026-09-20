@@ -43,6 +43,9 @@ type workRecorder struct {
 	more    []string
 	opens   [][2]string
 	refresh int
+	ran     []GitOp
+	// state is the reading the operations were answered against.
+	state GitState
 }
 
 func (r *workRecorder) options(t testing.TB) GitWorkOptions {
@@ -64,6 +67,10 @@ func (r *workRecorder) options(t testing.TB) GitWorkOptions {
 		Refresh: func() tea.Cmd {
 			r.refresh++
 			return nil
+		},
+		Run: func(op GitOp, st GitState) tea.Cmd {
+			r.ran, r.state = append(r.ran, op), st
+			return func() tea.Msg { return GitWorkNoteMsg{Text: op.Kind.String()} }
 		},
 	}
 }
@@ -1011,6 +1018,55 @@ func TestGitWorkAsksBeforeAnOperation(t *testing.T) {
 			t.Fatalf("the form holds %q, want the keys that were pressed", m.form.Value())
 		}
 	})
+}
+
+// TestGitWorkRunsWhatWasAskedFor hands the operation and the reading it is
+// about to whoever answers, and puts what they say on the bar.
+func TestGitWorkRunsWhatWasAskedFor(t *testing.T) {
+	t.Parallel()
+	m, rec := newTestWork(t, 120, 30)
+	ops := workOps(m, "y")
+	if len(ops) != 1 || ops[0].Kind != OpCherryPick {
+		t.Fatalf("the key asked for %+v, want a cherry pick", ops)
+	}
+	// The operation goes back through the loop, which is where it is
+	// answered.
+	m.Update(GitOpMsg{Op: ops[0]})
+	if len(rec.ran) != 1 || rec.ran[0].Kind != OpCherryPick || rec.ran[0].Rev == "" {
+		t.Fatalf("it ran %+v, want the cherry pick with the commit it was on", rec.ran)
+	}
+	if len(rec.state.Commits) == 0 {
+		t.Fatalf("it ran against %+v, want the reading on screen", rec.state)
+	}
+	if _, cmd := m.Update(GitOpMsg{Op: ops[0]}); cmd != nil {
+		m.Update(cmd())
+	}
+	if frame := workFrame(m); !strings.Contains(frame, OpCherryPick.String()) {
+		t.Fatalf("the bar says nothing of what was answered:\n%s", frame)
+	}
+
+	// With nobody to answer, the key asks and nothing else happens.
+	opts := (&workRecorder{}).options(t)
+	opts.Run, opts.Width, opts.Height = nil, 120, 30
+	alone := NewGitWork(opts)
+	alone.Update(gitStateMsg{state: sampleState()})
+	if _, cmd := alone.Update(GitOpMsg{Op: ops[0]}); cmd != nil {
+		t.Fatalf("an operation nobody answers ran %v", cmd())
+	}
+}
+
+// TestGitCommitReadOf hands the answer of a ReadCommit command back to
+// whoever built it, and nothing else.
+func TestGitCommitReadOf(t *testing.T) {
+	t.Parallel()
+	want := GitCommitRead{Rev: "abc", Err: errors.New("no such commit")}
+	got, ok := GitCommitReadOf(GitReadCommit(want))
+	if !ok || got.Rev != want.Rev || got.Err == nil {
+		t.Fatalf("it read %+v, ok=%v", got, ok)
+	}
+	if _, ok = GitCommitReadOf(GitWorkNoteMsg{Text: "something else"}); ok {
+		t.Fatal("a message of another kind read as a commit")
+	}
 }
 
 func TestGitWorkListsItsKeys(t *testing.T) {
