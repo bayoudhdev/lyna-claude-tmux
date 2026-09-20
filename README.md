@@ -280,11 +280,20 @@ isolation, extra allowed hosts, review editor, popup size, custom layouts. The f
 
 ![The setup wizard](docs/assets/setup.gif)
 
-Thirteen themes ship with it, nine dark, three light and one that borrows the terminal's own
-palette. `lmux theme` lists them with a swatch each, `lmux theme preview [name]` draws a
-whole workspace in one so you can pick before you switch, and `lmux theme <name>` restyles
-every running workspace at once. Themes quantize to 256 or 16 colors when the terminal has no
-truecolor, and the icon set falls back to ASCII outside a UTF-8 locale.
+A workspace opens in monokai: an acid green accent on charcoal, orange while an agent works
+and magenta when it needs you, on the status bar, the pane borders, the menus, the git
+workstation and the review editor alike, where the syntax and the nvim-treesitter captures
+take the same colors. Fourteen themes ship with it, ten dark, three light and one that
+borrows the terminal's own palette. `lmux theme` lists them with a swatch each, `lmux theme
+preview [name]` draws a whole workspace in one so you can pick before you switch, and `lmux
+theme <name>` restyles every running workspace at once. Themes quantize to 256 or 16 colors
+when the terminal has no truecolor, and the icon set falls back to ASCII outside a UTF-8
+locale.
+
+The status bar is drawn in segments. With a patched font (`icons = "nerd"`) each one ends in
+a pointed separator; without one they end where their background does. `ui.status_style`
+takes `powerline` or `plain` when you would rather say which, and `lmux doctor` reports the
+one in use. The pictures here are recorded with the patched font.
 
 ![The color themes](docs/assets/theme.png)
 

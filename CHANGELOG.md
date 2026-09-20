@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-09-20
+
+### Added
+
+- The `monokai` theme, and it is the one a workspace opens with: an acid green accent and a cyan second accent on charcoal, orange while an agent works, magenta when it needs you. Every surface follows it, since none of them holds a color of its own: the status bar, the pane borders, the menus and popups, the agents rail, the session picker, the git workstation and its forms, the sandbox views and the wizard. A configuration that names a theme keeps it, and the other thirteen are unchanged.
+- The status bar is drawn in segments: the brand block hands the workspace name to the window list, the active tab is a block of its own, and the right half is one raised segment carrying the agents, the sandbox and the branch, closed by the clock in the accent. The active pane wears its label the same way.
+- `ui.status_style` says how one segment is joined to the next: `powerline` ends each with a pointed separator, `plain` lets a background end where the next starts, and `auto`, the default, takes `powerline` only with `icons = "nerd"`, which already asks for the patched font those glyphs come from. `lmux setup` offers the three, and `lmux doctor` reports the one in use and what to change when a terminal draws a box where a separator should be.
+- The review editor is colored from the workspace palette: the chrome, the diff groups, the syntax groups and the capture groups nvim-treesitter sets on a parsed buffer, each from the palette slot that already means the same thing. The parser is started where Neovim has one for the language, and the syntax rules color the buffer where it has not.
+
+### Changed
+
+- The pictures in the documentation are recorded with a patched font, so they show the icon set and the pointed separators a terminal with one draws. The recorder downloads the font it draws with, pinned to a release tag and a checksum.
+
 ## [1.2.0] - 2026-09-20
 
 ### Added
@@ -88,7 +101,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Release archives for Linux and macOS (amd64, arm64) with shell completions and a man page, deb, rpm and apk packages, SPDX SBOMs, checksums and build provenance attestations.
 - `scripts/bench.sh` start-up benchmarks.
 
-[Unreleased]: https://github.com/bayoudhdev/lyna-claude-tmux/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/bayoudhdev/lyna-claude-tmux/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/bayoudhdev/lyna-claude-tmux/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/bayoudhdev/lyna-claude-tmux/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/bayoudhdev/lyna-claude-tmux/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/bayoudhdev/lyna-claude-tmux/compare/v1.0.0...v1.0.1

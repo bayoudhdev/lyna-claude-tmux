@@ -211,6 +211,11 @@ percent by 95 percent; `popup.width` and `popup.height` do not change them.
 
 The live code review: a side-by-side diff explorer that refreshes as files change.
 
+The isolated editor is drawn in `ui.theme`: the chrome, the diff colors, the syntax groups and
+the capture groups nvim-treesitter sets on a parsed buffer all come from the palette, and the
+parser is started for the languages Neovim has one for. Your own editor (`editor = "user"`)
+keeps your colors, as it keeps the rest of your configuration.
+
 | Key | Type | Values | Default | Effect |
 | --- | --- | --- | --- | --- |
 | `editor` | string | `isolated`, `user` | `"isolated"` | `isolated` runs `nvim` without your configuration, with the pinned and checksum-verified `codediff.nvim` that `lmux review install` puts in the data directory. `user` runs your own `nvim` configuration and plugin install. |
