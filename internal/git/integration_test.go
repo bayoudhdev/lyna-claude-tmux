@@ -1207,3 +1207,209 @@ func TestIntegrationCommitMessageIsNeverOnACommandLine(t *testing.T) {
 		t.Fatalf("the message file is still there: %v", err)
 	}
 }
+
+func TestIntegrationStashPush(t *testing.T) {
+	cases := []struct {
+		name    string
+		opt     StashPush
+		want    map[string]string
+		message string
+		files   []string
+		wantErr bool
+	}{
+		{
+			name:    "everything tracked",
+			opt:     StashPush{Message: "a message of my own"},
+			want:    map[string]string{"untracked.txt": "??", "new-dir/": "??"},
+			message: "a message of my own",
+			files:   []string{"gone.txt", "kept.txt", "staged.txt"},
+		},
+		{
+			name:    "untracked files as well",
+			opt:     StashPush{Message: "with untracked", Untracked: true},
+			want:    map[string]string{},
+			message: "with untracked",
+			files:   []string{"gone.txt", "kept.txt", "new-dir/inside.txt", "staged.txt", "untracked.txt"},
+		},
+		{
+			name:    "what is staged, left in the tree",
+			opt:     StashPush{Message: "keeping the index", KeepIndex: true},
+			want:    map[string]string{"staged.txt": "M.", "gone.txt": "D.", "untracked.txt": "??", "new-dir/": "??"},
+			message: "keeping the index",
+			files:   []string{"gone.txt", "kept.txt", "staged.txt"},
+		},
+		{
+			name:    "what is staged and nothing else",
+			opt:     StashPush{Message: "the staged changes", StagedOnly: true},
+			want:    map[string]string{"kept.txt": ".M", "untracked.txt": "??", "new-dir/": "??"},
+			message: "the staged changes",
+			files:   []string{"gone.txt", "staged.txt"},
+		},
+		{
+			name:    "one path alone",
+			opt:     StashPush{Message: "one path", Paths: []string{"kept.txt"}},
+			want:    map[string]string{"staged.txt": "M.", "gone.txt": "D.", "untracked.txt": "??", "new-dir/": "??"},
+			message: "one path",
+			// The entry holds the whole state of the tree; the paths say what
+			// is put back to the commit, which is what the tree above shows.
+			files: []string{"gone.txt", "kept.txt", "staged.txt"},
+		},
+		{
+			name:    "no message of its own",
+			opt:     StashPush{},
+			want:    map[string]string{"untracked.txt": "??", "new-dir/": "??"},
+			message: "first commit subject",
+			files:   []string{"gone.txt", "kept.txt", "staged.txt"},
+		},
+		{
+			name:    "what is staged, and paths beside it",
+			opt:     StashPush{StagedOnly: true, Paths: []string{"kept.txt"}},
+			wantErr: true,
+		},
+		{name: "a path leaving the project", opt: StashPush{Paths: []string{"../outside"}}, wantErr: true},
+		{name: "a message holding a NUL byte", opt: StashPush{Message: "a\x00b"}, wantErr: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := working(t)
+			before := state(t, r)
+			err := r.Runner.StashPush(t.Context(), r.Dir, tc.opt)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("StashPush() went through, want it refused")
+				}
+				if after := state(t, r); !reflect.DeepEqual(before, after) {
+					t.Fatalf("the working tree changed: %v, was %v", after, before)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("StashPush() error = %v", err)
+			}
+			if got := state(t, r); !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("the working tree reads as %v, want %v", got, tc.want)
+			}
+			list, err := r.Runner.Stashes(t.Context(), r.Dir)
+			if err != nil {
+				t.Fatalf("Stashes() error = %v", err)
+			}
+			if len(list) != 1 {
+				t.Fatalf("Stashes() = %+v, want the one just pushed", list)
+			}
+			if !strings.Contains(list[0].Message, tc.message) {
+				t.Fatalf("the entry reads as %q, want it to say %q", list[0].Message, tc.message)
+			}
+			files, err := r.Runner.StashFiles(t.Context(), r.Dir, 0)
+			if err != nil {
+				t.Fatalf("StashFiles() error = %v", err)
+			}
+			paths := make([]string, len(files))
+			for i, f := range files {
+				paths[i] = f.Path
+			}
+			slices.Sort(paths)
+			if !slices.Equal(paths, tc.files) {
+				t.Fatalf("StashFiles() = %v, want %v", paths, tc.files)
+			}
+		})
+	}
+}
+
+func TestIntegrationStashApplyPopAndDrop(t *testing.T) {
+	ctx := t.Context()
+	t.Run("an entry taken back and kept in the list", func(t *testing.T) {
+		r := working(t)
+		want := state(t, r)
+		if err := r.Runner.StashPush(ctx, r.Dir, StashPush{Message: "put away"}); err != nil {
+			t.Fatalf("StashPush() error = %v", err)
+		}
+		if err := r.Runner.StashApply(ctx, r.Dir, 0, true); err != nil {
+			t.Fatalf("StashApply() error = %v", err)
+		}
+		if got := state(t, r); !reflect.DeepEqual(got, want) {
+			t.Fatalf("the working tree reads as %v, want %v", got, want)
+		}
+		list, err := r.Runner.Stashes(ctx, r.Dir)
+		if err != nil || len(list) != 1 {
+			t.Fatalf("Stashes() = %+v (%v), want the entry kept", list, err)
+		}
+	})
+	t.Run("an entry taken back and removed", func(t *testing.T) {
+		r := working(t)
+		if err := r.Runner.StashPush(ctx, r.Dir, StashPush{Message: "put away"}); err != nil {
+			t.Fatalf("StashPush() error = %v", err)
+		}
+		if err := r.Runner.StashPop(ctx, r.Dir, 0, false); err != nil {
+			t.Fatalf("StashPop() error = %v", err)
+		}
+		list, err := r.Runner.Stashes(ctx, r.Dir)
+		if err != nil || len(list) != 0 {
+			t.Fatalf("Stashes() = %+v (%v), want the list empty", list, err)
+		}
+		// Without the index restored, what was staged comes back as a change
+		// of the working tree.
+		if got := state(t, r)["staged.txt"]; got != ".M" {
+			t.Fatalf("staged.txt reads as %q, want a change of the working tree", got)
+		}
+	})
+	t.Run("an entry dropped", func(t *testing.T) {
+		r := working(t)
+		if err := r.Runner.StashPush(ctx, r.Dir, StashPush{Message: "first away"}); err != nil {
+			t.Fatalf("StashPush() error = %v", err)
+		}
+		r.Write("kept.txt", "again\n")
+		if err := r.Runner.StashPush(ctx, r.Dir, StashPush{Message: "second away"}); err != nil {
+			t.Fatalf("StashPush() error = %v", err)
+		}
+		if err := r.Runner.StashDrop(ctx, r.Dir, 0); err != nil {
+			t.Fatalf("StashDrop() error = %v", err)
+		}
+		list, err := r.Runner.Stashes(ctx, r.Dir)
+		if err != nil || len(list) != 1 || !strings.Contains(list[0].Message, "first away") {
+			t.Fatalf("Stashes() = %+v (%v), want the older entry alone", list, err)
+		}
+	})
+	t.Run("the list cleared", func(t *testing.T) {
+		r := working(t)
+		if err := r.Runner.StashPush(ctx, r.Dir, StashPush{Message: "away"}); err != nil {
+			t.Fatalf("StashPush() error = %v", err)
+		}
+		if err := r.Runner.StashClear(ctx, r.Dir); err != nil {
+			t.Fatalf("StashClear() error = %v", err)
+		}
+		list, err := r.Runner.Stashes(ctx, r.Dir)
+		if err != nil || len(list) != 0 {
+			t.Fatalf("Stashes() = %+v (%v), want the list empty", list, err)
+		}
+	})
+	t.Run("an entry that is not there", func(t *testing.T) {
+		r := working(t)
+		for _, entry := range []int{-1, vcs.MaxStashes, 3} {
+			if err := r.Runner.StashDrop(ctx, r.Dir, entry); err == nil {
+				t.Fatalf("StashDrop(%d) went through, want it refused", entry)
+			}
+		}
+	})
+	t.Run("a push with nothing to put away", func(t *testing.T) {
+		r := newRepo(t)
+		r.Commit("first commit subject", "a.txt", "a\n")
+		err := r.Runner.StashPush(ctx, r.Dir, StashPush{Message: "nothing"})
+		if !errors.Is(err, ErrNothingToStash) {
+			t.Fatalf("StashPush() error = %v, want %v", err, ErrNothingToStash)
+		}
+	})
+	t.Run("an entry that cannot be taken back", func(t *testing.T) {
+		r := working(t)
+		if err := r.Runner.StashPush(ctx, r.Dir, StashPush{Message: "away"}); err != nil {
+			t.Fatalf("StashPush() error = %v", err)
+		}
+		r.Write("kept.txt", "something else\n")
+		if err := r.Runner.StashApply(ctx, r.Dir, 0, false); err == nil {
+			t.Fatal("StashApply() went through over a change of its own")
+		}
+		list, err := r.Runner.Stashes(ctx, r.Dir)
+		if err != nil || len(list) != 1 {
+			t.Fatalf("Stashes() = %+v (%v), want the entry kept", list, err)
+		}
+	})
+}

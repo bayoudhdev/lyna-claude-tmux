@@ -642,3 +642,118 @@ func TestRunnerWorktreeArgv(t *testing.T) {
 		})
 	}
 }
+
+// TestRunnerStashArgv holds the commands the stash actions build, and proves
+// an entry is named from a number rather than from text of anyone's.
+func TestRunnerStashArgv(t *testing.T) {
+	cases := []struct {
+		name    string
+		act     func(r Runner) error
+		want    []string
+		wantErr bool
+	}{
+		{
+			name: "everything tracked, with a message",
+			act: func(r Runner) error {
+				return r.StashPush(context.Background(), "/repo", StashPush{Message: "a message"})
+			},
+			want: []string{"stash", "push", "--message", "a message", "--"},
+		},
+		{
+			name: "untracked files and the index kept",
+			act: func(r Runner) error {
+				return r.StashPush(context.Background(), "/repo", StashPush{Untracked: true, KeepIndex: true})
+			},
+			want: []string{"stash", "push", "--include-untracked", "--keep-index", "--"},
+		},
+		{
+			name: "what is staged alone",
+			act:  func(r Runner) error { return r.StashPush(context.Background(), "/repo", StashPush{StagedOnly: true}) },
+			want: []string{"stash", "push", "--staged", "--"},
+		},
+		{
+			name: "paths after the separator",
+			act: func(r Runner) error {
+				return r.StashPush(context.Background(), "/repo", StashPush{Paths: []string{"a.txt", "sub/b.txt"}})
+			},
+			want: []string{"stash", "push", "--", "a.txt", "sub/b.txt"},
+		},
+		{
+			name: "an entry taken back with what was staged",
+			act:  func(r Runner) error { return r.StashPop(context.Background(), "/repo", 2, true) },
+			want: []string{"stash", "pop", "--index", "stash@{2}"},
+		},
+		{
+			name: "an entry applied",
+			act:  func(r Runner) error { return r.StashApply(context.Background(), "/repo", 0, false) },
+			want: []string{"stash", "apply", "stash@{0}"},
+		},
+		{
+			name: "an entry dropped",
+			act:  func(r Runner) error { return r.StashDrop(context.Background(), "/repo", 7) },
+			want: []string{"stash", "drop", "stash@{7}"},
+		},
+		{
+			name: "the list cleared",
+			act:  func(r Runner) error { return r.StashClear(context.Background(), "/repo") },
+			want: []string{"stash", "clear"},
+		},
+		{
+			name: "what an entry changes",
+			act: func(r Runner) error {
+				_, err := r.StashFiles(context.Background(), "/repo", 1)
+				return err
+			},
+			want: []string{
+				"stash", "show", "--numstat", "-z", "--include-untracked",
+				"--no-ext-diff", "--no-textconv", "--no-color", "stash@{1}",
+			},
+		},
+		{
+			name:    "a message holding a NUL byte",
+			act:     func(r Runner) error { return r.StashPush(context.Background(), "/repo", StashPush{Message: "a\x00b"}) },
+			wantErr: true,
+		},
+		{
+			name: "a path leaving the project",
+			act: func(r Runner) error {
+				return r.StashPush(context.Background(), "/repo", StashPush{Paths: []string{"../outside"}})
+			},
+			wantErr: true,
+		},
+		{
+			name: "what is staged, and paths beside it",
+			act: func(r Runner) error {
+				return r.StashPush(context.Background(), "/repo", StashPush{StagedOnly: true, Paths: []string{"a.txt"}})
+			},
+			wantErr: true,
+		},
+		{name: "an entry counting backwards", act: func(r Runner) error { return r.StashDrop(context.Background(), "/repo", -1) }, wantErr: true},
+		{
+			name:    "an entry past what a list holds",
+			act:     func(r Runner) error { return r.StashPop(context.Background(), "/repo", vcs.MaxStashes, false) },
+			wantErr: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeGit{outputs: map[string]Result{"stash": {}}}
+			err := tc.act(Runner{Executor: f})
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("the command went through, want it refused")
+				}
+				if len(f.calls) != 0 {
+					t.Fatalf("the command ran %v, want nothing run at all", f.calls)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("the command failed: %v", err)
+			}
+			if args := f.calls[0][5:]; !slices.Equal(args, tc.want) {
+				t.Fatalf("the command ran %v, want %v", args, tc.want)
+			}
+		})
+	}
+}
