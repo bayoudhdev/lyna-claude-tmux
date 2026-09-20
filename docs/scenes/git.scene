@@ -1,0 +1,44 @@
+# The git workstation beside the agent: the refs of the project, its history
+# and what is in front of you, with every operation on a key. Nothing here
+# changes the repository: the form that stands before a reset is cancelled.
+title The git workstation
+size 150 38
+pre lmux kill --all
+pre rm -rf .devcontainer
+run lmux create . --layout git --nested
+wait 6
+frame 1.6
+keys M-]
+wait 1.2
+frame 1.6
+# Walking the history, with the commit in front of you following the cursor.
+keys Down
+wait 0.8
+frame 1.2
+keys Down
+wait 0.8
+frame 1.8
+# The refs of the project, and the history of the one that is chosen.
+keys BTab
+wait 1
+frame 1.6
+keys Down
+wait 0.8
+frame 1.6
+keys Tab
+wait 0.8
+frame 1.2
+# Anything that cannot be undone shows what it runs before it runs it.
+keys H
+wait 1.5
+frame 2.6
+keys Escape
+wait 0.8
+frame 1.2
+# Every key of the region the cursor is in.
+keys ?
+wait 1.2
+frame 2.6
+keys q
+wait 0.8
+frame 1.6

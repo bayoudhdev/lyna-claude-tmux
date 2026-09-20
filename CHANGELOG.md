@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-20
+
+### Added
+
+- The git workstation, `lmux git`, `Alt+G` or `G` after the prefix: the branches, the branches of the remotes, the worktrees, the stashes and the tags on the left, the history with its lanes in the middle, and the commit or the working tree on the right. It follows the workspace it runs in, so a file the agent writes and a commit it makes are on screen without a key being pressed.
+- Every operation of a repository on a key, on whatever the cursor is on: stage, unstage and discard, commit, amend and reword, branch, check out, rename, delete, merge, rebase, cherry pick, revert, move a branch, tag, stash, open and remove a worktree, write a patch, copy an object name, and the answers to a rebase that stopped on a conflict. What reaches a remote is a capital: fetch and prune, pull, push, push over what the remote holds, push and follow.
+- A form before anything that cannot be undone by pressing the same key again. It says what the operation costs and shows the command it runs, built by the same code that runs it rather than written out beside it, so what you agreed to is what happens. What would lose commits asks for the name of the branch typed back.
+- The `git` layout, the agent with the workstation beside it, and a pane role of its own with a border that reads the branch icon.
+- `git branch --merged` behind the form that deletes a branch, so it says that the commits are in the branch it was merged into when they are, and asks for the name back when they are not.
+- Benchmarks of the workstation: one redraw and one reading over a page of history, in [docs/benchmarks.md](docs/benchmarks.md).
+
+### Changed
+
+- A push over a remote holds its lease to the commit the workstation last read, so a commit pushed by someone else in between stops it instead of being written over.
+- `workspace.split_ratio` now decides the width of the pane beside the agent in the `duo`, `trio` and `git` layouts alike.
+
 ## [1.1.0] - 2026-09-20
 
 ### Added
@@ -71,7 +87,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Release archives for Linux and macOS (amd64, arm64) with shell completions and a man page, deb, rpm and apk packages, SPDX SBOMs, checksums and build provenance attestations.
 - `scripts/bench.sh` start-up benchmarks.
 
-[Unreleased]: https://github.com/bayoudhdev/lyna-claude-tmux/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/bayoudhdev/lyna-claude-tmux/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/bayoudhdev/lyna-claude-tmux/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/bayoudhdev/lyna-claude-tmux/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/bayoudhdev/lyna-claude-tmux/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/bayoudhdev/lyna-claude-tmux/releases/tag/v1.0.0

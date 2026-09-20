@@ -187,13 +187,26 @@ for i in "${!names[@]}"; do
 done
 
 # The Go benchmarks measure work inside a live workspace rather than a process
-# start, so they are timed by the Go toolchain and not by hyperfine:
-# one redraw of a full agents rail, one reading arriving, and the pane Claude
-# Code opens for a teammate being taken over. bench_time is how long each runs.
+# start, so they are timed by the Go toolchain and not by hyperfine: one redraw
+# of a full agents rail, one reading arriving, the pane Claude Code opens for a
+# teammate being taken over, and the two the git workstation is judged by.
+# bench_time is how long each runs.
 bench_time=${BENCHTIME:-2s}
-bench_names=("agents rail redraw, 40 agents" "agents rail, one reading" "teammate pane taken over")
-bench_pkgs=(./internal/tui/ ./internal/tui/ ./internal/app/)
-bench_funcs=(BenchmarkAgentBarRender BenchmarkAgentBarUpdate BenchmarkTeammateOpens)
+bench_names=(
+  "agents rail redraw, 40 agents"
+  "agents rail, one reading"
+  "teammate pane taken over"
+  "git workstation redraw, 400 commits"
+  "git workstation, one reading"
+)
+bench_pkgs=(./internal/tui/ ./internal/tui/ ./internal/app/ ./internal/tui/ ./internal/tui/)
+bench_funcs=(
+  BenchmarkAgentBarRender
+  BenchmarkAgentBarUpdate
+  BenchmarkTeammateOpens
+  BenchmarkGitWorkRender
+  BenchmarkGitWorkUpdate
+)
 
 if ((dry_run)); then
   for i in "${!bench_funcs[@]}"; do
@@ -230,8 +243,9 @@ go_bench() {
 }
 
 # inside_table measures what a workspace is judged by while it runs: a redraw of
-# a full agents rail, a reading arriving in it, and the time between the pane
-# Claude Code opens for a teammate and the pane of ours it becomes.
+# a full agents rail, a reading arriving in it, the time between the pane Claude
+# Code opens for a teammate and the pane of ours it becomes, and the redraw and
+# the reading of a git workstation on a page of history.
 inside_table() {
   local i mean
   printf '\n| Inside a workspace | Mean [ms] |\n'
