@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A form before anything that cannot be undone by pressing the same key again. It says what the operation costs and shows the command it runs, built by the same code that runs it rather than written out beside it, so what you agreed to is what happens. What would lose commits asks for the name of the branch typed back.
 - The `git` layout, the agent with the workstation beside it, and a pane role of its own with a border that reads the branch icon.
 - `git branch --merged` behind the form that deletes a branch, so it says that the commits are in the branch it was merged into when they are, and asks for the name back when they are not.
+- `lmux doctor` reports the git of the project: the version, whether the directory is a worktree of a repository and which one, what git is in the middle of, the worktrees that are open and where HEAD stands.
 - Benchmarks of the workstation: one redraw and one reading over a page of history, in [docs/benchmarks.md](docs/benchmarks.md).
 
 ### Changed
