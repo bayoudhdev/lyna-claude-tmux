@@ -671,3 +671,33 @@ func resolved(t *testing.T, path string) string {
 	}
 	return out
 }
+
+// TestRecordDocsRedactsTruncatedHomePaths covers what a screen does to a path
+// that does not fit: it keeps the first characters and adds an ellipsis, which
+// the rule for the whole home directory never matches. Every prefix of it is a
+// rule too, and each replacement is as long as what it replaces, which is what
+// keeps a screen laid out in columns in line.
+func TestRecordDocsRedactsTruncatedHomePaths(t *testing.T) {
+	e := newDocsEnv(t, map[string]string{"open": "frames: 1\n"})
+	_, stderr, exit := runRecordDocs(t, e.env(), e.args("--film")...)
+	if exit != 0 {
+		t.Fatalf("exit %d\nstderr:\n%s", exit, stderr)
+	}
+	log := string(mustRead(t, e.log))
+	// The home directory of this test stands for the account's own, and the
+	// neutral directory it is rewritten to is beside it.
+	home := e.dir
+	parent := filepath.Dir(home)
+	neutral := filepath.Join(parent, "developerxxxxx")
+	rules := 0
+	for cut := len(parent) + 2; cut < len(home) && cut <= len(neutral); cut++ {
+		want := "--redact " + home[:cut] + "=" + neutral[:cut]
+		if !strings.Contains(log, want) {
+			t.Fatalf("no rule for the truncated path %q:\n%s", home[:cut], log)
+		}
+		rules++
+	}
+	if rules == 0 {
+		t.Fatal("the home directory of the test is too short to be cut")
+	}
+}

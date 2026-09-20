@@ -221,6 +221,17 @@ for address in \
   redact+=(--redact "$address=$(neutral_like "$address" dev@example.com)")
 done
 
+# A screen truncates what does not fit: a long path reaches a capture as its
+# first characters and an ellipsis, which the rule for the whole path never
+# matches. Every prefix of the home directory past its parent is rewritten as
+# well, to the same prefix of the neutral one. A prefix is the same length as
+# what it replaces by construction, and text that starts with the account's
+# home directory is the thing being hidden wherever it was cut.
+home_parent=$(dirname "$HOME")
+for ((cut = ${#home_parent} + 2; cut < ${#HOME} && cut <= ${#demo_dir}; cut++)); do
+  redact+=(--redact "${HOME:0:cut}=${demo_dir:0:cut}")
+done
+
 redact+=(${extra_redactions[@]+"${extra_redactions[@]}"})
 
 # wanted is true when the scene was asked for, or when none was.

@@ -13,15 +13,10 @@ enter
 wait 20
 frame 3
 film 3 1.4
-caption t | the shared task list of the team
+caption Alt+[ | the rail, with a row per agent and what it has spent
 keys M-[
 wait 1.5
-frame 2
-keys t
-wait 3
-frame 3.5
-keys q
-wait 1.4
+frame 3
 caption r | what an agent is writing, read from its own transcript
 keys Down
 wait 0.5

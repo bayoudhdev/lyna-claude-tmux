@@ -11,10 +11,11 @@ wait 2.5
 chapter The dashboard
 caption lmux | the workspaces, and the agents under them
 frame 3
-caption down, down | the cursor moves, enter attaches
+caption down | the cursor moves, enter attaches
 keys Down
 wait 0.7
-frame 1.6
-keys Tab
-wait 1
+frame 2
+caption a | every agent on the machine, from here too
+keys a
+wait 2
 frame 3
