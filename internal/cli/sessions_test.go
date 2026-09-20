@@ -39,6 +39,10 @@ func newCLIEnv(t *testing.T) *cliEnv {
 	env := map[string]string{
 		"LYNA_TMUX_HOME": root, "LYNA_TMUX_SOCKET_NAME": socket, "PATH": os.Getenv("PATH"),
 		"HOME": root, "TERM": "xterm-256color", "LANG": "en_US.UTF-8", "TMUX": "/tmp/outer,1,0",
+		// Panes run this shell rather than the account's own, which would
+		// read its start-up files and write its caches under the temporary
+		// home, where they can outlive the test that owns the directory.
+		"SHELL": "/bin/sh",
 	}
 	var environ []string
 	for k, v := range env {
