@@ -12,6 +12,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/sanitize"
 )
 
 // Frame size used until the first WindowSizeMsg when the caller gives none.
@@ -95,6 +97,39 @@ func (s Styles) rule(width int, title string) string {
 	title = truncate(title, max(width-4, 0), s.Ellipsis)
 	rest := max(width-ansi.StringWidth(head)-ansi.StringWidth(title)-1, 0)
 	return s.Border.Render(head) + s.Muted.Render(title) + " " + s.Border.Render(strings.Repeat(h, rest))
+}
+
+// box frames rendered content lines: a border carrying the title on its top
+// edge and one cell of padding inside it. Every line it returns is exactly
+// width cells wide, so a box draws over a frame without moving what is under
+// it. The title is plain text and is sanitized here, since a box is drawn
+// around a branch, a path or a message as often as around a word of our own.
+func (s Styles) box(width int, title string, lines []string) []string {
+	h, v, tl, tr, bl, br := "─", "│", "┌", "┐", "└", "┘"
+	if s.Theme.Icons.Name == "ascii" {
+		h, v, tl, tr, bl, br = "-", "|", "+", "+", "+", "+"
+	}
+	if width < 4 {
+		return nil
+	}
+	inner := width - 4
+	var head string
+	if title != "" {
+		// The title sits between the corner and the edge, so it takes the
+		// width of the box less the two cells around it and the three of the
+		// corners.
+		head = " " + truncate(sanitize.Line(title), max(width-5, 0), s.Ellipsis) + " "
+	}
+	rest := max(width-2-ansi.StringWidth(head)-1, 0)
+	out := []string{s.Border.Render(tl+h) + s.Title.Render(head) + s.Border.Render(strings.Repeat(h, rest)+tr)}
+	for _, l := range lines {
+		w := ansi.StringWidth(l)
+		if w > inner {
+			l, w = ansi.Truncate(l, inner, s.Ellipsis), inner
+		}
+		out = append(out, s.Border.Render(v)+" "+l+strings.Repeat(" ", inner-w)+" "+s.Border.Render(v))
+	}
+	return append(out, s.Border.Render(bl+strings.Repeat(h, width-2)+br))
 }
 
 // helpLine renders key help that fits in width.

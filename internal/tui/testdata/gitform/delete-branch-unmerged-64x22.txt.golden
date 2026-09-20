@@ -1,0 +1,22 @@
+
+
+
+  ┌─ Delete a branch ────────────────────────────────────────┐
+  │ fix/border is deleted here; a branch of the same name on │
+  │ a remote is left alone.                                  │
+  │                                                          │
+  │ ✕ the commits of fix/border are in no other branch, and  │
+  │   only the reflog still names them                       │
+  │                                                          │
+  │ runs                                                     │
+  │ git branch -D -- fix/border                              │
+  │                                                          │
+  │ type fix/border to go on                                 │
+  │ ›                                                      ▌ │
+  │                                                          │
+  │  enter run it  esc cancel                                │
+  └──────────────────────────────────────────────────────────┘
+
+
+
+

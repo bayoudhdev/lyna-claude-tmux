@@ -1,0 +1,22 @@
+
+
+
+
+
+  ┌─ Discard a file ─────────────────────────────────────────┐
+  │ internal/tui/gitform.go goes back to what HEAD holds.    │
+  │                                                          │
+  │ ✕ the changes made to it since are in no commit and no   │
+  │   stash                                                  │
+  │                                                          │
+  │ runs                                                     │
+  │ git restore -- internal/tui/gitform.go                   │
+  │                                                          │
+  │  y run it  n cancel                                      │
+  └──────────────────────────────────────────────────────────┘
+
+
+
+
+
+

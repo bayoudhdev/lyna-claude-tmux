@@ -1,0 +1,16 @@
+
+
+  ┌─ Remove a worktree ────────┐
+  │ /home/dev/src/acme/.claud… │
+  │                            │
+  │ ✕ the changes in it are in │
+  │   no commit and no stash   │
+  │                            │
+  │ type review to go on       │
+  │ ›                        ▌ │
+  │                            │
+  │  enter run it  esc cancel  │
+  └────────────────────────────┘
+
+
+

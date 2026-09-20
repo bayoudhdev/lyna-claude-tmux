@@ -1,0 +1,22 @@
+
+
+
+  ┌─ Move the branch and write the tree over ────────────────┐
+  │ main moves to a1b2c3d, and the working tree is written   │
+  │ over with it.                                            │
+  │                                                          │
+  │ ✕ every change of the working tree and of the index      │
+  │ ✕ 3 commits are left behind, reachable only through the  │
+  │   reflog                                                 │
+  │                                                          │
+  │ runs                                                     │
+  │ git reset --hard -- a1b2c3d                              │
+  │                                                          │
+  │ type main to go on                                       │
+  │ ›                                                      ▌ │
+  │                                                          │
+  │  enter run it  esc cancel                                │
+  └──────────────────────────────────────────────────────────┘
+
+
+

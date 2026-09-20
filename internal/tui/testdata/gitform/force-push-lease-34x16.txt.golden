@@ -1,0 +1,16 @@
+
+  ┌─ Write over a branch of a… ┐
+  │ feat/git-workstation on…   │
+  │                            │
+  │ ✕ the commits the remote   │
+  │   holds and this           │
+  │   repository read are      │
+  │   written over             │
+  │                            │
+  │ type feat/git-wo… to go on │
+  │ ›                        ▌ │
+  │                            │
+  │  enter run it  esc cancel  │
+  └────────────────────────────┘
+
+

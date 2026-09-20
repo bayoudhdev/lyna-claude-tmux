@@ -1,0 +1,22 @@
+
+
+
+  ┌─ Remove a worktree ──────────────────────────────────────┐
+  │ /home/dev/src/acme/.claude/worktrees/review is removed;  │
+  │ the branch it stands on is left alone.                   │
+  │                                                          │
+  │ ✕ the changes in it are in no commit and no stash        │
+  │                                                          │
+  │ runs                                                     │
+  │ git worktree remove --force --                           │
+  │ /home/dev/src/acme/.claude/worktrees/review              │
+  │                                                          │
+  │ type review to go on                                     │
+  │ ›                                                      ▌ │
+  │                                                          │
+  │  enter run it  esc cancel                                │
+  └──────────────────────────────────────────────────────────┘
+
+
+
+
