@@ -225,6 +225,10 @@ if 'icons = "auto"' not in text:
     sys.exit("the configuration template no longer sets icons")
 io.open(path, "w", encoding="utf-8").write(text.replace('icons = "auto"', 'icons = "nerd"', 1))
 EDIT
+  # A scene that opens a review needs the plugin a review runs, and a machine
+  # without it would be recorded showing the warning instead of the editor.
+  lmux review status >/dev/null 2>&1 ||
+    fail "the review plugin is not ready; run: lmux review install"
 fi
 
 recorded=0

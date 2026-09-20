@@ -49,6 +49,9 @@ fi
 if [ "$1" = config ] && [ "$2" = path ]; then
   echo "$config"
 fi
+if [ "$1" = review ] && [ "$2" = status ]; then
+  [ -z "$FAKE_REVIEW_MISSING" ] || exit 1
+fi
 `
 
 type docsEnv struct {
@@ -149,6 +152,22 @@ func TestRecordDocsConfiguration(t *testing.T) {
 	for _, dir := range []string{".config", ".reccfg"} {
 		if _, err := os.Stat(filepath.Join(e.dir, dir, "lyna-tmux")); err == nil {
 			t.Errorf("the recorder left %s behind in the account", dir)
+		}
+	}
+}
+
+// TestRecordDocsNeedsTheReviewPlugin holds the driver to what the scenes
+// need: a machine whose review cannot start would be recorded showing the
+// warning rather than the editor, so nothing is recorded at all.
+func TestRecordDocsNeedsTheReviewPlugin(t *testing.T) {
+	e := newDocsEnv(t, map[string]string{"review": "frames: 3\n"})
+	_, stderr, exit := runRecordDocs(t, append(e.env(), "FAKE_REVIEW_MISSING=1"), e.args()...)
+	if exit != 1 || !strings.Contains(stderr, "lmux review install") {
+		t.Fatalf("exit %d\nstderr:\n%s", exit, stderr)
+	}
+	if _, err := os.Stat(e.log); err == nil {
+		if log := string(mustRead(t, e.log)); strings.Contains(log, "record ") {
+			t.Fatalf("a scene was recorded anyway:\n%s", log)
 		}
 	}
 }
