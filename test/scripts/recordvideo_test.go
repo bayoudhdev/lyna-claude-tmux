@@ -66,6 +66,10 @@ func newFilmEnv(t *testing.T, chapters []string) filmEnv {
 	writeExecutable(t, e.driver, fakeFilmDriver)
 	writeExecutable(t, filepath.Join(e.bin, "ffmpeg"), fakeFilmFFmpeg)
 	writeExecutable(t, filepath.Join(e.bin, "ffprobe"), fakeFilmFFprobe)
+	// python3 refuses: the assembler joins the chapters and moves their cues
+	// with awk, because the smallest image of the test matrix has no python.
+	writeExecutable(t, filepath.Join(e.bin, "python3"), `echo "python3 $*" >> "$FILM_LOG"
+exit 1`)
 	for _, name := range chapters {
 		if err := os.WriteFile(filepath.Join(e.scenes, name+".scene"), []byte("run true\nframe\n"), 0o644); err != nil {
 			t.Fatal(err)

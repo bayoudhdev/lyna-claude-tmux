@@ -162,61 +162,54 @@ for name in "${chapters[@]}"; do
   offset=$(awk -v a="$offset" -v b="$(seconds "$work/$name.mp4")" 'BEGIN { printf "%.3f", a + b }')
 done
 
-python3 - "$work/offsets.txt" "$work/record.log" "$work/demo.srt" <<'SHIFT'
-import io
-import re
-import sys
+# stamp_awk is the arithmetic both steps below need: a time in seconds read
+# from a cue, and a time written back the way a subtitle track spells it.
+stamp_awk='
+function secs(t,  p) { gsub(",", ".", t); split(t, p, ":"); return p[1] * 3600 + p[2] * 60 + p[3] }
+function stamp(s,  ms, h, m, sec) {
+  ms = int(s * 1000 + 0.5)
+  h = int(ms / 3600000); ms %= 3600000
+  m = int(ms / 60000); ms %= 60000
+  sec = int(ms / 1000); ms %= 1000
+  return sprintf("%02d:%02d:%02d,%03d", h, m, sec, ms)
+}'
 
-rows = [line.split("\t") for line in io.open(sys.argv[1], encoding="utf-8").read().splitlines() if line]
-marks = io.open(sys.argv[2], encoding="utf-8").read().splitlines()
-stamp = re.compile(r"(\d\d):(\d\d):(\d\d),(\d\d\d)")
+# Every cue of a chapter moves by the seconds the chapters before it are worth.
+# The number a cue carries is dropped here and written again at the end, so the
+# track is numbered from one over the whole film.
+: >"$work/shifted.srt"
+while IFS=$'\t' read -r name offset path; do
+  [[ -s $path ]] || continue
+  awk -v offset="$offset" "$stamp_awk"'
+  /-->/ {
+    split($0, t, " --> ")
+    print stamp(secs(t[1]) + offset) " --> " stamp(secs(t[2]) + offset)
+    blank = 0
+    next
+  }
+  /^[0-9]+$/ && (FNR == 1 || blank) { blank = 0; next }
+  { print; blank = ($0 ~ /^[[:space:]]*$/) }
+  ' "$path" >>"$work/shifted.srt"
+done <"$work/offsets.txt"
 
+awk 'BEGIN { RS = ""; ORS = "\n\n" } { print ++n "\n" $0 }' "$work/shifted.srt" >"$work/demo.srt"
 
-def to_seconds(text):
-    h, m, s, ms = (int(part) for part in stamp.match(text).groups())
-    return h * 3600 + m * 60 + s + ms / 1000.0
-
-
-def to_stamp(seconds):
-    ms = int(round(seconds * 1000))
-    h, ms = divmod(ms, 3600000)
-    m, ms = divmod(ms, 60000)
-    s, ms = divmod(ms, 1000)
-    return "%02d:%02d:%02d,%03d" % (h, m, s, ms)
-
-
-cues = []
-for name, offset, path in rows:
-    offset = float(offset)
-    try:
-        text = io.open(path, encoding="utf-8").read()
-    except OSError:
-        continue
-    for block in text.strip().split("\n\n"):
-        lines = block.splitlines()
-        if len(lines) < 3:
-            continue
-        start, _, end = lines[1].partition(" --> ")
-        cues.append((to_seconds(start) + offset, to_seconds(end) + offset, lines[2:]))
-
-with io.open(sys.argv[3], "w", encoding="utf-8") as f:
-    for i, (start, end, body) in enumerate(cues, 1):
-        f.write("%d\n%s --> %s\n%s\n\n" % (i, to_stamp(start), to_stamp(end), "\n".join(body)))
-
-# The chapter list: every mark the recorder printed, moved by the offset of
-# the chapter it was printed under. The log names a chapter before it records
-# it, so a mark belongs to the last name seen.
-offsets = {name: float(offset) for name, offset, _ in rows}
-current = None
-for line in marks:
-    scene = re.match(r"^([0-9A-Za-z._-]+): \d+ frames$", line)
-    if scene:
-        current = scene.group(1)
-        continue
-    mark = re.match(r"^chapter: ([0-9.]+)\t(.*)$", line)
-    if mark and current in offsets:
-        print("%s\t%s" % (to_stamp(offsets[current] + float(mark.group(1))), mark.group(2)))
-SHIFT
+# The chapter list: every mark the recorder printed, moved by the offset of the
+# chapter it was printed under. The log names a chapter before it records it,
+# so a mark belongs to the last name seen.
+awk -F'\t' "$stamp_awk"'
+FNR == NR { offset[$1] = $2 + 0; next }
+/^[0-9A-Za-z._-]+: [0-9]+ frames$/ {
+  scene = $0
+  sub(/:.*/, "", scene)
+  next
+}
+$1 ~ /^chapter: [0-9.]+$/ && (scene in offset) {
+  at = $1
+  sub(/^chapter: /, "", at)
+  print stamp(offset[scene] + at) "\t" $2
+}
+' "$work/offsets.txt" "$work/record.log"
 
 write_to() {
   mkdir -p "$(dirname "$1")"
