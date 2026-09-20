@@ -1413,3 +1413,208 @@ func TestIntegrationStashApplyPopAndDrop(t *testing.T) {
 		}
 	})
 }
+
+// head reads what the working tree stands on: the branch, or the empty string
+// when HEAD is detached.
+func head(t *testing.T, r *repo) string {
+	t.Helper()
+	out, err := r.Try("symbolic-ref", "--quiet", "--short", "HEAD")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(out)
+}
+
+func TestIntegrationCheckout(t *testing.T) {
+	ctx := t.Context()
+	t.Run("a branch that is already there", func(t *testing.T) {
+		r := history(t)
+		if err := r.Runner.Checkout(ctx, r.Dir, Checkout{Branch: "side"}); err != nil {
+			t.Fatalf("Checkout() error = %v", err)
+		}
+		if got := head(t, r); got != "side" {
+			t.Fatalf("the working tree stands on %q, want side", got)
+		}
+	})
+	t.Run("a branch created where another one stands", func(t *testing.T) {
+		r := history(t)
+		if err := r.Runner.Checkout(ctx, r.Dir, Checkout{Branch: "feat/new", New: true, Start: "side"}); err != nil {
+			t.Fatalf("Checkout() error = %v", err)
+		}
+		if got := head(t, r); got != "feat/new" {
+			t.Fatalf("the working tree stands on %q, want feat/new", got)
+		}
+		if got, want := r.Git("rev-parse", "HEAD"), r.Git("rev-parse", "side"); got != want {
+			t.Fatalf("the branch starts at %s, want %s", got, want)
+		}
+	})
+	t.Run("a branch of a remote followed", func(t *testing.T) {
+		r := history(t)
+		remote := filepath.Join(filepath.Dir(r.Dir), "origin.git")
+		r.Git("init", "-q", "--bare", remote)
+		r.Git("remote", "add", "origin", remote)
+		r.Git("push", "-q", "origin", "side:theirs")
+		r.Git("fetch", "-q", "origin")
+		if err := r.Runner.Checkout(ctx, r.Dir, Checkout{Branch: "theirs", New: true, Track: "origin/theirs"}); err != nil {
+			t.Fatalf("Checkout() error = %v", err)
+		}
+		branches, err := r.Runner.Branches(ctx, r.Dir)
+		if err != nil {
+			t.Fatalf("Branches() error = %v", err)
+		}
+		var found bool
+		for _, b := range branches {
+			if b.Name == "theirs" {
+				found = true
+				if b.Upstream != "refs/remotes/origin/theirs" {
+					t.Fatalf("the branch follows %q", b.Upstream)
+				}
+			}
+		}
+		if !found {
+			t.Fatalf("Branches() = %+v, want the branch that was opened", branches)
+		}
+	})
+	t.Run("a branch of a remote is never guessed", func(t *testing.T) {
+		r := history(t)
+		remote := filepath.Join(filepath.Dir(r.Dir), "guess.git")
+		r.Git("init", "-q", "--bare", remote)
+		r.Git("remote", "add", "origin", remote)
+		r.Git("push", "-q", "origin", "side:theirs")
+		r.Git("fetch", "-q", "origin")
+		if err := r.Runner.Checkout(ctx, r.Dir, Checkout{Branch: "theirs"}); err == nil {
+			t.Fatal("Checkout() opened a branch that was never asked for")
+		}
+	})
+	t.Run("a commit with no branch on it", func(t *testing.T) {
+		r := history(t)
+		if err := r.Runner.Checkout(ctx, r.Dir, Checkout{Detach: true, Start: "side"}); err != nil {
+			t.Fatalf("Checkout() error = %v", err)
+		}
+		if got := head(t, r); got != "" {
+			t.Fatalf("the working tree stands on %q, want no branch at all", got)
+		}
+		if got, want := r.Git("rev-parse", "HEAD"), r.Git("rev-parse", "side"); got != want {
+			t.Fatalf("HEAD stands at %s, want %s", got, want)
+		}
+	})
+	t.Run("changes standing in the way", func(t *testing.T) {
+		r := history(t)
+		// a.txt differs between the two branches, so a change to it is in the
+		// way of the switch rather than carried over by it.
+		r.Write("a.txt", "changed in the way\n")
+		if err := r.Runner.Checkout(ctx, r.Dir, Checkout{Branch: "side"}); err == nil {
+			t.Fatal("Checkout() threw a change away without being asked to")
+		}
+		if err := r.Runner.Checkout(ctx, r.Dir, Checkout{Branch: "side", Discard: true}); err != nil {
+			t.Fatalf("Checkout() error = %v", err)
+		}
+		if got := state(t, r); len(got) != 0 {
+			t.Fatalf("the working tree reads as %v, want it clean", got)
+		}
+	})
+}
+
+func TestIntegrationBranchActions(t *testing.T) {
+	ctx := t.Context()
+	t.Run("a branch created and renamed", func(t *testing.T) {
+		r := history(t)
+		if err := r.Runner.CreateBranch(ctx, r.Dir, "feat/one", "side"); err != nil {
+			t.Fatalf("CreateBranch() error = %v", err)
+		}
+		if got := head(t, r); got != "main" {
+			t.Fatalf("the working tree moved to %q", got)
+		}
+		if err := r.Runner.RenameBranch(ctx, r.Dir, "feat/one", "feat/two", false); err != nil {
+			t.Fatalf("RenameBranch() error = %v", err)
+		}
+		names := branchNames(t, r)
+		if slices.Contains(names, "feat/one") || !slices.Contains(names, "feat/two") {
+			t.Fatalf("the branches read as %v", names)
+		}
+	})
+	t.Run("a rename onto a name that is taken", func(t *testing.T) {
+		r := history(t)
+		if err := r.Runner.CreateBranch(ctx, r.Dir, "one", ""); err != nil {
+			t.Fatalf("CreateBranch() error = %v", err)
+		}
+		if err := r.Runner.RenameBranch(ctx, r.Dir, "one", "side", false); err == nil {
+			t.Fatal("RenameBranch() wrote over a branch that was there")
+		}
+		if err := r.Runner.RenameBranch(ctx, r.Dir, "one", "side", true); err != nil {
+			t.Fatalf("RenameBranch() error = %v", err)
+		}
+	})
+	t.Run("a branch deleted", func(t *testing.T) {
+		r := history(t)
+		if err := r.Runner.CreateBranch(ctx, r.Dir, "merged", "main"); err != nil {
+			t.Fatalf("CreateBranch() error = %v", err)
+		}
+		if err := r.Runner.DeleteBranch(ctx, r.Dir, "merged", false); err != nil {
+			t.Fatalf("DeleteBranch() error = %v", err)
+		}
+		if names := branchNames(t, r); slices.Contains(names, "merged") {
+			t.Fatalf("the branches read as %v", names)
+		}
+	})
+	t.Run("a branch holding commits of its own", func(t *testing.T) {
+		r := history(t)
+		r.Git("checkout", "-q", "-b", "alone", "main")
+		r.Commit("a commit no other branch holds", "alone.txt", "a\n")
+		r.Git("checkout", "-q", "main")
+		if err := r.Runner.DeleteBranch(ctx, r.Dir, "alone", false); err == nil {
+			t.Fatal("DeleteBranch() threw commits away without being asked to")
+		}
+		if err := r.Runner.DeleteBranch(ctx, r.Dir, "alone", true); err != nil {
+			t.Fatalf("DeleteBranch() error = %v", err)
+		}
+	})
+	t.Run("a branch that follows one of a remote", func(t *testing.T) {
+		r := history(t)
+		remote := filepath.Join(filepath.Dir(r.Dir), "origin.git")
+		r.Git("init", "-q", "--bare", remote)
+		r.Git("remote", "add", "origin", remote)
+		r.Git("push", "-q", "origin", "main")
+		r.Git("fetch", "-q", "origin")
+		if err := r.Runner.SetUpstream(ctx, r.Dir, "main", "origin/main"); err != nil {
+			t.Fatalf("SetUpstream() error = %v", err)
+		}
+		if got := upstreamOf(t, r, "main"); got != "refs/remotes/origin/main" {
+			t.Fatalf("main follows %q", got)
+		}
+		if err := r.Runner.UnsetUpstream(ctx, r.Dir, "main"); err != nil {
+			t.Fatalf("UnsetUpstream() error = %v", err)
+		}
+		if got := upstreamOf(t, r, "main"); got != "" {
+			t.Fatalf("main follows %q, want nothing", got)
+		}
+	})
+}
+
+func branchNames(t *testing.T, r *repo) []string {
+	t.Helper()
+	list, err := r.Runner.Branches(t.Context(), r.Dir)
+	if err != nil {
+		t.Fatalf("Branches() error = %v", err)
+	}
+	names := make([]string, len(list))
+	for i, b := range list {
+		names[i] = b.Name
+	}
+	return names
+}
+
+func upstreamOf(t *testing.T, r *repo, branch string) string {
+	t.Helper()
+	list, err := r.Runner.Branches(t.Context(), r.Dir)
+	if err != nil {
+		t.Fatalf("Branches() error = %v", err)
+	}
+	for _, b := range list {
+		if b.Name == branch {
+			return b.Upstream
+		}
+	}
+	t.Fatalf("Branches() = %+v, want %s among them", list, branch)
+	return ""
+}

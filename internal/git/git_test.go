@@ -757,3 +757,153 @@ func TestRunnerStashArgv(t *testing.T) {
 		})
 	}
 }
+
+// TestRunnerBranchArgv holds the commands the branch actions build, and
+// proves a name git would read as an option or as a revision of another shape
+// never reaches one.
+func TestRunnerBranchArgv(t *testing.T) {
+	cases := []struct {
+		name    string
+		act     func(r Runner) error
+		want    []string
+		wantErr bool
+	}{
+		{
+			name: "a branch that is already there",
+			act:  func(r Runner) error { return r.Checkout(context.Background(), "/repo", Checkout{Branch: "side"}) },
+			want: []string{"switch", "--no-guess", "side"},
+		},
+		{
+			name: "a branch created at HEAD",
+			act: func(r Runner) error {
+				return r.Checkout(context.Background(), "/repo", Checkout{Branch: "feat/x", New: true})
+			},
+			want: []string{"switch", "--create", "feat/x"},
+		},
+		{
+			name: "a branch created where another one stands",
+			act: func(r Runner) error {
+				return r.Checkout(context.Background(), "/repo", Checkout{Branch: "feat/x", New: true, Start: "main~2"})
+			},
+			want: []string{"switch", "--create", "feat/x", "main~2"},
+		},
+		{
+			name: "a branch of a remote followed",
+			act: func(r Runner) error {
+				return r.Checkout(context.Background(), "/repo", Checkout{Branch: "theirs", New: true, Track: "origin/theirs"})
+			},
+			want: []string{"switch", "--create", "theirs", "--track", "origin/theirs"},
+		},
+		{
+			name: "a commit with no branch on it",
+			act: func(r Runner) error {
+				return r.Checkout(context.Background(), "/repo", Checkout{Detach: true, Start: "v1.1.0", Discard: true})
+			},
+			want: []string{"switch", "--detach", "--discard-changes", "v1.1.0"},
+		},
+		{
+			name: "a branch created without switching",
+			act:  func(r Runner) error { return r.CreateBranch(context.Background(), "/repo", "feat/x", "main") },
+			want: []string{"branch", "--", "feat/x", "main"},
+		},
+		{
+			name: "a branch renamed",
+			act:  func(r Runner) error { return r.RenameBranch(context.Background(), "/repo", "a", "b", false) },
+			want: []string{"branch", "--move", "--", "a", "b"},
+		},
+		{
+			name: "a branch renamed over one that is there",
+			act:  func(r Runner) error { return r.RenameBranch(context.Background(), "/repo", "a", "b", true) },
+			want: []string{"branch", "-M", "--", "a", "b"},
+		},
+		{
+			name: "a branch deleted",
+			act:  func(r Runner) error { return r.DeleteBranch(context.Background(), "/repo", "a", false) },
+			want: []string{"branch", "--delete", "--", "a"},
+		},
+		{
+			name: "a branch deleted with the commits it alone holds",
+			act:  func(r Runner) error { return r.DeleteBranch(context.Background(), "/repo", "a", true) },
+			want: []string{"branch", "-D", "--", "a"},
+		},
+		{
+			name: "a branch that follows one of a remote",
+			act:  func(r Runner) error { return r.SetUpstream(context.Background(), "/repo", "main", "origin/main") },
+			want: []string{"branch", "--set-upstream-to=origin/main", "--", "main"},
+		},
+		{
+			name: "a branch that follows nothing",
+			act:  func(r Runner) error { return r.UnsetUpstream(context.Background(), "/repo", "main") },
+			want: []string{"branch", "--unset-upstream", "--", "main"},
+		},
+		{
+			name:    "a branch name that would be an option",
+			act:     func(r Runner) error { return r.Checkout(context.Background(), "/repo", Checkout{Branch: "--orphan"}) },
+			wantErr: true,
+		},
+		{
+			name:    "a branch name git refuses",
+			act:     func(r Runner) error { return r.CreateBranch(context.Background(), "/repo", "feat/.x", "") },
+			wantErr: true,
+		},
+		{
+			name: "a revision that would be an option",
+			act: func(r Runner) error {
+				return r.Checkout(context.Background(), "/repo", Checkout{Detach: true, Start: "--output=/tmp/x"})
+			},
+			wantErr: true,
+		},
+		{
+			name: "a commit opened with a branch named",
+			act: func(r Runner) error {
+				return r.Checkout(context.Background(), "/repo", Checkout{Detach: true, Start: "main", Branch: "x"})
+			},
+			wantErr: true,
+		},
+		{
+			name: "a branch that both follows and starts somewhere",
+			act: func(r Runner) error {
+				return r.Checkout(context.Background(), "/repo", Checkout{Branch: "x", New: true, Track: "origin/x", Start: "main"})
+			},
+			wantErr: true,
+		},
+		{
+			name: "a branch that is already there, given a start",
+			act: func(r Runner) error {
+				return r.Checkout(context.Background(), "/repo", Checkout{Branch: "x", Start: "main"})
+			},
+			wantErr: true,
+		},
+		{
+			name:    "a rename to a name that is no name",
+			act:     func(r Runner) error { return r.RenameBranch(context.Background(), "/repo", "a", "-f", false) },
+			wantErr: true,
+		},
+		{
+			name:    "an upstream that would be an option",
+			act:     func(r Runner) error { return r.SetUpstream(context.Background(), "/repo", "main", "--exec=id") },
+			wantErr: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeGit{outputs: map[string]Result{"switch": {}, "branch": {}}}
+			err := tc.act(Runner{Executor: f})
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("the command went through, want it refused")
+				}
+				if len(f.calls) != 0 {
+					t.Fatalf("the command ran %v, want nothing run at all", f.calls)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("the command failed: %v", err)
+			}
+			if args := f.calls[0][5:]; !slices.Equal(args, tc.want) {
+				t.Fatalf("the command ran %v, want %v", args, tc.want)
+			}
+		})
+	}
+}
