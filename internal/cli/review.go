@@ -35,7 +35,7 @@ func reviewCommands(d Deps) []*cobra.Command {
 // reviewCommandsWith builds the commands for a plugin source; tests install
 // from a local repository and release server instead of the network.
 func reviewCommandsWith(d Deps, src app.ReviewPlugin) []*cobra.Command {
-	return []*cobra.Command{reviewCommand(d, src), watchCommand(d)}
+	return []*cobra.Command{reviewCommand(d, src), watchCommand(d), gitCommand(d)}
 }
 
 // reviewFlags are the options of `review`.
