@@ -885,6 +885,30 @@ func TestRunnerBranchArgv(t *testing.T) {
 			act:     func(r Runner) error { return r.SetUpstream(context.Background(), "/repo", "main", "--exec=id") },
 			wantErr: true,
 		},
+		{
+			name: "a branch asked whether another already holds it",
+			act: func(r Runner) error {
+				_, err := r.Merged(context.Background(), "/repo", "side", "HEAD")
+				return err
+			},
+			want: []string{"branch", "--list", "--merged", "HEAD", "--format=%(refname:short)", "side"},
+		},
+		{
+			name: "a branch to compare that would be an option",
+			act: func(r Runner) error {
+				_, err := r.Merged(context.Background(), "/repo", "-f", "HEAD")
+				return err
+			},
+			wantErr: true,
+		},
+		{
+			name: "a branch to compare against that would be an option",
+			act: func(r Runner) error {
+				_, err := r.Merged(context.Background(), "/repo", "side", "--exec=id")
+				return err
+			},
+			wantErr: true,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -906,6 +930,45 @@ func TestRunnerBranchArgv(t *testing.T) {
 				t.Fatalf("the command ran %v, want %v", args, tc.want)
 			}
 		})
+	}
+}
+
+// TestRunnerMergedReadsTheAnswer holds the reading of git branch --merged to
+// the name that was asked for, since a name that only starts the same way is
+// another branch.
+func TestRunnerMergedReadsTheAnswer(t *testing.T) {
+	cases := []struct {
+		name string
+		out  string
+		want bool
+	}{
+		{name: "the branch is listed", out: "side\n", want: true},
+		{name: "nothing is listed", out: ""},
+		{name: "a blank line only", out: "\n"},
+		{name: "a name that starts the same way", out: "sidecar\n"},
+		{name: "the branch among others", out: "sidecar\nside\n", want: true},
+		{name: "the name padded the way a current branch is", out: "  side  \n", want: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeGit{outputs: map[string]Result{"branch": {Stdout: []byte(tc.out)}}}
+			got, err := Runner{Executor: f}.Merged(context.Background(), "/repo", "side", "main")
+			if err != nil {
+				t.Fatalf("the command failed: %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("the branch is reported merged=%v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestRunnerMergedReportsTheFailure keeps a git that could not answer apart
+// from a branch that is not merged.
+func TestRunnerMergedReportsTheFailure(t *testing.T) {
+	f := &fakeGit{outputs: map[string]Result{"branch": {ExitCode: 129, Stderr: []byte("unknown option")}}}
+	if _, err := (Runner{Executor: f}).Merged(context.Background(), "/repo", "side", "main"); err == nil {
+		t.Fatal("the command reported no failure, want the one git printed")
 	}
 }
 

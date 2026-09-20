@@ -3,6 +3,7 @@ package git
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/vcs"
 )
@@ -140,6 +141,29 @@ func (r Runner) DeleteBranch(ctx context.Context, dir, name string, force bool) 
 	}
 	_, err := r.git(ctx, dir, "branch", flag, "--", name)
 	return err
+}
+
+// Merged reports whether into already holds every commit of name, which is
+// what tells a branch that can be deleted and lose nothing from one holding
+// work of its own. It asks for the branch by name rather than by exit status,
+// so a repository that has no such branch answers no instead of failing.
+func (r Runner) Merged(ctx context.Context, dir, name, into string) (bool, error) {
+	if err := vcs.ValidateRefName(name); err != nil {
+		return false, fmt.Errorf("git branch --merged: %w", err)
+	}
+	if err := checkRev(into); err != nil {
+		return false, fmt.Errorf("git branch --merged: %w", err)
+	}
+	out, err := r.git(ctx, dir, "branch", "--list", "--merged", into, "--format=%(refname:short)", name)
+	if err != nil {
+		return false, err
+	}
+	for line := range strings.SplitSeq(string(out), "\n") {
+		if strings.TrimSpace(line) == name {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // SetUpstream makes branch follow upstream, a branch of a remote.

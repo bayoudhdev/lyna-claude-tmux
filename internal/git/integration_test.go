@@ -231,6 +231,42 @@ func TestIntegrationWorktrees(t *testing.T) {
 // TestIntegrationBranches reads the branches of a real repository against a
 // remote: one level with its upstream, one ahead of it, one whose upstream was
 // deleted, and one that tracks nothing.
+// TestIntegrationMerged reads a real repository for the answer the form that
+// deletes a branch is worded from.
+func TestIntegrationMerged(t *testing.T) {
+	r := newRepo(t)
+	r.Commit("first", "a.txt", "a\n")
+	r.Git("branch", "done")
+	r.Git("checkout", "-q", "-b", "solo")
+	r.Commit("second", "b.txt", "b\n")
+	r.Git("checkout", "-q", "main")
+	r.Git("checkout", "-q", "-b", "folded")
+	r.Commit("third", "c.txt", "c\n")
+	r.Git("checkout", "-q", "main")
+	r.Git("merge", "-q", "--no-ff", "-m", "fold it in", "folded")
+
+	cases := []struct {
+		name string
+		want bool
+	}{
+		{name: "done", want: true},
+		{name: "folded", want: true},
+		{name: "solo"},
+		{name: "never-was"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := r.Runner.Merged(t.Context(), r.Dir, tc.name, "HEAD")
+			if err != nil {
+				t.Fatalf("Merged() error = %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("Merged(%q) = %v, want %v", tc.name, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestIntegrationBranches(t *testing.T) {
 	r := newRepo(t)
 	r.Commit("first commit subject", "a.txt", "a\n")
