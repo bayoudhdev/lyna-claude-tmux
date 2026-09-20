@@ -22,7 +22,7 @@ const (
 	settingKitty         = `kitty.conf: macos_option_as_alt yes`
 	settingAlacritty     = `alacritty.toml: [window] option_as_alt = "Both"`
 	settingVSCode        = `VS Code settings.json: "terminal.integrated.macOptionIsMeta": true`
-	settingGeneric       = `enable the terminal's "Option as Meta" (or "Option as Alt") setting; the same actions stay available after the tmux prefix`
+	settingGeneric       = `enable the terminal's "Option as Meta" (or "Option as Alt") setting`
 	settingDefault       = `Alt sends Meta by default on this platform`
 )
 

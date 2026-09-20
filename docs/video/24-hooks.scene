@@ -22,5 +22,5 @@ type lmux create . --layout trio --nested
 enter
 wait 7
 frame 4
-caption the agent pane | the status line under the agent says the same thing
+caption the border and the bar | idle, busy or waiting, without asking the agent
 frame 4

@@ -318,7 +318,7 @@ setting. These are the ones it knows:
 | kitty | `TERM_PROGRAM=kitty`, `KITTY_WINDOW_ID`, `TERM=xterm-kitty` | `macos_option_as_alt yes` in `kitty.conf` |
 | Alacritty | `TERM_PROGRAM=Alacritty`, `ALACRITTY_WINDOW_ID`, `ALACRITTY_SOCKET`, `TERM=alacritty` | `[window] option_as_alt = "Both"` in `alacritty.toml` |
 | VS Code terminal | `TERM_PROGRAM=vscode` | `"terminal.integrated.macOptionIsMeta": true` in `settings.json` |
-| Anything else | nothing above matched | Enable the terminal's "Option as Meta" (or "Option as Alt") setting; the same actions stay available after the tmux prefix |
+| Anything else | nothing above matched | Enable the terminal's "Option as Meta" (or "Option as Alt") setting |
 
 Inside tmux, `TERM_PROGRAM` names tmux rather than the outer terminal, which is why the
 marker variables and `LC_TERMINAL` matter: they survive, because the tmux server inherits

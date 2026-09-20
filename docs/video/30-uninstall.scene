@@ -1,5 +1,6 @@
-# Everything lyna-tmux wrote, listed before anything is removed, and where to
-# read the rest.
+# Everything lyna-tmux wrote, listed before anything is removed. The scene
+# stops at the question: answering it either removes the files or prints the
+# error of a command that was refused, and neither belongs in the film.
 title lmux uninstall
 size 134 36
 pre lmux kill --all
@@ -13,12 +14,4 @@ caption lmux uninstall | everything it wrote, listed before anything is removed
 type lmux uninstall
 enter
 wait 2.5
-frame 4
-keys C-c
-wait 1
-chapter lyna-tmux
-caption lmux --help | the documentation is in docs/, the releases on the repository page
-type clear; lmux --help | head -26
-enter
-wait 1.5
 frame 5
