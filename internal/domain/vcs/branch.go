@@ -129,3 +129,30 @@ func (b *LocalBranch) parseTrack(track string) error {
 	}
 	return nil
 }
+
+// ValidateRefName refuses what git itself refuses in a ref, and a leading
+// dash on top of it, so a name read from a repository or typed by a user is
+// never handed to a command as an option or as a path of its own. The rules
+// are the ones `git check-ref-format` holds a branch to.
+func ValidateRefName(name string) error {
+	bad := func() error { return fmt.Errorf("%w: ref name %q", ErrMalformed, name) }
+	switch {
+	case name == "" || name == "@" || name == "HEAD":
+		return bad()
+	case strings.HasPrefix(name, "-"), strings.HasPrefix(name, "/"), strings.HasSuffix(name, "/"):
+		return bad()
+	case strings.HasSuffix(name, "."), strings.Contains(name, ".."), strings.Contains(name, "@{"):
+		return bad()
+	}
+	for _, r := range name {
+		if r < ' ' || r == 0x7f || strings.ContainsRune(" ~^:?*[\\", r) {
+			return bad()
+		}
+	}
+	for part := range strings.SplitSeq(name, "/") {
+		if part == "" || strings.HasPrefix(part, ".") || strings.HasSuffix(part, ".lock") {
+			return bad()
+		}
+	}
+	return nil
+}

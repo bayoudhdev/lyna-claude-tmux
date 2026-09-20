@@ -234,3 +234,86 @@ func FuzzParseBranches(f *testing.F) {
 		}
 	})
 }
+
+// TestValidateRefName holds the rule to what `git check-ref-format --branch`
+// answers, checked against git itself, plus the two names this refuses on
+// purpose: one git would read as an option, one it would resolve elsewhere.
+func TestValidateRefName(t *testing.T) {
+	cases := []struct {
+		name string
+		want bool
+	}{
+		{name: "main", want: true},
+		{name: "feat/git-workstation", want: true},
+		{name: "a.b", want: true},
+		{name: "release/2026.09", want: true},
+		{name: "été", want: true},
+		{name: ""},
+		{name: "-x"},
+		{name: "--upload-pack=x"},
+		{name: "@"},
+		{name: "HEAD"},
+		{name: "/x"},
+		{name: "x/"},
+		{name: "a//b"},
+		{name: "x."},
+		{name: "a..b"},
+		{name: "a@{0}"},
+		{name: "a b"},
+		{name: "a~1"},
+		{name: "a^"},
+		{name: "a:b"},
+		{name: "a?"},
+		{name: "a*"},
+		{name: "a["},
+		{name: `a\b`},
+		{name: "a\tb"},
+		{name: "a\nb"},
+		{name: ".hidden/x"},
+		{name: "feat/.x"},
+		{name: "x.lock"},
+		{name: "feat/x.lock"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := ValidateRefName(tc.name)
+			if tc.want && err != nil {
+				t.Fatalf("ValidateRefName(%q) = %v, want the name accepted", tc.name, err)
+			}
+			if !tc.want {
+				if err == nil {
+					t.Fatalf("ValidateRefName(%q) accepted it", tc.name)
+				}
+				if !errors.Is(err, ErrMalformed) {
+					t.Fatalf("ValidateRefName(%q) error = %v, want %v", tc.name, err, ErrMalformed)
+				}
+			}
+		})
+	}
+}
+
+func FuzzValidateRefName(f *testing.F) {
+	f.Add("main")
+	f.Add("feat/x.lock")
+	f.Add("-x")
+	f.Fuzz(func(t *testing.T, name string) {
+		if err := ValidateRefName(name); err != nil {
+			return
+		}
+		// An accepted name is safe to hand to a command: never an option,
+		// never a path of its own, never a revision of another shape.
+		if name == "" || name[0] == '-' || name[0] == '/' || name[len(name)-1] == '/' {
+			t.Fatalf("ValidateRefName(%q) accepted a name git reads as something else", name)
+		}
+		for _, bad := range []string{"..", "@{", "//", " ", "~", "^", ":", "?", "*", "[", `\`} {
+			if strings.Contains(name, bad) {
+				t.Fatalf("ValidateRefName(%q) accepted a name holding %q", name, bad)
+			}
+		}
+		for _, r := range name {
+			if r < ' ' || r == 0x7f {
+				t.Fatalf("ValidateRefName(%q) accepted a control character", name)
+			}
+		}
+	})
+}
