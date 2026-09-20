@@ -1,0 +1,370 @@
+1
+00:00:02,000 --> 00:00:05,000
+lmux version
+a tmux workspace made for Claude Code
+
+2
+00:00:05,000 --> 00:00:10,000
+lmux --help
+every command, and what it is for
+
+3
+00:00:17,000 --> 00:00:23,000
+lmux doctor
+tmux, git, Claude Code, the sandbox, the terminal
+
+4
+00:00:31,000 --> 00:00:34,500
+lmux setup
+the look, the layout, the sandbox, in five steps
+
+5
+00:00:34,500 --> 00:00:41,000
+enter
+the theme a workspace opens with is monokai
+
+6
+00:00:44,500 --> 00:00:46,700
+lmux config path
+one file, every key optional
+
+7
+00:00:46,700 --> 00:00:48,900
+lmux config validate
+an unknown key is an error, not a surprise
+
+8
+00:00:48,900 --> 00:00:53,900
+head -18 "$(lmux config path)"
+the file is documented where it is written
+
+9
+00:01:00,900 --> 00:01:09,400
+lmux create ~/src/acme-api
+the agent, a shell and the changes, in one command
+
+10
+00:01:09,400 --> 00:01:13,400
+the status bar
+the workspace, the windows, the agents, the sandbox, the branch
+
+11
+00:01:19,400 --> 00:01:22,000
+lmux layout solo
+the agent alone, the whole window
+
+12
+00:01:22,000 --> 00:01:24,600
+lmux layout trio
+the agent, a shell, and what is changing
+
+13
+00:01:24,600 --> 00:01:28,100
+lmux layout quad
+one agent per worktree
+
+14
+00:01:33,650 --> 00:01:38,450
+Alt+]
+the next pane
+
+15
+00:01:38,450 --> 00:01:40,450
+Alt+Shift+Right
+make it wider
+
+16
+00:01:40,450 --> 00:01:42,850
+Alt+c
+back to the agent, wherever you are
+
+17
+00:01:47,250 --> 00:01:51,250
+Alt+backslash
+a shell beside the agent
+
+18
+00:01:51,250 --> 00:01:53,650
+Alt+minus
+another one below it
+
+19
+00:01:53,650 --> 00:01:58,050
+Alt+z
+one pane fills the window, and comes back
+
+20
+00:02:02,450 --> 00:02:06,050
+Alt+n
+a new window in the same workspace
+
+21
+00:02:06,050 --> 00:02:08,050
+Alt+1
+back to the first one
+
+22
+00:02:08,050 --> 00:02:12,050
+Alt+e
+every workspace and every window, in one tree
+
+23
+00:02:18,050 --> 00:02:24,650
+Alt+Space
+every action with its key, and a letter to run it
+
+24
+00:02:31,650 --> 00:02:37,650
+lmux keys
+the keys with no prefix, and the same after Ctrl+b
+
+25
+00:02:45,650 --> 00:02:48,650
+lmux
+the workspaces, and the agents under them
+
+26
+00:02:48,650 --> 00:02:50,650
+down
+the cursor moves, enter attaches
+
+27
+00:02:50,650 --> 00:02:53,650
+a
+every agent on the machine, from here too
+
+28
+00:02:58,650 --> 00:03:01,650
+lmux ls
+what is open, where, and how it is laid out
+
+29
+00:03:01,650 --> 00:03:04,650
+lmux rename acme-api gateway
+a workspace is named, not numbered
+
+30
+00:03:04,650 --> 00:03:07,250
+lmux kill --all
+and ended when you are done
+
+31
+00:03:11,850 --> 00:03:16,250
+the changes pane
+the working tree of the project, as the agent writes it
+
+32
+00:03:16,250 --> 00:03:22,250
+down, enter
+the diff of the file the cursor is on
+
+33
+00:03:28,250 --> 00:03:33,350
+Alt+g
+the working tree, side by side, in Neovim
+
+34
+00:03:33,350 --> 00:03:39,750
+j j j
+the files of the change, and the diff of each
+
+35
+00:03:45,750 --> 00:03:50,750
+Alt+G
+the refs, the history with its lanes, the commit in front of you
+
+36
+00:03:50,750 --> 00:03:53,150
+down, down
+the commit follows the cursor
+
+37
+00:03:53,150 --> 00:03:56,150
+shift+tab
+the branches, the remotes, the worktrees, the stashes, the tags
+
+38
+00:03:56,150 --> 00:03:59,150
+w
+the working tree, staged and unstaged
+
+39
+00:03:59,150 --> 00:04:03,150
+shift+h
+what cannot be undone shows the command it will run
+
+40
+00:04:03,150 --> 00:04:07,650
+?
+every key of the region the cursor is in
+
+41
+00:04:14,200 --> 00:04:18,800
+Alt+a
+every agent on the machine, with what it is waiting for
+
+42
+00:04:18,800 --> 00:04:24,400
+down, enter
+jump to the one that needs you
+
+43
+00:04:28,800 --> 00:04:33,400
+Alt+A
+the lead, its subagents, and everything else that is running
+
+44
+00:04:33,400 --> 00:04:39,400
+down, space
+the rows fold, and a row is a pane away
+
+45
+00:04:43,800 --> 00:04:53,000
+lmux team ~/src/acme-api
+the lead opens its agents in the workspace
+
+46
+00:04:53,000 --> 00:04:56,000
+Alt+[
+the rail, with a row per agent and what it has spent
+
+47
+00:04:56,000 --> 00:05:02,000
+r
+what an agent is writing, read from its own transcript
+
+48
+00:05:06,000 --> 00:05:10,600
+Alt+A then s
+a form for the agent to start
+
+49
+00:05:10,600 --> 00:05:17,600
+down, enter
+its type, its model, its effort, its worktree
+
+50
+00:05:22,600 --> 00:05:26,600
+lmux task rate-limit "add a token bucket to the API gateway"
+a window, an agent and a branch of its own
+
+51
+00:05:26,600 --> 00:05:30,600
+git worktree list
+the checkout the agent works in, beside the project
+
+52
+00:05:36,600 --> 00:05:42,200
+lmux resume
+a past conversation, continued in a window of the workspace
+
+53
+00:05:42,200 --> 00:05:45,200
+the picker
+the conversations of this project, newest first
+
+54
+00:05:50,200 --> 00:05:53,400
+Alt+s
+a shell over the workspace, without losing the layout
+
+55
+00:05:53,400 --> 00:05:56,900
+git log --oneline -5
+it runs where the workspace is, and closes when it exits
+
+56
+00:06:02,450 --> 00:06:06,450
+lmux sandbox show standard
+the settings file a launch receives, byte for byte
+
+57
+00:06:06,450 --> 00:06:10,450
+the workspace reads its own hooks
+busy, waiting or idle, on the border and in the bar
+
+58
+00:06:10,450 --> 00:06:14,450
+the border and the bar
+idle, busy or waiting, without asking the agent
+
+59
+00:06:20,450 --> 00:06:24,450
+lmux theme
+the themes, with their colors, and the one in use
+
+60
+00:06:24,450 --> 00:06:28,450
+lmux theme preview nord
+what a workspace looks like, before switching to it
+
+61
+00:06:28,450 --> 00:06:33,950
+lmux theme nord
+the workspaces already open are restyled where they stand
+
+62
+00:06:33,950 --> 00:06:36,950
+lmux theme monokai
+back to the one a workspace opens with
+
+63
+00:06:41,950 --> 00:06:45,450
+lmux sandbox status
+what the sandbox is doing in this project, right now
+
+64
+00:06:45,450 --> 00:06:48,950
+lmux sandbox show strict
+the rules a profile writes, byte for byte
+
+65
+00:06:48,950 --> 00:06:52,950
+lmux sandbox profiles
+what each profile allows and what it blocks
+
+66
+00:06:58,950 --> 00:07:02,450
+lmux sandbox devcontainer init
+the container files of the project, written for it
+
+67
+00:07:02,450 --> 00:07:05,950
+ls -la .devcontainer
+the image, the firewall and the allowlist it comes up with
+
+68
+00:07:11,450 --> 00:07:15,450
+lmux plugin tmux
+the popup and the agent picker, from your own tmux configuration
+
+69
+00:07:15,450 --> 00:07:19,450
+lmux plugin claude
+the state of every Claude session, in the sessions you start
+
+70
+00:07:25,450 --> 00:07:29,450
+lmux init --project --dry-run
+the sandbox settings a repository shares, shown before they are written
+
+71
+00:07:29,450 --> 00:07:32,950
+lmux completion fish
+completion for fish, zsh and bash
+
+72
+00:07:38,500 --> 00:07:43,500
+lmux uninstall
+everything it wrote, listed before anything is removed
+
+73
+00:07:50,500 --> 00:07:54,500
+lmux create ~/src/acme-api
+one command, and the workspace is yours
+
+74
+00:07:54,500 --> 00:08:00,500
+github.com/bayoudhdev/lyna-claude-tmux
+the documentation is in docs/, the releases on the repository page
+
