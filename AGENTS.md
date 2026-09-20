@@ -24,7 +24,7 @@ Every change ships with tests. Nothing is done until its tests exist, run and pa
 5. **Fuzz every parser and escaper.** Quoting, format escaping, terminal sanitizing, config decoding and hook stdin decoding each have a `Fuzz*` target with a round-trip or safety property.
 6. **No sleeps for synchronization.** Wait on an event: `tmux wait-for` channels, file notifications, or a bounded poll of a condition with a deadline taken from the test context.
 7. **Hermetic.** Tests never touch the real `~/.tmux.conf`, `~/.claude`, the user's tmux server or the network. Use `t.TempDir()`, `LYNA_TMUX_HOME`, `CLAUDE_CONFIG_DIR` and isolated sockets. Tests pass with `-race` and in any order (`-shuffle=on`).
-8. **Coverage gate.** `internal/domain/...`, `internal/tmux`, `internal/sanitize`, `internal/hook`, `internal/config`, `internal/doctor`, `internal/termx` and `internal/devcontainer` stay at 85% or more (`make cover`, which gates exactly the packages in the Makefile's `COVER_PKGS`).
+8. **Coverage gate.** `internal/domain/...`, `internal/tmux`, `internal/sanitize`, `internal/hook`, `internal/config`, `internal/doctor`, `internal/termx`, `internal/git` and `internal/devcontainer` stay at 85% or more (`make cover`, which gates exactly the packages in the Makefile's `COVER_PKGS`).
 9. **Verification gate before calling work done:** `make check` green (format, vet, lint, race tests, integration tests, fuzz smoke, coverage, text guard). Report the exact command and its result. Green tests prove the code compiles and the tested parts behave; a user-visible surface (TUI, status bar, menus) is verified only once it has been rendered and looked at.
 
 Useful commands (always use the arm64 toolchain on Apple silicon, `export PATH=/opt/homebrew/bin:$PATH`):
