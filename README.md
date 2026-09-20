@@ -5,7 +5,7 @@
   <img alt="LYNA" src="docs/brand/lyna-mark-light.png" width="104">
 </picture>
 
-# LYNA TMUX
+# LYNA LMUX
 
 **A ready-made Claude Code workspace on tmux.**
 
