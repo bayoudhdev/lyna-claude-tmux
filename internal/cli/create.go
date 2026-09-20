@@ -72,7 +72,7 @@ func createFlags(cmd *cobra.Command, d Deps, c createCommand) *cobra.Command {
 		return d.runCreate(cmd, args, req, detach, nested, start, c)
 	}
 	f := cmd.Flags()
-	f.StringVarP(&req.Layout, "layout", "l", "", "layout: solo, duo, trio, quad, review, team, auto or a custom layout")
+	f.StringVarP(&req.Layout, "layout", "l", "", "layout: solo, duo, trio, quad, review, team, git, auto or a custom layout")
 	f.StringVarP(&req.Name, "name", "n", "", "workspace name (default: the project directory name)")
 	f.StringVar(&req.Launch.Model, "model", "", "Claude model, for example opus")
 	f.StringVar(&req.Launch.Effort, "effort", "", "reasoning effort")

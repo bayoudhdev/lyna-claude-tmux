@@ -1,0 +1,22 @@
+
+
+  ┌─ Write over a branch of a remote ────────────────────────┐
+  │ feat/git-workstation on origin is replaced by the one    │
+  │ here. The push stops if the remote has moved since it    │
+  │ was last read.                                           │
+  │                                                          │
+  │ ✕ the commits the remote holds and this repository read  │
+  │   are written over                                       │
+  │                                                          │
+  │ runs                                                     │
+  │ git push --force-with-lease=feat/git-workstation:a1b2c3… │
+  │ origin feat/git-workstation                              │
+  │                                                          │
+  │ type feat/git-workstation to go on                       │
+  │ ›                                                      ▌ │
+  │                                                          │
+  │  enter run it  esc cancel                                │
+  └──────────────────────────────────────────────────────────┘
+
+
+

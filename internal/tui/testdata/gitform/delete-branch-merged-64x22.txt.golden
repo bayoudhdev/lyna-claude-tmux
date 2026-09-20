@@ -1,0 +1,22 @@
+
+
+
+
+
+
+  ┌─ Delete a branch ────────────────────────────────────────┐
+  │ fix/border is deleted here; a branch of the same name on │
+  │ a remote is left alone. Its commits are in the branch it │
+  │ was merged into.                                         │
+  │                                                          │
+  │ runs                                                     │
+  │ git branch --delete -- fix/border                        │
+  │                                                          │
+  │  y run it  n cancel                                      │
+  └──────────────────────────────────────────────────────────┘
+
+
+
+
+
+

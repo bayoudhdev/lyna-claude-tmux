@@ -12,23 +12,25 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/theme"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/vcs"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/git"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/watch"
 )
 
-func sampleChanges() watch.Changes {
-	files := []watch.File{
-		{Kind: watch.KindChanged, Path: "api/handler.go", Index: 'M', Worktree: '.', Added: 12, Deleted: 3},
-		{Kind: watch.KindChanged, Path: "api/handler_test.go", Index: '.', Worktree: 'M', Added: 40, Deleted: 0},
-		{Kind: watch.KindRenamed, Path: "docs/guide.md", OrigPath: "docs/old guide.md", Index: 'R', Worktree: 'M', Added: 1, Deleted: 1},
-		{Kind: watch.KindChanged, Path: "go.sum", Index: 'A', Worktree: 'D', Added: 0, Deleted: 0},
-		{Kind: watch.KindUnmerged, Path: "internal/merge.go", Index: 'U', Worktree: 'U', Added: 7, Deleted: 2},
-		{Kind: watch.KindChanged, Path: "logo.png", Index: 'M', Worktree: '.', Binary: true},
-		{Kind: watch.KindUntracked, Path: "notes/", Index: '?', Worktree: '?'},
-		{Kind: watch.KindChanged, Path: "web/src/components/very/deep/directory/structure/Component.test.tsx", Index: '.', Worktree: 'M', Added: 1024, Deleted: 512},
+func sampleChanges() vcs.Changes {
+	files := []vcs.File{
+		{Kind: vcs.KindChanged, Path: "api/handler.go", Index: 'M', Worktree: '.', Added: 12, Deleted: 3},
+		{Kind: vcs.KindChanged, Path: "api/handler_test.go", Index: '.', Worktree: 'M', Added: 40, Deleted: 0},
+		{Kind: vcs.KindRenamed, Path: "docs/guide.md", OrigPath: "docs/old guide.md", Index: 'R', Worktree: 'M', Added: 1, Deleted: 1},
+		{Kind: vcs.KindChanged, Path: "go.sum", Index: 'A', Worktree: 'D', Added: 0, Deleted: 0},
+		{Kind: vcs.KindUnmerged, Path: "internal/merge.go", Index: 'U', Worktree: 'U', Added: 7, Deleted: 2},
+		{Kind: vcs.KindChanged, Path: "logo.png", Index: 'M', Worktree: '.', Binary: true},
+		{Kind: vcs.KindUntracked, Path: "notes/", Index: '?', Worktree: '?'},
+		{Kind: vcs.KindChanged, Path: "web/src/components/very/deep/directory/structure/Component.test.tsx", Index: '.', Worktree: 'M', Added: 1024, Deleted: 512},
 	}
-	c := watch.Changes{
-		Branch: watch.Branch{OID: "0123456789abcdef0123456789abcdef01234567", Head: "feature/agents", Upstream: "origin/feature/agents", AheadBehind: true, Ahead: 2, Behind: 1},
-		Files:  files,
+	c := vcs.Changes{
+		Head:  vcs.Head{OID: "0123456789abcdef0123456789abcdef01234567", Name: "feature/agents", Upstream: "origin/feature/agents", AheadBehind: true, Ahead: 2, Behind: 1},
+		Files: files,
 	}
 	for _, f := range files {
 		c.Added += f.Added
@@ -37,7 +39,7 @@ func sampleChanges() watch.Changes {
 	return c
 }
 
-func changesUpdate(c watch.Changes, err error) changesUpdateMsg {
+func changesUpdate(c vcs.Changes, err error) changesUpdateMsg {
 	return changesUpdateMsg{update: watch.Update{Changes: c, Err: err, At: fixedNow}}
 }
 
@@ -51,10 +53,10 @@ func apply(m tea.Model, msgs ...tea.Msg) {
 
 func TestChangesFrames(t *testing.T) {
 	t.Parallel()
-	notRepo := fmt.Errorf("git rev-parse: %w", watch.ErrNotRepository)
+	notRepo := fmt.Errorf("git rev-parse: %w", git.ErrNotRepository)
 	manyFiles := sampleChanges()
 	for i := range 40 {
-		manyFiles.Files = append(manyFiles.Files, watch.File{Kind: watch.KindChanged, Path: "gen/file" + strconv.Itoa(i) + ".go", Index: '.', Worktree: 'M', Added: i})
+		manyFiles.Files = append(manyFiles.Files, vcs.File{Kind: vcs.KindChanged, Path: "gen/file" + strconv.Itoa(i) + ".go", Index: '.', Worktree: 'M', Added: i})
 	}
 	states := []struct {
 		name  string
@@ -65,18 +67,18 @@ func TestChangesFrames(t *testing.T) {
 		msgs []tea.Msg
 	}{
 		{name: "loading"},
-		{name: "clean", msgs: []tea.Msg{changesUpdate(watch.Changes{Branch: watch.Branch{Head: "main"}}, nil)}},
+		{name: "clean", msgs: []tea.Msg{changesUpdate(vcs.Changes{Head: vcs.Head{Name: "main"}}, nil)}},
 		{name: "populated", msgs: []tea.Msg{changesUpdate(sampleChanges(), nil)}},
 		{name: "popup", popup: true, msgs: []tea.Msg{changesUpdate(sampleChanges(), nil)}},
 		{name: "scrolled", msgs: []tea.Msg{changesUpdate(manyFiles, nil), press("pgdown"), press("j")}},
-		{name: "initial", msgs: []tea.Msg{changesUpdate(watch.Changes{
-			Branch: watch.Branch{Head: "main", Initial: true},
-			Files:  []watch.File{{Kind: watch.KindChanged, Path: "README.md", Index: 'A', Worktree: '.', Added: 3}},
-			Added:  3,
+		{name: "initial", msgs: []tea.Msg{changesUpdate(vcs.Changes{
+			Head:  vcs.Head{Name: "main", Initial: true},
+			Files: []vcs.File{{Kind: vcs.KindChanged, Path: "README.md", Index: 'A', Worktree: '.', Added: 3}},
+			Added: 3,
 		}, nil)}},
-		{name: "detached", msgs: []tea.Msg{changesUpdate(watch.Changes{Branch: watch.Branch{OID: "89abcdef0123", Head: "(detached)", Detached: true}}, nil)}},
-		{name: "error", msgs: []tea.Msg{changesUpdate(watch.Changes{}, errors.New("git status: exit status 128: fatal: index file corrupt"))}},
-		{name: "not-repository", msgs: []tea.Msg{changesUpdate(watch.Changes{}, notRepo)}},
+		{name: "detached", msgs: []tea.Msg{changesUpdate(vcs.Changes{Head: vcs.Head{OID: "89abcdef0123", Name: "(detached)", Detached: true}}, nil)}},
+		{name: "error", msgs: []tea.Msg{changesUpdate(vcs.Changes{}, errors.New("git status: exit status 128: fatal: index file corrupt"))}},
+		{name: "not-repository", msgs: []tea.Msg{changesUpdate(vcs.Changes{}, notRepo)}},
 		{name: "stopped", msgs: []tea.Msg{changesUpdate(sampleChanges(), nil), changesClosedMsg{}}},
 		{name: "selected", open: true, msgs: []tea.Msg{changesUpdate(sampleChanges(), nil), press("j"), press("j")}},
 		{name: "note", open: true, msgs: []tea.Msg{changesUpdate(sampleChanges(), nil), ChangesNote("review: no server running")}},
@@ -145,9 +147,9 @@ func TestChangesKeys(t *testing.T) {
 
 func TestChangesScroll(t *testing.T) {
 	t.Parallel()
-	many := watch.Changes{Branch: watch.Branch{Head: "main"}}
+	many := vcs.Changes{Head: vcs.Head{Name: "main"}}
 	for i := range 30 {
-		many.Files = append(many.Files, watch.File{Kind: watch.KindChanged, Path: fmt.Sprintf("f%02d", i), Index: '.', Worktree: 'M'})
+		many.Files = append(many.Files, vcs.File{Kind: vcs.KindChanged, Path: fmt.Sprintf("f%02d", i), Index: '.', Worktree: 'M'})
 	}
 	// Height 12 leaves 10 file rows, so the last offset is 20.
 	cases := []struct {
@@ -171,7 +173,7 @@ func TestChangesScroll(t *testing.T) {
 		{name: "right click is ignored", msgs: []tea.Msg{clickAt(3), tea.MouseClickMsg{Button: tea.MouseRight, Y: 5}}, cursor: 2},
 		{name: "click follows the offset", msgs: []tea.Msg{press("G"), clickAt(1)}, cursor: 20, want: 20},
 		{name: "taller window keeps the cursor", msgs: []tea.Msg{press("G"), resize(80, 30)}, cursor: 29, want: 2},
-		{name: "fewer files clamp", msgs: []tea.Msg{press("G"), changesUpdate(watch.Changes{Files: many.Files[:12]}, nil)}, cursor: 11, want: 2},
+		{name: "fewer files clamp", msgs: []tea.Msg{press("G"), changesUpdate(vcs.Changes{Files: many.Files[:12]}, nil)}, cursor: 11, want: 2},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -261,8 +263,8 @@ func TestChangesOpenWithoutFiles(t *testing.T) {
 		msgs []tea.Msg
 	}{
 		{name: "before the first reading", msgs: keys("enter")},
-		{name: "a clean working tree", msgs: []tea.Msg{changesUpdate(watch.Changes{Branch: watch.Branch{Head: "main"}}, nil), press("enter")}},
-		{name: "a failed reading", msgs: []tea.Msg{changesUpdate(sampleChanges(), nil), changesUpdate(watch.Changes{}, errors.New("git status: exit status 128")), press("enter")}},
+		{name: "a clean working tree", msgs: []tea.Msg{changesUpdate(vcs.Changes{Head: vcs.Head{Name: "main"}}, nil), press("enter")}},
+		{name: "a failed reading", msgs: []tea.Msg{changesUpdate(sampleChanges(), nil), changesUpdate(vcs.Changes{}, errors.New("git status: exit status 128")), press("enter")}},
 		{name: "a click on an empty row", msgs: []tea.Msg{clickAt(1), clickAt(1)}},
 	}
 	for _, tc := range cases {
@@ -297,7 +299,7 @@ func TestChangesChannel(t *testing.T) {
 	t.Parallel()
 	ch := make(chan watch.Update, 2)
 	first := sampleChanges()
-	second := watch.Changes{Branch: watch.Branch{Head: "main"}}
+	second := vcs.Changes{Head: vcs.Head{Name: "main"}}
 	ch <- watch.Update{Changes: first, At: fixedNow}
 	ch <- watch.Update{Changes: second, At: fixedNow}
 	close(ch)
@@ -306,7 +308,7 @@ func TestChangesChannel(t *testing.T) {
 	if r.quit {
 		t.Fatal("closed channel quit the view")
 	}
-	if !m.closed || !m.have || m.update.Changes.Branch.Head != "main" || !m.update.Changes.Clean() {
+	if !m.closed || !m.have || m.update.Changes.Head.Name != "main" || !m.update.Changes.Clean() {
 		t.Errorf("closed %v have %v update %+v", m.closed, m.have, m.update.Changes)
 	}
 	frame := ansi.Strip(m.View().Content)
@@ -322,10 +324,10 @@ func TestChangesChannel(t *testing.T) {
 
 func TestChangesSanitizesUntrustedText(t *testing.T) {
 	t.Parallel()
-	c := watch.Changes{
-		Branch: watch.Branch{Head: "evil\x1b]0;owned\x07branch"},
-		Files: []watch.File{
-			{Kind: watch.KindRenamed, Path: "new\x1b[2J.go", OrigPath: "old\x1b]8;;http://x\x1b\\.go", Index: 'R', Worktree: '.'},
+	c := vcs.Changes{
+		Head: vcs.Head{Name: "evil\x1b]0;owned\x07branch"},
+		Files: []vcs.File{
+			{Kind: vcs.KindRenamed, Path: "new\x1b[2J.go", OrigPath: "old\x1b]8;;http://x\x1b\\.go", Index: 'R', Worktree: '.'},
 		},
 	}
 	m := NewChanges(ChangesOptions{Styles: goldenStyles(t), Dir: "/tmp/\x07dir"})
@@ -339,7 +341,7 @@ func TestChangesSanitizesUntrustedText(t *testing.T) {
 	if !strings.Contains(ansi.Strip(frame), "evilbranch") {
 		t.Errorf("branch name not kept as text:\n%s", ansi.Strip(frame))
 	}
-	apply(m, changesUpdate(watch.Changes{}, fmt.Errorf("git: %w: \x1b]52;c;eA==\x07", watch.ErrNotRepository)))
+	apply(m, changesUpdate(vcs.Changes{}, fmt.Errorf("git: %w: \x1b]52;c;eA==\x07", git.ErrNotRepository)))
 	if frame := m.View().Content; strings.Contains(frame, "\x1b]") || strings.Contains(frame, "\x07") {
 		t.Error("error frame carries control sequences")
 	}

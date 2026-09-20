@@ -47,6 +47,7 @@ Alt is Option on macOS. Enable Option as Meta in your terminal first; see
 | `Alt+a` | Agents | Agents picker, in a popup sized by `popup.width` and `popup.height` |
 | `Alt+A` | Agents rail | Opens the agents rail of the window, `ui.sidebar_width` cells (28 by default) on its left, or closes the one that is there. Not installed at all when `ui.agents_sidebar = "off"` |
 | `Alt+g` | Review changes | Review popup, always 95 percent by 95 percent |
+| `Alt+G` | Git workstation | Opens the git workstation of the window, a column on its right taking what `workspace.split_ratio` leaves the Claude pane, or closes the one that is there |
 | `Alt+s` | Scratch shell | Throwaway shell popup, 80 percent by 70 percent, in the current pane's directory |
 | `Alt+Space` | Menu | The key menu, centered: every installed Alt binding except this one and the window numbers, each with its key and runnable from the menu |
 
@@ -70,6 +71,7 @@ prefix you configured; the table below assumes the default.
 | `a` | Agents |
 | `A` | Agents rail, not installed when `ui.agents_sidebar = "off"` |
 | `g` | Review changes |
+| `G` | Git workstation |
 | `S` | Scratch shell |
 | `Space` | Menu |
 

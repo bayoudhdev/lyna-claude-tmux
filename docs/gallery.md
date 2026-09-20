@@ -33,6 +33,7 @@ scene named beside it, and the animations of the same scenes are in the
 |---|---|
 | **Review** (`review.scene`)<br>The working tree in a side-by-side diff, file list on the left. | ![The diff review](assets/review.png) |
 | **Live changes** (`changes.scene`)<br>The same list, kept in view while the agent works. | ![The live changes pane](assets/changes.png) |
+| **The git workstation** (`git.scene`)<br>The refs of the project, the history with its lanes, and the commit in front of you. | ![The git workstation](assets/git.png) |
 
 ## Managing workspaces
 

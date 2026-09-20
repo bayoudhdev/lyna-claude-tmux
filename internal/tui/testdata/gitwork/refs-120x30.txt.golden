@@ -1,0 +1,30 @@
+ ⎇ refs          15  ● history                                      1/5  ± working tree                        4 staged
+▌▾ LOCAL          4      COMMIT MESSAGE                                  STAGED  4  +13 -4
+ ● main              ◆   a000000 [main] {origin/main} merge the g…   1h  M api/handler.go                     +12    -3
+   feat/git-… ↑12 ↓1 ├─╮                                                 R docs/old guide.md → docs/guide.md   +1    -1
+   fix/border   gone ● │ b000000 the refs pane of the git worksta…   3h  A go.sum                              +0    -0
+   spike             │ │                                                 M logo.png                                 bin
+ ▾ REMOTE         3  │ ● d000000 [spike] a spike that was kept       1d
+   origi… origin/ma… ├─╯                                                 UNSTAGED  6  +1072 -515
+   origin/main       ●   c000000 <v1.1.0> the agents workstation     2d  M api/handler_test.go                +40    -0
+   origin/feat/git…  │                                                   M docs/old guide.md → docs/guide.md   +1    -1
+ ▾ WORKTREES      4  ●   e000000 the first commit                   16d  D go.sum                              +0    -0
+   main    ~/src/api                                                     U internal/merge.go                   +7    -2
+   task-a ~/src/api…                                                     ? notes/                              +0    -0
+   spike    detached                                                     M web/src/components/very/deep/dir…+1024  -512
+   gone         gone
+ ▾ STASHES        2
+   stash@{0}     20m
+   stash@{1}      2d
+ ▾ TAGS           2
+   v1.1.0  annotated
+   v1.0.1        16d
+
+
+
+
+
+
+
+ ↓/j down  space fol a000000  2 parents           ↓/j down  enter open … 1/10                       ↓/j down  enter diff
+ ~/src/acme                                                             tab region  w working tree  r read again  ? keys

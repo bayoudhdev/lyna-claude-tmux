@@ -123,4 +123,7 @@ const (
 	// RoleAgents is the rail: the pane that draws every agent of the workspace.
 	// It is the one pane of ours that is never an agent itself.
 	RoleAgents = "agents"
+	// RoleGit is the git workstation: the repository of the workspace, what
+	// changed in it and the operations that move it on.
+	RoleGit = "git"
 )

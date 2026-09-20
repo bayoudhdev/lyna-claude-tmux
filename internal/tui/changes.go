@@ -11,6 +11,8 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/vcs"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/git"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/sanitize"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/watch"
 )
@@ -94,7 +96,7 @@ func (m *ChangesModel) now() time.Time {
 
 // files are the rows of the list, empty until the first reading and whenever
 // the working tree is clean or unreadable.
-func (m *ChangesModel) files() []watch.File {
+func (m *ChangesModel) files() []vcs.File {
 	if !m.have || m.update.Err != nil {
 		return nil
 	}
@@ -102,10 +104,10 @@ func (m *ChangesModel) files() []watch.File {
 }
 
 // selected is the file the cursor is on.
-func (m *ChangesModel) selected() (watch.File, bool) {
+func (m *ChangesModel) selected() (vcs.File, bool) {
 	files := m.files()
 	if m.list.cursor < 0 || m.list.cursor >= len(files) {
-		return watch.File{}, false
+		return vcs.File{}, false
 	}
 	return files[m.list.cursor], true
 }
@@ -264,7 +266,7 @@ func (m *ChangesModel) header() string {
 func (m *ChangesModel) branch() []segment {
 	s := m.opts.Styles
 	ic := s.Theme.Icons
-	b := m.update.Changes.Branch
+	b := m.update.Changes.Head
 	var name string
 	switch {
 	case b.Detached && len(b.OID) >= 7:
@@ -272,7 +274,7 @@ func (m *ChangesModel) branch() []segment {
 	case b.Detached:
 		name = "detached"
 	default:
-		name = sanitize.Line(b.Head)
+		name = sanitize.Line(b.Name)
 	}
 	segs := []segment{seg(" "+ic.Branch+" "+name, s.Accent2)}
 	if b.Initial {
@@ -296,7 +298,7 @@ func (m *ChangesModel) body() []string {
 		return []string{"", s.Muted.Render(center("reading git status", m.width, s.Ellipsis))}
 	case m.update.Err != nil:
 		msg := sanitize.Line(m.update.Err.Error())
-		if errors.Is(m.update.Err, watch.ErrNotRepository) {
+		if errors.Is(m.update.Err, git.ErrNotRepository) {
 			msg = "not a git repository: " + shortPath(sanitize.Line(m.opts.Dir), m.opts.Home)
 		}
 		return []string{"", " " + s.Danger.Render(truncate(msg, m.width-2, s.Ellipsis))}
@@ -312,7 +314,7 @@ func (m *ChangesModel) body() []string {
 	return lines
 }
 
-func (m *ChangesModel) fileRow(f watch.File, selected bool) string {
+func (m *ChangesModel) fileRow(f vcs.File, selected bool) string {
 	s := m.opts.Styles
 	const countsWidth = 12
 	var bg *lipgloss.Style
@@ -326,9 +328,9 @@ func (m *ChangesModel) fileRow(f watch.File, selected bool) string {
 	}
 	codes := []segment{seg(marker, s.Accent)}
 	switch f.Kind {
-	case watch.KindUntracked:
+	case vcs.KindUntracked:
 		codes = append(codes, seg("??", s.Danger))
-	case watch.KindUnmerged:
+	case vcs.KindUnmerged:
 		codes = append(codes, seg(string([]byte{f.Index, f.Worktree}), s.Waiting))
 	default:
 		codes = append(codes, seg(codeChar(f.Index), s.Success), seg(codeChar(f.Worktree), s.Danger))
@@ -347,7 +349,7 @@ func (m *ChangesModel) fileRow(f watch.File, selected bool) string {
 	switch {
 	case f.Binary:
 		counts = []segment{seg("bin", s.Muted)}
-	case f.Kind == watch.KindUntracked:
+	case f.Kind == vcs.KindUntracked:
 		counts = []segment{seg("new", s.Muted)}
 	default:
 		counts = []segment{seg("+"+strconv.Itoa(f.Added), s.Success), seg(" -"+strconv.Itoa(f.Deleted), s.Danger)}
@@ -357,7 +359,7 @@ func (m *ChangesModel) fileRow(f watch.File, selected bool) string {
 }
 
 func codeChar(c byte) string {
-	if c == watch.Unchanged {
+	if c == vcs.Unchanged {
 		return " "
 	}
 	return string(c)

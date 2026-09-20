@@ -10,3 +10,5 @@ go version
 go -C ROOT test ./internal/tui/ -run ^$ -bench ^BenchmarkAgentBarRender$ -benchtime 2s -count 1
 go -C ROOT test ./internal/tui/ -run ^$ -bench ^BenchmarkAgentBarUpdate$ -benchtime 2s -count 1
 go -C ROOT test ./internal/app/ -run ^$ -bench ^BenchmarkTeammateOpens$ -benchtime 2s -count 1
+go -C ROOT test ./internal/tui/ -run ^$ -bench ^BenchmarkGitWorkRender$ -benchtime 2s -count 1
+go -C ROOT test ./internal/tui/ -run ^$ -bench ^BenchmarkGitWorkUpdate$ -benchtime 2s -count 1

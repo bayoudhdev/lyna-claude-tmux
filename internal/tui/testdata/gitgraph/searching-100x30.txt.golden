@@ -1,0 +1,30 @@
+ ● history                                                                                      3/5
+ BRANCH / TAG            COMMIT MESSAGE                                                AUTHOR  WHEN
+ ✓ main +1           ◆   a000000 merge the git workstation                        Ada Lovelace   1h
+                     ├─╮
+                     ● │ b000000 the refs pane of the git workstation             Ada Lovelace   3h
+                     │ │
+▌⎇ spike             │ ● d000000 a spike that was kept                            Grace Hopper   1d
+                     ├─╯
+ #v1.1.0             ●   c000000 the agents workstation                           Ada Lovelace   2d
+                     │
+                     ●   e000000 the first commit                                 Grace Hopper  16d
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ /sp_

@@ -204,7 +204,7 @@ func TestEveryRootBindingIsReachable(t *testing.T) {
 		}
 		strokes[k] = "alt+" + name
 	}
-	for _, name := range []string{"left", "right", "up", "down", "a"} {
+	for _, name := range []string{"left", "right", "up", "down", "a", "g"} {
 		k, ok := TmuxKey("alt+shift+" + name)
 		if !ok {
 			t.Fatalf("TmuxKey(alt+shift+%s) failed", name)

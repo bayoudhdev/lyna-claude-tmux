@@ -1,0 +1,24 @@
+ ⎇ refs  ┌─ Keys ───────────────────────────────────────────────────────────────┐     1/5
+▌▾ LOCAL │ IN THE REFS                                                          │OR  WHEN
+ ● main  │ c         check it out                                               │ace   1h
+   feat/g│ b         open a branch here                                         │
+   fix/bo│ m         merge it in                                                │ace   3h
+   spike │ B         rebase onto it                                             │
+ ▾ REMOTE│ i         rename it                                                  │per   1d
+   orig… │ d         get rid of it                                              │
+   origin│ u         follow it                                                  │ace   2d
+   origin│ p         pop it                                                     │
+ ▾ WORKTR│ a         apply it                                                   │per  16d
+   main  │ A         open a worktree                                            │
+   task… │                                                                      │
+   spike │ ANYWHERE                                                             │
+   gone  │ y         carry on                                                   │
+ ▾ STASHE│ !         leave this one out                                         │
+   stash@│ Z         put the branch back                                        │
+   stash@│ F         fetch and prune                                            │
+ ▾ TAGS  │ L         pull                                                       │
+   v1.1… │ P         push                                                       │
+   v1.0.1│ W         push over what the remote holds                            │
+         │                                                                      │
+ ↓/j down│ 20 of 21, ↓/j scrolls, any other key closes this                     │ / search
+ ~/src/ac└──────────────────────────────────────────────────────────────────────┘d again …

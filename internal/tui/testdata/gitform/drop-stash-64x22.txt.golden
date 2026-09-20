@@ -1,0 +1,22 @@
+
+
+
+
+
+
+  ┌─ Drop a stash ───────────────────────────────────────────┐
+  │ stash@{2} the lanes of the graph is thrown away.         │
+  │                                                          │
+  │ ✕ the changes it holds are in no commit and no branch    │
+  │                                                          │
+  │ runs                                                     │
+  │ git stash drop -- 'stash@{2}'                            │
+  │                                                          │
+  │  y run it  n cancel                                      │
+  └──────────────────────────────────────────────────────────┘
+
+
+
+
+
+

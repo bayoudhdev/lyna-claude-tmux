@@ -1,0 +1,16 @@
+ ● history                          1/5
+     COMMIT MESSAGE
+▌◆   a000000 [main] {origin/ma…} …   1h
+ ├─╮
+ ● │ b000000 the refs pane of the…   3h
+ │ │
+ │ ● d000000 [spike] a spike that…   1d
+ ├─╯
+ ●   c000000 <v1.1.0> the agents …   2d
+ │
+ ●   e000000 the first commit       16d
+
+
+
+
+ a000000… ↓/j down  enter open  / search

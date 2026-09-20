@@ -1,0 +1,18 @@
+ ● history                                              1/5
+     COMMIT MESSAGE                            AUTHOR  WHEN
+▌◆   a000000 [main] {origin/main} merge … Ada Lovelace   1h
+ ├─╮
+ ● │ b000000 the refs pane of the git wo… Ada Lovelace   3h
+ │ │
+ │ ● d000000 [spike] a spike that was ke… Grace Hopper   1d
+ ├─╯
+ ●   c000000 <v1.1.0> the agents worksta… Ada Lovelace   2d
+ │
+ ●   e000000 the first commit             Grace Hopper  16d
+
+
+
+
+
+ a000000  2 parents           ↓/j down  enter open  / search
+ ~/src/acme                     tab region  w working tree …

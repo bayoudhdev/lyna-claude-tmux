@@ -1,0 +1,15 @@
+◆        95f1ac2 a merge commit
+├─╮
+● │      3099289 now both ways
+│ │
+│ │ ●    449c409 diverged here
+│ │ │
+│ ● │    464636b local only commit
+│ │ │
+│ │ │ ●  f891c05 a branch with no upstream
+│ │ │ │
+│ │ │ ●  126897d one more, not pushed
+├─┴─╯ │
+●     │  1919449 first commit subject
+      │
+      ●  0ae6bb9 work in progress

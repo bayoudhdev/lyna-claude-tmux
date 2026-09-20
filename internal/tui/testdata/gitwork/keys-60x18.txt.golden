@@ -1,0 +1,18 @@
+ ●┌─ Keys ───────────────────────────────────────────────┐5
+  │ IN THE HISTORY                                       │N
+▌◆│ c         check it out                               │h
+ ├│ b         open a branch here                         │
+ ●│ A         open a worktree                            │h
+ ││ t         tag it                                     │
+ ││ T         tag it with a message                      │d
+ ├│ y         cherry pick it                             │
+ ●│ v         revert it                                  │d
+ ││ m         move the branch here, keeping the changes  │
+ ●│ M         move the branch here                       │d
+  │ H         move the branch here, writing the tree ov… │
+  │ e         reword it                                  │
+  │ d         drop it from the history                   │
+  │ S         fold it into the one before                │
+  │                                                      │
+ a│ 14 of 29, ↓/j scrolls, any other key closes this     │ch
+ ~└──────────────────────────────────────────────────────┘ …

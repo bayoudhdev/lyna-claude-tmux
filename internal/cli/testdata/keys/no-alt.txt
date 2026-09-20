@@ -19,6 +19,7 @@ After the prefix Ctrl+b
     a               Agents
     A               Agents rail
     g               Review changes
+    G               Git workstation
     S               Scratch shell
     Space           Menu
   SESSION

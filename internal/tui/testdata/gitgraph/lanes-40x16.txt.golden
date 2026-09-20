@@ -1,0 +1,16 @@
+ ● history                          1/8
+ GRAPH       COMMIT MESSAGE
+▌◆           m000000 [main] merge…   1h
+ ├─┬─┬─┬─┬─╮
+ ● │ │ │ │ │ a000000 [task-a] wor…   2h
+ │ │ │ │ │ │
+ │ ● │ │ │ │ b000000 [task-b] wor…   3h
+ │ │ │ │ │ │
+ │ │ ● │ │ │ c000000 [task-c] wor…   4h
+ │ │ │ │ │ │
+ │ │ │ ● │ │ d000000 [task-d] wor…   5h
+ │ │ │ │ │ │
+ │ │ │ │ ● │ e000000 [task-e] wor…   6h
+ │ │ │ │ │ │
+ │ │ │ │ │ ● f000000 [task-f] wor…   7h
+ m000000… ↓/j down  enter open  / search

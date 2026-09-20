@@ -78,9 +78,16 @@ done
 [[ -d $project ]] || fail "$project is not a directory"
 [[ -d $scenes ]] || fail "$scenes is not a directory"
 [[ -x $record ]] || fail "$record is not executable"
+# A scene that prints where the binary is, as uninstall does, must print a path
+# a reader could have: the one given is copied under a directory named with as
+# many characters as ".local/bin", which the redaction below puts back.
+record_bin=$HOME/.recordbin
 if [[ -n $bin ]]; then
   [[ -x $bin ]] || fail "$bin is not an executable file"
-  PATH=$(cd "$(dirname "$bin")" && pwd):$PATH
+  rm -rf "$record_bin"
+  mkdir -p "$record_bin"
+  cp "$bin" "$record_bin/lmux"
+  PATH=$record_bin:$PATH
   export PATH
 fi
 command -v lmux >/dev/null 2>&1 || fail "lmux is not on PATH; build it or pass --bin"
@@ -115,6 +122,20 @@ export LYNA_TMUX_DEMO_PROJECT=$project
 # server a pre step starts, which is what the agent popup is a child of.
 export LYNA_TMUX_DEMO_AGENTS=1
 
+# The pictures show what the tool does out of the box, not how whoever records
+# has configured it, so the scenes run against a freshly written default
+# configuration rather than the account's own. The directory is named with as
+# many characters as ".config" so the redaction that puts it back reads the
+# same width, and a screen laid out in columns stays in line.
+record_config=$HOME/.reccfg
+XDG_CONFIG_HOME=$record_config
+export XDG_CONFIG_HOME
+
+# The scenes open, kill and list workspaces, so they run on a tmux server of
+# their own: whatever the account has open of its own is never a target.
+LYNA_TMUX_SOCKET_NAME=lt-record
+export LYNA_TMUX_SOCKET_NAME
+
 # The recordings are made in a real account, so the home directory and the
 # account name are rewritten to neutral ones. Both replacements are the same
 # length as what they replace, because a screen is laid out in columns: a
@@ -146,6 +167,12 @@ neutral_like() {
 }
 
 redact=(
+  --redact "$record_bin=$demo_dir/.local/bin"
+  --redact "$record_config=$demo_dir/.config"
+  # The scenes run on a server of their own, which a report that names the
+  # socket would print; the name it has for a reader is the one it has for
+  # everybody.
+  --redact "$LYNA_TMUX_SOCKET_NAME=lyna-tmux"
   --redact "$(dirname "$project")=$demo_dir/src"
   --redact "$HOME=$demo_dir"
   --redact "$account=$demo_home"
@@ -175,6 +202,15 @@ wanted() {
   done
   return 1
 }
+
+# The configuration is written once every argument has been read, so a dry run
+# and a command line that is refused leave the account's directories alone.
+if ((dry_run == 0)); then
+  rm -rf "$record_config"
+  mkdir -p "$record_config"
+  trap 'rm -rf "$record_config" "$record_bin"' EXIT
+  lmux config init >/dev/null || fail "could not write the recording configuration"
+fi
 
 recorded=0
 for scene in "$scenes"/*.scene; do

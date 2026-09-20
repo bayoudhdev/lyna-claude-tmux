@@ -1,0 +1,1577 @@
+package git
+
+import (
+	"context"
+	"errors"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"reflect"
+	"slices"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/vcs"
+)
+
+// fakeGit answers by subcommand and records every call. The runner runs its
+// commands concurrently, so recording is locked.
+type fakeGit struct {
+	outputs map[string]Result
+	err     error
+	block   bool
+
+	mu     sync.Mutex
+	calls  [][]string
+	limits []int64
+}
+
+// nul joins records the way git -z terminates them.
+func nul(records ...string) []byte {
+	if len(records) == 0 {
+		return nil
+	}
+	return []byte(strings.Join(records, "\x00") + "\x00")
+}
+
+const (
+	hashA = "422c2b7ab3b3c668038da977e4e93a5fc623169c"
+	hashB = "9c3a5a0e0a5f2a0b5a2e7a1d4f6b8c0d2e4f6a81"
+	zero  = "0000000000000000000000000000000000000000"
+)
+
+func (f *fakeGit) key(args []string) string {
+	// argv is --no-pager -c core.fsmonitor=false -C <dir> <subcommand> ...
+	sub := args[5]
+	if sub == "diff" && slices.Contains(args, "--cached") {
+		return "diff --cached"
+	}
+	return sub
+}
+
+func (f *fakeGit) Exec(ctx context.Context, _ string, args, _ []string, limit int64) (Result, error) {
+	f.mu.Lock()
+	f.calls = append(f.calls, args)
+	f.limits = append(f.limits, limit)
+	f.mu.Unlock()
+	if f.block {
+		<-ctx.Done()
+		return Result{}, ctx.Err()
+	}
+	if f.err != nil {
+		return Result{}, f.err
+	}
+	return f.outputs[f.key(args)], nil
+}
+
+func TestRunnerChangesFake(t *testing.T) {
+	okOutputs := map[string]Result{
+		"status":        {Stdout: nul("# branch.oid "+hashA, "# branch.head main", "1 MM N... 100644 100644 100644 "+hashA+" "+hashA+" a.go")},
+		"diff":          {Stdout: nul("3\t1\ta.go")},
+		"diff --cached": {Stdout: nul("1\t0\ta.go")},
+	}
+	notRepo := map[string]Result{
+		"status":        {ExitCode: 128, Stderr: []byte("fatal: not a git repository (or any of the parent directories): .git\n")},
+		"diff":          {ExitCode: 128, Stderr: []byte("fatal: not a git repository\n")},
+		"diff --cached": {ExitCode: 128, Stderr: []byte("fatal: not a git repository\n")},
+	}
+	cases := []struct {
+		name    string
+		outputs map[string]Result
+		err     error
+		block   bool
+		timeout time.Duration
+		want    vcs.Changes
+		wantErr error
+		errText string
+	}{
+		{
+			name:    "joined result",
+			outputs: okOutputs,
+			want: vcs.Changes{
+				Head:    vcs.Head{OID: hashA, Name: "main"},
+				Files:   []vcs.File{{Kind: vcs.KindChanged, Path: "a.go", Index: 'M', Worktree: 'M', Added: 4, Deleted: 1}},
+				Added:   4,
+				Deleted: 1,
+			},
+		},
+		{name: "not a repository", outputs: notRepo, wantErr: ErrNotRepository},
+		{
+			name: "diff failure alone",
+			outputs: map[string]Result{
+				"status":        okOutputs["status"],
+				"diff":          {ExitCode: 129, Stderr: []byte("usage: git diff")},
+				"diff --cached": okOutputs["diff --cached"],
+			},
+			errText: "exit status 129: usage: git diff",
+		},
+		{name: "git missing", err: ErrNotInstalled, wantErr: ErrNotInstalled},
+		{name: "timeout", block: true, timeout: time.Millisecond, wantErr: context.DeadlineExceeded},
+		{name: "output cap", err: ErrOutputTooLarge, wantErr: ErrOutputTooLarge},
+		{
+			name: "malformed status",
+			outputs: map[string]Result{
+				"status": {Stdout: nul("9 nonsense")}, "diff": okOutputs["diff"], "diff --cached": okOutputs["diff --cached"],
+			},
+			wantErr: vcs.ErrMalformed,
+		},
+		{
+			name: "malformed unstaged numstat",
+			outputs: map[string]Result{
+				"status": okOutputs["status"], "diff": {Stdout: nul("x")}, "diff --cached": okOutputs["diff --cached"],
+			},
+			wantErr: vcs.ErrMalformed,
+		},
+		{
+			name: "malformed staged numstat",
+			outputs: map[string]Result{
+				"status": okOutputs["status"], "diff": okOutputs["diff"], "diff --cached": {Stdout: nul("x")},
+			},
+			wantErr: vcs.ErrMalformed,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := &fakeGit{outputs: tc.outputs, err: tc.err, block: tc.block}
+			r := Runner{Executor: fake, Timeout: tc.timeout}
+			got, err := r.Changes(context.Background(), "/repo")
+			switch {
+			case tc.wantErr != nil:
+				if !errors.Is(err, tc.wantErr) {
+					t.Fatalf("error = %v, want %v", err, tc.wantErr)
+				}
+				return
+			case tc.errText != "":
+				if err == nil || !strings.Contains(err.Error(), tc.errText) {
+					t.Fatalf("error = %v, want text %q", err, tc.errText)
+				}
+				return
+			case err != nil:
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("Changes = %+v, want %+v", got, tc.want)
+			}
+			if len(fake.calls) != 3 {
+				t.Fatalf("%d git calls, want 3", len(fake.calls))
+			}
+			for i, args := range fake.calls {
+				if want := []string{"--no-pager", "-c", "core.fsmonitor=false", "-C", "/repo"}; !slices.Equal(args[:5], want) {
+					t.Errorf("call %d argv prefix = %q, want %q", i, args[:5], want)
+				}
+				if fake.limits[i] != DefaultMaxOutput {
+					t.Errorf("call %d limit = %d, want %d", i, fake.limits[i], DefaultMaxOutput)
+				}
+			}
+		})
+	}
+}
+
+func TestRunnerEnvironment(t *testing.T) {
+	cases := []struct {
+		name    string
+		base    []string
+		present []string
+		absent  []string
+	}{
+		{
+			name:    "redirecting variables are removed and safety variables forced",
+			base:    []string{"HOME=/h", "GIT_DIR=/elsewhere/.git", "GIT_WORK_TREE=/elsewhere", "GIT_INDEX_FILE=/x", "GIT_OPTIONAL_LOCKS=1", "GIT_PAGER=less", "PAGER=less", "LC_ALL=fr_FR.UTF-8", "GIT_TERMINAL_PROMPT=1"},
+			present: []string{"HOME=/h", "GIT_OPTIONAL_LOCKS=0", "GIT_PAGER=cat", "PAGER=cat", "GIT_TERMINAL_PROMPT=0", "LC_ALL=C"},
+			absent:  []string{"GIT_DIR=/elsewhere/.git", "GIT_WORK_TREE=/elsewhere", "GIT_INDEX_FILE=/x", "GIT_OPTIONAL_LOCKS=1", "GIT_PAGER=less", "PAGER=less", "LC_ALL=fr_FR.UTF-8", "GIT_TERMINAL_PROMPT=1"},
+		},
+		{
+			name:    "no command can stop on an editor",
+			base:    []string{"GIT_EDITOR=vim -f", "GIT_SEQUENCE_EDITOR=vim", "EDITOR=vim", "VISUAL=vim"},
+			present: []string{"GIT_EDITOR=true", "GIT_SEQUENCE_EDITOR=true", "EDITOR=true", "VISUAL=true"},
+			absent:  []string{"GIT_EDITOR=vim -f", "GIT_SEQUENCE_EDITOR=vim", "EDITOR=vim", "VISUAL=vim"},
+		},
+		{
+			name:    "unrelated variables are kept",
+			base:    []string{"PATH=/bin", "GIT_AUTHOR_NAME=me"},
+			present: []string{"PATH=/bin", "GIT_AUTHOR_NAME=me", "GIT_OPTIONAL_LOCKS=0"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := Runner{Environ: func() []string { return tc.base }}.environ()
+			for _, kv := range tc.present {
+				if !slices.Contains(env, kv) {
+					t.Errorf("env lacks %q: %q", kv, env)
+				}
+			}
+			for _, kv := range tc.absent {
+				if slices.Contains(env, kv) {
+					t.Errorf("env keeps %q", kv)
+				}
+			}
+		})
+	}
+	if env := (Runner{}).environ(); !slices.Contains(env, "GIT_OPTIONAL_LOCKS=0") {
+		t.Errorf("default environment lacks GIT_OPTIONAL_LOCKS=0")
+	}
+}
+
+func TestRunnerRepoFake(t *testing.T) {
+	dir := t.TempDir()
+	cases := []struct {
+		name    string
+		out     string
+		code    int
+		want    Repo
+		wantErr error
+	}{
+		{name: "three directories", out: dir + "\n" + dir + "/.\n" + dir + "\n", want: Repo{Root: dir, GitDir: dir + "/.", CommonDir: dir}},
+		{name: "two lines", out: dir + "\n" + dir + "\n", wantErr: vcs.ErrMalformed},
+		{name: "relative line", out: dir + "\n.git\n" + dir + "\n", wantErr: vcs.ErrMalformed},
+		{name: "missing directory", out: dir + "\n" + dir + "/nope\n" + dir + "\n", wantErr: vcs.ErrMalformed},
+		{name: "not a repository", code: 128, wantErr: ErrNotRepository},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			exe := ExecutorFunc(func(_ context.Context, _ string, args, _ []string, _ int64) (Result, error) {
+				if args[5] != "rev-parse" {
+					t.Errorf("subcommand = %q", args[5])
+				}
+				if tc.code != 0 {
+					return Result{ExitCode: tc.code, Stderr: []byte("fatal: not a git repository")}, nil
+				}
+				return Result{Stdout: []byte(tc.out)}, nil
+			})
+			got, err := Runner{Executor: exe}.Repo(context.Background(), dir)
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Fatalf("error = %v, want %v", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tc.want {
+				t.Errorf("Repo = %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestOSExecutor(t *testing.T) {
+	yes, err := exec.LookPath("yes")
+	if err != nil {
+		t.Skip("yes not installed")
+	}
+	falseBin, err := exec.LookPath("false")
+	if err != nil {
+		t.Skip("false not installed")
+	}
+	cases := []struct {
+		name     string
+		bin      string
+		args     []string
+		limit    int64
+		ctx      func() context.Context
+		wantErr  error
+		wantCode int
+		wantOut  string
+	}{
+		{name: "endless output is capped and stopped", bin: yes, limit: 64, wantErr: ErrOutputTooLarge, wantOut: strings.Repeat("y\n", 32)},
+		{name: "exit code is reported", bin: falseBin, limit: 64, wantCode: 1},
+		{name: "missing binary", bin: filepath.Join(t.TempDir(), "git"), limit: 64, wantErr: ErrNotInstalled},
+		{
+			name: "canceled context", bin: yes, limit: 1 << 40,
+			ctx: func() context.Context {
+				ctx, cancel := context.WithCancel(context.Background())
+				cancel()
+				return ctx
+			},
+			wantErr: context.Canceled,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			if tc.ctx != nil {
+				ctx = tc.ctx()
+			}
+			res, err := osExecutor{}.Exec(ctx, tc.bin, tc.args, os.Environ(), tc.limit)
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Fatalf("error = %v, want %v", err, tc.wantErr)
+				}
+			} else if err != nil {
+				t.Fatal(err)
+			}
+			if res.ExitCode != tc.wantCode {
+				t.Errorf("exit code = %d, want %d", res.ExitCode, tc.wantCode)
+			}
+			if tc.wantOut != "" && string(res.Stdout) != tc.wantOut {
+				t.Errorf("stdout = %q, want %q", res.Stdout, tc.wantOut)
+			}
+		})
+	}
+}
+
+func TestCappedWriter(t *testing.T) {
+	cases := []struct {
+		name     string
+		limit    int64
+		truncate bool
+		writes   []string
+		wantBuf  string
+		wantOver bool
+		wantErr  bool
+	}{
+		{name: "under limit", limit: 10, writes: []string{"abc", "def"}, wantBuf: "abcdef"},
+		{name: "exact limit", limit: 6, writes: []string{"abc", "def"}, wantBuf: "abcdef"},
+		{name: "over limit fails", limit: 4, writes: []string{"abc", "def"}, wantBuf: "abcd", wantOver: true, wantErr: true},
+		{name: "over limit truncates", limit: 4, truncate: true, writes: []string{"abc", "def", "ghi"}, wantBuf: "abcd"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &capped{limit: tc.limit, truncate: tc.truncate}
+			var lastErr error
+			for _, w := range tc.writes {
+				n, err := c.Write([]byte(w))
+				if err == nil && n != len(w) {
+					t.Errorf("short write %d of %d without error", n, len(w))
+				}
+				if err != nil {
+					lastErr = err
+				}
+			}
+			if c.buf.String() != tc.wantBuf || c.over != tc.wantOver || (lastErr != nil) != tc.wantErr {
+				t.Errorf("buf %q over %v err %v; want %q %v %v", c.buf.String(), c.over, lastErr, tc.wantBuf, tc.wantOver, tc.wantErr)
+			}
+		})
+	}
+}
+
+// TestRunnerLogArgv holds the command a history reading builds, and proves a
+// revision or a path that could be read as an option never reaches git: the
+// reading is refused before a process is started.
+func TestRunnerLogArgv(t *testing.T) {
+	const format = "--format=" + vcs.LogFormat
+	cases := []struct {
+		name    string
+		opt     LogOptions
+		want    []string
+		wantErr bool
+	}{
+		{
+			name: "every ref of the repository",
+			want: []string{"log", "--decorate=full", "-z", format, "--topo-order", "--max-count=4096", "--all", "--"},
+		},
+		{
+			name: "a page of it",
+			opt:  LogOptions{Max: 20, Skip: 40},
+			want: []string{"log", "--decorate=full", "-z", format, "--topo-order", "--max-count=20", "--skip=40", "--all", "--"},
+		},
+		{
+			name: "more than the domain reads",
+			opt:  LogOptions{Max: vcs.MaxCommits + 1},
+			want: []string{"log", "--decorate=full", "-z", format, "--topo-order", "--max-count=4096", "--all", "--"},
+		},
+		{
+			name: "branches and paths, each on its own side of the separator",
+			opt:  LogOptions{Max: 5, Revs: []string{"main", "side"}, Paths: []string{"internal/git", "a.txt"}, FirstParent: true},
+			want: []string{
+				"log", "--decorate=full", "-z", format, "--topo-order", "--max-count=5",
+				"--first-parent", "main", "side", "--", "internal/git", "a.txt",
+			},
+		},
+		{name: "a revision git would read as an option", opt: LogOptions{Revs: []string{"--output=/tmp/x"}}, wantErr: true},
+		{name: "a revision that is empty", opt: LogOptions{Revs: []string{""}}, wantErr: true},
+		{name: "a path leaving the repository", opt: LogOptions{Paths: []string{"../etc/passwd"}}, wantErr: true},
+		{name: "an absolute path", opt: LogOptions{Paths: []string{"/etc/passwd"}}, wantErr: true},
+		{name: "a page counting backwards", opt: LogOptions{Skip: -1}, wantErr: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeGit{outputs: map[string]Result{"log": {}}}
+			got, err := Runner{Executor: f}.Log(context.Background(), "/repo", tc.opt)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("Log() = %+v, want the reading refused", got)
+				}
+				if len(f.calls) != 0 {
+					t.Fatalf("Log() ran %v, want nothing run at all", f.calls)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Log() error = %v", err)
+			}
+			if len(f.calls) != 1 {
+				t.Fatalf("Log() ran %d commands, want one", len(f.calls))
+			}
+			if args := f.calls[0][5:]; !slices.Equal(args, tc.want) {
+				t.Fatalf("Log() ran %v, want %v", args, tc.want)
+			}
+		})
+	}
+}
+
+func TestRunnerStashesArgv(t *testing.T) {
+	f := &fakeGit{outputs: map[string]Result{"stash": {}}}
+	got, err := Runner{Executor: f}.Stashes(context.Background(), "/repo")
+	if err != nil {
+		t.Fatalf("Stashes() error = %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("Stashes() = %+v, want none from an empty list", got)
+	}
+	want := []string{"stash", "list", "-z", "--format=" + vcs.StashFormat}
+	if args := f.calls[0][5:]; !slices.Equal(args, want) {
+		t.Fatalf("Stashes() ran %v, want %v", args, want)
+	}
+}
+
+// TestRunnerStagingArgv holds the commands the working tree actions build,
+// and proves a path that leaves the project never reaches git: the refusal
+// comes before a process is started.
+func TestRunnerStagingArgv(t *testing.T) {
+	cases := []struct {
+		name    string
+		act     func(r Runner) error
+		want    []string
+		wantErr bool
+	}{
+		{
+			name: "one file staged",
+			act:  func(r Runner) error { return r.Stage(context.Background(), "/repo", "a.txt", "sub/b.txt") },
+			want: []string{"add", "-A", "--", "a.txt", "sub/b.txt"},
+		},
+		{
+			name: "every change staged",
+			act:  func(r Runner) error { return r.StageAll(context.Background(), "/repo") },
+			want: []string{"add", "-A", "--", ":/"},
+		},
+		{
+			name: "one file taken out of the index",
+			act:  func(r Runner) error { return r.Unstage(context.Background(), "/repo", "a.txt") },
+			want: []string{"reset", "-q", "--", "a.txt"},
+		},
+		{
+			name: "the index emptied",
+			act:  func(r Runner) error { return r.UnstageAll(context.Background(), "/repo") },
+			want: []string{"reset", "-q"},
+		},
+		{
+			name: "one change thrown away",
+			act:  func(r Runner) error { return r.Discard(context.Background(), "/repo", "a.txt") },
+			want: []string{"restore", "--worktree", "--", "a.txt"},
+		},
+		{
+			name: "every change thrown away",
+			act:  func(r Runner) error { return r.DiscardAll(context.Background(), "/repo") },
+			want: []string{"restore", "--worktree", "--", ":/"},
+		},
+		{
+			name: "one untracked file deleted",
+			act:  func(r Runner) error { return r.CleanUntracked(context.Background(), "/repo", "new/") },
+			want: []string{"clean", "-f", "-d", "-q", "--", "new/"},
+		},
+		{
+			name: "every untracked file deleted, the ignored ones kept",
+			act:  func(r Runner) error { return r.CleanAllUntracked(context.Background(), "/repo") },
+			want: []string{"clean", "-f", "-d", "-q", "--", ":/"},
+		},
+		{name: "staging nothing", act: func(r Runner) error { return r.Stage(context.Background(), "/repo") }, wantErr: true},
+		{
+			name:    "a path leaving the project",
+			act:     func(r Runner) error { return r.Stage(context.Background(), "/repo", "../outside.txt") },
+			wantErr: true,
+		},
+		{
+			name:    "a path leaving it halfway",
+			act:     func(r Runner) error { return r.Discard(context.Background(), "/repo", "sub/../../outside") },
+			wantErr: true,
+		},
+		{
+			name:    "an absolute path",
+			act:     func(r Runner) error { return r.CleanUntracked(context.Background(), "/repo", "/etc/passwd") },
+			wantErr: true,
+		},
+		{
+			name:    "one good path beside one that leaves",
+			act:     func(r Runner) error { return r.Stage(context.Background(), "/repo", "a.txt", "../outside.txt") },
+			wantErr: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeGit{outputs: map[string]Result{}}
+			err := tc.act(Runner{Executor: f})
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("the command went through, want it refused")
+				}
+				if len(f.calls) != 0 {
+					t.Fatalf("the command ran %v, want nothing run at all", f.calls)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("the command failed: %v", err)
+			}
+			if len(f.calls) != 1 {
+				t.Fatalf("the command ran %d times, want once", len(f.calls))
+			}
+			if args := f.calls[0][5:]; !slices.Equal(args, tc.want) {
+				t.Fatalf("the command ran %v, want %v", args, tc.want)
+			}
+		})
+	}
+}
+
+// TestRunnerWorktreeArgv holds the commands a worktree action builds, and
+// proves a name or a branch that would be read as something else never
+// reaches the worktree command.
+func TestRunnerWorktreeArgv(t *testing.T) {
+	root := t.TempDir()
+	cases := []struct {
+		name    string
+		act     func(r Runner) error
+		want    []string
+		wantErr bool
+	}{
+		{
+			name: "a worktree on a branch of its own",
+			act: func(r Runner) error {
+				_, err := r.AddWorktree(context.Background(), root, AddWorktree{Name: "task-a"})
+				return err
+			},
+			want: []string{"worktree", "add", "-b", "task-a", "--", filepath.Join(root, ".claude", "worktrees", "task-a")},
+		},
+		{
+			name: "a branch starting where another one stands",
+			act: func(r Runner) error {
+				_, err := r.AddWorktree(context.Background(), root, AddWorktree{Name: "b", Branch: "feat/b", Start: "main"})
+				return err
+			},
+			want: []string{"worktree", "add", "-b", "feat/b", "--", filepath.Join(root, ".claude", "worktrees", "b"), "main"},
+		},
+		{
+			name: "a branch that already exists",
+			act: func(r Runner) error {
+				_, err := r.AddWorktree(context.Background(), root, AddWorktree{Name: "c", Branch: "side", Checkout: true})
+				return err
+			},
+			want: []string{"worktree", "add", "--", filepath.Join(root, ".claude", "worktrees", "c"), "side"},
+		},
+		{
+			name: "a commit with no branch at all",
+			act: func(r Runner) error {
+				_, err := r.AddWorktree(context.Background(), root, AddWorktree{Name: "d", Detach: true, Start: "HEAD~1"})
+				return err
+			},
+			want: []string{"worktree", "add", "--detach", "--", filepath.Join(root, ".claude", "worktrees", "d"), "HEAD~1"},
+		},
+		{
+			name: "a name that is a path",
+			act: func(r Runner) error {
+				_, err := r.AddWorktree(context.Background(), root, AddWorktree{Name: "../x"})
+				return err
+			},
+			wantErr: true,
+		},
+		{
+			name: "a name that would be an option",
+			act: func(r Runner) error {
+				_, err := r.AddWorktree(context.Background(), root, AddWorktree{Name: "-f"})
+				return err
+			},
+			wantErr: true,
+		},
+		{
+			name: "a branch git refuses",
+			act: func(r Runner) error {
+				_, err := r.AddWorktree(context.Background(), root, AddWorktree{Name: "e", Branch: "feat/.x"})
+				return err
+			},
+			wantErr: true,
+		},
+		{
+			name: "a revision that would be an option",
+			act: func(r Runner) error {
+				_, err := r.AddWorktree(context.Background(), root, AddWorktree{Name: "f", Start: "--output=/tmp/x"})
+				return err
+			},
+			wantErr: true,
+		},
+		{
+			name:    "removing a name that is a path",
+			act:     func(r Runner) error { return r.RemoveWorktree(context.Background(), root, "../x", false) },
+			wantErr: true,
+		},
+		{
+			name: "pruning what is gone",
+			act:  func(r Runner) error { return r.PruneWorktrees(context.Background(), root) },
+			want: []string{"worktree", "prune"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeGit{outputs: map[string]Result{
+				"rev-parse": {Stdout: []byte(root + "\n" + root + "\n" + root + "\n")},
+				"worktree":  {},
+			}}
+			err := tc.act(Runner{Executor: f})
+			var ran [][]string
+			for _, call := range f.calls {
+				if call[5] == "worktree" {
+					ran = append(ran, call[5:])
+				}
+			}
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("the command went through, want it refused")
+				}
+				if len(ran) != 0 {
+					t.Fatalf("the command ran %v, want no worktree command at all", ran)
+				}
+				return
+			}
+			if len(ran) == 0 {
+				t.Fatalf("no worktree command ran (error: %v)", err)
+			}
+			if !slices.Equal(ran[0], tc.want) {
+				t.Fatalf("the command ran %v, want %v", ran[0], tc.want)
+			}
+		})
+	}
+}
+
+// TestRunnerStashArgv holds the commands the stash actions build, and proves
+// an entry is named from a number rather than from text of anyone's.
+func TestRunnerStashArgv(t *testing.T) {
+	cases := []struct {
+		name    string
+		act     func(r Runner) error
+		want    []string
+		wantErr bool
+	}{
+		{
+			name: "everything tracked, with a message",
+			act: func(r Runner) error {
+				return r.StashPush(context.Background(), "/repo", StashPush{Message: "a message"})
+			},
+			want: []string{"stash", "push", "--message", "a message", "--"},
+		},
+		{
+			name: "untracked files and the index kept",
+			act: func(r Runner) error {
+				return r.StashPush(context.Background(), "/repo", StashPush{Untracked: true, KeepIndex: true})
+			},
+			want: []string{"stash", "push", "--include-untracked", "--keep-index", "--"},
+		},
+		{
+			name: "what is staged alone",
+			act:  func(r Runner) error { return r.StashPush(context.Background(), "/repo", StashPush{StagedOnly: true}) },
+			want: []string{"stash", "push", "--staged", "--"},
+		},
+		{
+			name: "paths after the separator",
+			act: func(r Runner) error {
+				return r.StashPush(context.Background(), "/repo", StashPush{Paths: []string{"a.txt", "sub/b.txt"}})
+			},
+			want: []string{"stash", "push", "--", "a.txt", "sub/b.txt"},
+		},
+		{
+			name: "an entry taken back with what was staged",
+			act:  func(r Runner) error { return r.StashPop(context.Background(), "/repo", 2, true) },
+			want: []string{"stash", "pop", "--index", "stash@{2}"},
+		},
+		{
+			name: "an entry applied",
+			act:  func(r Runner) error { return r.StashApply(context.Background(), "/repo", 0, false) },
+			want: []string{"stash", "apply", "stash@{0}"},
+		},
+		{
+			name: "an entry dropped",
+			act:  func(r Runner) error { return r.StashDrop(context.Background(), "/repo", 7) },
+			want: []string{"stash", "drop", "stash@{7}"},
+		},
+		{
+			name: "the list cleared",
+			act:  func(r Runner) error { return r.StashClear(context.Background(), "/repo") },
+			want: []string{"stash", "clear"},
+		},
+		{
+			name: "what an entry changes",
+			act: func(r Runner) error {
+				_, err := r.StashFiles(context.Background(), "/repo", 1)
+				return err
+			},
+			want: []string{
+				"stash", "show", "--numstat", "-z", "--include-untracked",
+				"--no-ext-diff", "--no-textconv", "--no-color", "stash@{1}",
+			},
+		},
+		{
+			name:    "a message holding a NUL byte",
+			act:     func(r Runner) error { return r.StashPush(context.Background(), "/repo", StashPush{Message: "a\x00b"}) },
+			wantErr: true,
+		},
+		{
+			name: "a path leaving the project",
+			act: func(r Runner) error {
+				return r.StashPush(context.Background(), "/repo", StashPush{Paths: []string{"../outside"}})
+			},
+			wantErr: true,
+		},
+		{
+			name: "what is staged, and paths beside it",
+			act: func(r Runner) error {
+				return r.StashPush(context.Background(), "/repo", StashPush{StagedOnly: true, Paths: []string{"a.txt"}})
+			},
+			wantErr: true,
+		},
+		{name: "an entry counting backwards", act: func(r Runner) error { return r.StashDrop(context.Background(), "/repo", -1) }, wantErr: true},
+		{
+			name:    "an entry past what a list holds",
+			act:     func(r Runner) error { return r.StashPop(context.Background(), "/repo", vcs.MaxStashes, false) },
+			wantErr: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeGit{outputs: map[string]Result{"stash": {}}}
+			err := tc.act(Runner{Executor: f})
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("the command went through, want it refused")
+				}
+				if len(f.calls) != 0 {
+					t.Fatalf("the command ran %v, want nothing run at all", f.calls)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("the command failed: %v", err)
+			}
+			if args := f.calls[0][5:]; !slices.Equal(args, tc.want) {
+				t.Fatalf("the command ran %v, want %v", args, tc.want)
+			}
+		})
+	}
+}
+
+// TestRunnerBranchArgv holds the commands the branch actions build, and
+// proves a name git would read as an option or as a revision of another shape
+// never reaches one.
+func TestRunnerBranchArgv(t *testing.T) {
+	cases := []struct {
+		name    string
+		act     func(r Runner) error
+		want    []string
+		wantErr bool
+	}{
+		{
+			name: "a branch that is already there",
+			act:  func(r Runner) error { return r.Checkout(context.Background(), "/repo", Checkout{Branch: "side"}) },
+			want: []string{"switch", "--no-guess", "side"},
+		},
+		{
+			name: "a branch created at HEAD",
+			act: func(r Runner) error {
+				return r.Checkout(context.Background(), "/repo", Checkout{Branch: "feat/x", New: true})
+			},
+			want: []string{"switch", "--create", "feat/x"},
+		},
+		{
+			name: "a branch created where another one stands",
+			act: func(r Runner) error {
+				return r.Checkout(context.Background(), "/repo", Checkout{Branch: "feat/x", New: true, Start: "main~2"})
+			},
+			want: []string{"switch", "--create", "feat/x", "main~2"},
+		},
+		{
+			name: "a branch of a remote followed",
+			act: func(r Runner) error {
+				return r.Checkout(context.Background(), "/repo", Checkout{Branch: "theirs", New: true, Track: "origin/theirs"})
+			},
+			want: []string{"switch", "--create", "theirs", "--track", "origin/theirs"},
+		},
+		{
+			name: "a commit with no branch on it",
+			act: func(r Runner) error {
+				return r.Checkout(context.Background(), "/repo", Checkout{Detach: true, Start: "v1.1.0", Discard: true})
+			},
+			want: []string{"switch", "--detach", "--discard-changes", "v1.1.0"},
+		},
+		{
+			name: "a branch created without switching",
+			act:  func(r Runner) error { return r.CreateBranch(context.Background(), "/repo", "feat/x", "main") },
+			want: []string{"branch", "--", "feat/x", "main"},
+		},
+		{
+			name: "a branch renamed",
+			act:  func(r Runner) error { return r.RenameBranch(context.Background(), "/repo", "a", "b", false) },
+			want: []string{"branch", "--move", "--", "a", "b"},
+		},
+		{
+			name: "a branch renamed over one that is there",
+			act:  func(r Runner) error { return r.RenameBranch(context.Background(), "/repo", "a", "b", true) },
+			want: []string{"branch", "-M", "--", "a", "b"},
+		},
+		{
+			name: "a branch deleted",
+			act:  func(r Runner) error { return r.DeleteBranch(context.Background(), "/repo", "a", false) },
+			want: []string{"branch", "--delete", "--", "a"},
+		},
+		{
+			name: "a branch deleted with the commits it alone holds",
+			act:  func(r Runner) error { return r.DeleteBranch(context.Background(), "/repo", "a", true) },
+			want: []string{"branch", "-D", "--", "a"},
+		},
+		{
+			name: "a branch that follows one of a remote",
+			act:  func(r Runner) error { return r.SetUpstream(context.Background(), "/repo", "main", "origin/main") },
+			want: []string{"branch", "--set-upstream-to=origin/main", "--", "main"},
+		},
+		{
+			name: "a branch that follows nothing",
+			act:  func(r Runner) error { return r.UnsetUpstream(context.Background(), "/repo", "main") },
+			want: []string{"branch", "--unset-upstream", "--", "main"},
+		},
+		{
+			name:    "a branch name that would be an option",
+			act:     func(r Runner) error { return r.Checkout(context.Background(), "/repo", Checkout{Branch: "--orphan"}) },
+			wantErr: true,
+		},
+		{
+			name:    "a branch name git refuses",
+			act:     func(r Runner) error { return r.CreateBranch(context.Background(), "/repo", "feat/.x", "") },
+			wantErr: true,
+		},
+		{
+			name: "a revision that would be an option",
+			act: func(r Runner) error {
+				return r.Checkout(context.Background(), "/repo", Checkout{Detach: true, Start: "--output=/tmp/x"})
+			},
+			wantErr: true,
+		},
+		{
+			name: "a commit opened with a branch named",
+			act: func(r Runner) error {
+				return r.Checkout(context.Background(), "/repo", Checkout{Detach: true, Start: "main", Branch: "x"})
+			},
+			wantErr: true,
+		},
+		{
+			name: "a branch that both follows and starts somewhere",
+			act: func(r Runner) error {
+				return r.Checkout(context.Background(), "/repo", Checkout{Branch: "x", New: true, Track: "origin/x", Start: "main"})
+			},
+			wantErr: true,
+		},
+		{
+			name: "a branch that is already there, given a start",
+			act: func(r Runner) error {
+				return r.Checkout(context.Background(), "/repo", Checkout{Branch: "x", Start: "main"})
+			},
+			wantErr: true,
+		},
+		{
+			name:    "a rename to a name that is no name",
+			act:     func(r Runner) error { return r.RenameBranch(context.Background(), "/repo", "a", "-f", false) },
+			wantErr: true,
+		},
+		{
+			name:    "an upstream that would be an option",
+			act:     func(r Runner) error { return r.SetUpstream(context.Background(), "/repo", "main", "--exec=id") },
+			wantErr: true,
+		},
+		{
+			name: "a branch asked whether another already holds it",
+			act: func(r Runner) error {
+				_, err := r.Merged(context.Background(), "/repo", "side", "HEAD")
+				return err
+			},
+			want: []string{"branch", "--list", "--merged", "HEAD", "--format=%(refname:short)", "side"},
+		},
+		{
+			name: "a branch to compare that would be an option",
+			act: func(r Runner) error {
+				_, err := r.Merged(context.Background(), "/repo", "-f", "HEAD")
+				return err
+			},
+			wantErr: true,
+		},
+		{
+			name: "a branch to compare against that would be an option",
+			act: func(r Runner) error {
+				_, err := r.Merged(context.Background(), "/repo", "side", "--exec=id")
+				return err
+			},
+			wantErr: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeGit{outputs: map[string]Result{"switch": {}, "branch": {}}}
+			err := tc.act(Runner{Executor: f})
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("the command went through, want it refused")
+				}
+				if len(f.calls) != 0 {
+					t.Fatalf("the command ran %v, want nothing run at all", f.calls)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("the command failed: %v", err)
+			}
+			if args := f.calls[0][5:]; !slices.Equal(args, tc.want) {
+				t.Fatalf("the command ran %v, want %v", args, tc.want)
+			}
+		})
+	}
+}
+
+// TestRunnerMergedReadsTheAnswer holds the reading of git branch --merged to
+// the name that was asked for, since a name that only starts the same way is
+// another branch.
+func TestRunnerMergedReadsTheAnswer(t *testing.T) {
+	cases := []struct {
+		name string
+		out  string
+		want bool
+	}{
+		{name: "the branch is listed", out: "side\n", want: true},
+		{name: "nothing is listed", out: ""},
+		{name: "a blank line only", out: "\n"},
+		{name: "a name that starts the same way", out: "sidecar\n"},
+		{name: "the branch among others", out: "sidecar\nside\n", want: true},
+		{name: "the name padded the way a current branch is", out: "  side  \n", want: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeGit{outputs: map[string]Result{"branch": {Stdout: []byte(tc.out)}}}
+			got, err := Runner{Executor: f}.Merged(context.Background(), "/repo", "side", "main")
+			if err != nil {
+				t.Fatalf("the command failed: %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("the branch is reported merged=%v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestRunnerMergedReportsTheFailure keeps a git that could not answer apart
+// from a branch that is not merged.
+func TestRunnerMergedReportsTheFailure(t *testing.T) {
+	f := &fakeGit{outputs: map[string]Result{"branch": {ExitCode: 129, Stderr: []byte("unknown option")}}}
+	if _, err := (Runner{Executor: f}).Merged(context.Background(), "/repo", "side", "main"); err == nil {
+		t.Fatal("the command reported no failure, want the one git printed")
+	}
+}
+
+// TestRunnerReplayArgv holds the commands a merge, a rebase and the answers
+// to a stopped operation build.
+func TestRunnerReplayArgv(t *testing.T) {
+	cases := []struct {
+		name    string
+		act     func(r Runner) error
+		want    []string
+		wantErr bool
+	}{
+		{
+			name: "a merge that writes a commit",
+			act: func(r Runner) error {
+				return r.Merge(context.Background(), "/repo", Merge{Rev: "side", NoFastForward: true})
+			},
+			want: []string{"merge", "--no-ff", "side"},
+		},
+		{
+			name: "a merge that only moves forward",
+			act: func(r Runner) error {
+				return r.Merge(context.Background(), "/repo", Merge{Rev: "origin/main", FastForwardOnly: true})
+			},
+			want: []string{"merge", "--ff-only", "origin/main"},
+		},
+		{
+			name: "a merge left staged",
+			act:  func(r Runner) error { return r.Merge(context.Background(), "/repo", Merge{Rev: "side", Squash: true}) },
+			want: []string{"merge", "--squash", "side"},
+		},
+		{
+			name: "a merge stopped before the commit",
+			act: func(r Runner) error {
+				return r.Merge(context.Background(), "/repo", Merge{Rev: "side", NoCommit: true})
+			},
+			want: []string{"merge", "--no-commit", "side"},
+		},
+		{
+			name:    "a merge of a revision that would be an option",
+			act:     func(r Runner) error { return r.Merge(context.Background(), "/repo", Merge{Rev: "--exec=id"}) },
+			wantErr: true,
+		},
+		{
+			name: "a merge that squashes and writes a commit",
+			act: func(r Runner) error {
+				return r.Merge(context.Background(), "/repo", Merge{Rev: "side", Squash: true, NoFastForward: true})
+			},
+			wantErr: true,
+		},
+		{
+			name: "a branch replayed over another",
+			act:  func(r Runner) error { return r.Rebase(context.Background(), "/repo", Rebase{Upstream: "main"}) },
+			want: []string{"rebase", "main"},
+		},
+		{
+			name: "a branch moved off what it was built on",
+			act: func(r Runner) error {
+				return r.Rebase(context.Background(), "/repo", Rebase{Upstream: "feature", Onto: "main", Branch: "on-top", AutoStash: true, KeepEmpty: true})
+			},
+			want: []string{"rebase", "--onto", "main", "--autostash", "--empty=keep", "feature", "on-top"},
+		},
+		{
+			name:    "a rebase over a revision that would be an option",
+			act:     func(r Runner) error { return r.Rebase(context.Background(), "/repo", Rebase{Upstream: "-x"}) },
+			wantErr: true,
+		},
+		{
+			name: "a rebase of a branch that is no branch",
+			act: func(r Runner) error {
+				return r.Rebase(context.Background(), "/repo", Rebase{Upstream: "main", Branch: "feat/.x"})
+			},
+			wantErr: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeGit{outputs: map[string]Result{"merge": {}, "rebase": {}}}
+			err := tc.act(Runner{Executor: f})
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("the command went through, want it refused")
+				}
+				if len(f.calls) != 0 {
+					t.Fatalf("the command ran %v, want nothing run at all", f.calls)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("the command failed: %v", err)
+			}
+			if args := f.calls[0][5:]; !slices.Equal(args, tc.want) {
+				t.Fatalf("the command ran %v, want %v", args, tc.want)
+			}
+		})
+	}
+}
+
+// TestOperationCommand holds which command answers which operation: the same
+// three words belong to five of them, and a merge has no word for skipping.
+func TestOperationCommand(t *testing.T) {
+	cases := []struct {
+		name    string
+		kind    vcs.Operation
+		verb    string
+		want    string
+		wantErr bool
+	}{
+		{name: "a merge carried on", kind: vcs.OperationMerge, verb: "--continue", want: "merge"},
+		{name: "a merge given up", kind: vcs.OperationMerge, verb: "--abort", want: "merge"},
+		{name: "a merge skipped", kind: vcs.OperationMerge, verb: "--skip", wantErr: true},
+		{name: "a rebase carried on", kind: vcs.OperationRebase, verb: "--continue", want: "rebase"},
+		{name: "a rebase skipped", kind: vcs.OperationRebase, verb: "--skip", want: "rebase"},
+		{name: "a mailbox carried on", kind: vcs.OperationApply, verb: "--continue", want: "am"},
+		{name: "a cherry pick given up", kind: vcs.OperationCherryPick, verb: "--abort", want: "cherry-pick"},
+		{name: "a revert skipped", kind: vcs.OperationRevert, verb: "--skip", want: "revert"},
+		{name: "a bisection", kind: vcs.OperationBisect, verb: "--abort", wantErr: true},
+		{name: "nothing running", kind: vcs.OperationNone, verb: "--continue", wantErr: true},
+		{name: "an operation this does not know", kind: vcs.Operation(42), verb: "--continue", wantErr: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := operationCommand(tc.kind, tc.verb)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("operationCommand() = %q, want it refused", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("operationCommand() error = %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("operationCommand() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestRunnerPickArgv holds the commands a pick, a revert and a reset build.
+func TestRunnerPickArgv(t *testing.T) {
+	cases := []struct {
+		name    string
+		act     func(r Runner) error
+		want    []string
+		wantErr bool
+	}{
+		{
+			name: "one commit replayed",
+			act:  func(r Runner) error { return r.CherryPick(context.Background(), "/repo", Pick{Revs: []string{"side"}}) },
+			want: []string{"cherry-pick", "side"},
+		},
+		{
+			name: "two commits folded into what is staged",
+			act: func(r Runner) error {
+				return r.CherryPick(context.Background(), "/repo", Pick{Revs: []string{"a", "b"}, NoCommit: true, Reference: true})
+			},
+			want: []string{"cherry-pick", "--no-commit", "-x", "a", "b"},
+		},
+		{
+			name: "a merge replayed against its first parent",
+			act: func(r Runner) error {
+				return r.CherryPick(context.Background(), "/repo", Pick{Revs: []string{"m"}, Mainline: 1})
+			},
+			want: []string{"cherry-pick", "--mainline", "1", "m"},
+		},
+		{
+			name: "a commit undone",
+			act:  func(r Runner) error { return r.Revert(context.Background(), "/repo", Pick{Revs: []string{"HEAD"}}) },
+			want: []string{"revert", "HEAD", "--no-edit"},
+		},
+		{
+			name: "a merge undone against the branch it was merged into",
+			act: func(r Runner) error {
+				return r.Revert(context.Background(), "/repo", Pick{Revs: []string{"HEAD"}, Mainline: 2, NoCommit: true})
+			},
+			want: []string{"revert", "--no-commit", "--mainline", "2", "HEAD", "--no-edit"},
+		},
+		{
+			name: "the branch moved, everything kept staged",
+			act:  func(r Runner) error { return r.Reset(context.Background(), "/repo", "HEAD~2", ResetSoft) },
+			want: []string{"reset", "-q", "--soft", "HEAD~2", "--"},
+		},
+		{
+			name: "the branch moved, the changes kept",
+			act:  func(r Runner) error { return r.Reset(context.Background(), "/repo", "origin/main", ResetMixed) },
+			want: []string{"reset", "-q", "--mixed", "origin/main", "--"},
+		},
+		{
+			name: "the branch moved, everything thrown away",
+			act:  func(r Runner) error { return r.Reset(context.Background(), "/repo", "HEAD", ResetHard) },
+			want: []string{"reset", "-q", "--hard", "HEAD", "--"},
+		},
+		{name: "a pick of nothing", act: func(r Runner) error { return r.CherryPick(context.Background(), "/repo", Pick{}) }, wantErr: true},
+		{
+			name:    "a revision that would be an option",
+			act:     func(r Runner) error { return r.CherryPick(context.Background(), "/repo", Pick{Revs: []string{"-x"}}) },
+			wantErr: true,
+		},
+		{
+			name: "a parent counting backwards",
+			act: func(r Runner) error {
+				return r.Revert(context.Background(), "/repo", Pick{Revs: []string{"m"}, Mainline: -1})
+			},
+			wantErr: true,
+		},
+		{
+			name: "a revert recording where it came from",
+			act: func(r Runner) error {
+				return r.Revert(context.Background(), "/repo", Pick{Revs: []string{"m"}, Reference: true})
+			},
+			wantErr: true,
+		},
+		{
+			name:    "a reset to a revision that would be an option",
+			act:     func(r Runner) error { return r.Reset(context.Background(), "/repo", "--hard", ResetSoft) },
+			wantErr: true,
+		},
+		{
+			name:    "a reset in a mode this has not got",
+			act:     func(r Runner) error { return r.Reset(context.Background(), "/repo", "HEAD", ResetMode(42)) },
+			wantErr: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeGit{outputs: map[string]Result{"cherry-pick": {}, "revert": {}, "reset": {}}}
+			err := tc.act(Runner{Executor: f})
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("the command went through, want it refused")
+				}
+				if len(f.calls) != 0 {
+					t.Fatalf("the command ran %v, want nothing run at all", f.calls)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("the command failed: %v", err)
+			}
+			if args := f.calls[0][5:]; !slices.Equal(args, tc.want) {
+				t.Fatalf("the command ran %v, want %v", args, tc.want)
+			}
+		})
+	}
+}
+
+// TestRunnerReadingArgv holds the commands the readings of the refs of a
+// project build, which are the ones the workstation runs on every refresh.
+func TestRunnerReadingArgv(t *testing.T) {
+	cases := []struct {
+		name string
+		act  func(r Runner) error
+		want []string
+	}{
+		{
+			name: "the branches of the project",
+			act: func(r Runner) error {
+				_, err := r.Branches(context.Background(), "/repo")
+				return err
+			},
+			want: []string{"for-each-ref", "--format=" + vcs.BranchFormat, "refs/heads/"},
+		},
+		{
+			name: "the branches of the remotes",
+			act: func(r Runner) error {
+				_, err := r.RemoteBranches(context.Background(), "/repo")
+				return err
+			},
+			want: []string{"for-each-ref", "--format=" + vcs.RemoteBranchFormat, "refs/remotes/"},
+		},
+		{
+			name: "one commit in full",
+			act: func(r Runner) error {
+				_, err := r.Show(context.Background(), "/repo", "HEAD")
+				return err
+			},
+			want: []string{
+				"show", "-z", "--numstat", "--first-parent", "--no-ext-diff", "--no-textconv",
+				"--no-color", "--decorate=full", "--format=" + vcs.ShowFormat, "HEAD", "--",
+			},
+		},
+		{
+			name: "the worktrees of the project",
+			act: func(r Runner) error {
+				_, err := r.Worktrees(context.Background(), "/repo")
+				return err
+			},
+			want: []string{"worktree", "list", "--porcelain", "-z"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeGit{outputs: map[string]Result{
+				"for-each-ref": {}, "worktree": {},
+				// A reading of one commit parses what it reads, so the fake
+				// answers with the shape of an empty commit.
+				"show": {Stdout: []byte(zero[:8] + "\x00\x00\x00\x00\x00\x00\x00\x00\x00")},
+			}}
+			if err := tc.act(Runner{Executor: f}); err != nil {
+				t.Fatalf("the reading failed: %v", err)
+			}
+			if args := f.calls[0][5:]; !slices.Equal(args, tc.want) {
+				t.Fatalf("the reading ran %v, want %v", args, tc.want)
+			}
+		})
+	}
+}
+
+// TestRunnerTagArgv holds the commands the tag and patch actions build.
+func TestRunnerTagArgv(t *testing.T) {
+	out := t.TempDir()
+	cases := []struct {
+		name    string
+		act     func(r Runner) error
+		want    []string
+		prefix  []string
+		wantErr bool
+	}{
+		{
+			name: "a tag that is only a ref",
+			act:  func(r Runner) error { return r.Tag(context.Background(), "/repo", Tag{Name: "v1.0.0", Rev: "main"}) },
+			want: []string{"tag", "--", "v1.0.0", "main"},
+		},
+		{
+			name: "a tag carrying a message",
+			act: func(r Runner) error {
+				return r.Tag(context.Background(), "/repo", Tag{Name: "v1.0.0", Message: "the release"})
+			},
+			prefix: []string{"tag", "--annotate"},
+		},
+		{
+			name: "a tag written over another",
+			act:  func(r Runner) error { return r.Tag(context.Background(), "/repo", Tag{Name: "v1.0.0", Force: true}) },
+			want: []string{"tag", "--force", "--", "v1.0.0"},
+		},
+		{
+			name: "a tag removed",
+			act:  func(r Runner) error { return r.DeleteTag(context.Background(), "/repo", "v1.0.0") },
+			want: []string{"tag", "--delete", "--", "v1.0.0"},
+		},
+		{
+			name: "the tags read",
+			act: func(r Runner) error {
+				_, err := r.Tags(context.Background(), "/repo")
+				return err
+			},
+			want: []string{"for-each-ref", "--format=" + vcs.TagFormat, "refs/tags/"},
+		},
+		{
+			name: "a patch per commit of a range",
+			act: func(r Runner) error {
+				_, err := r.FormatPatch(context.Background(), "/repo", Patch{Revs: []string{"main..side"}, Dir: out})
+				return err
+			},
+			want: []string{"format-patch", "--output-directory", out, "main..side"},
+		},
+		{
+			name: "what the branch holds that its upstream has not got",
+			act: func(r Runner) error {
+				_, err := r.FormatPatch(context.Background(), "/repo", Patch{Dir: out, Numbered: true})
+				return err
+			},
+			want: []string{"format-patch", "--output-directory", out, "--numbered", "@{upstream}..HEAD"},
+		},
+		{
+			name:    "a tag name that would be an option",
+			act:     func(r Runner) error { return r.Tag(context.Background(), "/repo", Tag{Name: "-f"}) },
+			wantErr: true,
+		},
+		{
+			name:    "a tag on a revision that would be an option",
+			act:     func(r Runner) error { return r.Tag(context.Background(), "/repo", Tag{Name: "ok", Rev: "-x"}) },
+			wantErr: true,
+		},
+		{
+			name: "a patch written where nothing is",
+			act: func(r Runner) error {
+				_, err := r.FormatPatch(context.Background(), "/repo", Patch{Dir: filepath.Join(out, "nowhere")})
+				return err
+			},
+			wantErr: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeGit{outputs: map[string]Result{"tag": {}, "for-each-ref": {}, "format-patch": {}}}
+			err := tc.act(Runner{Executor: f})
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("the command went through, want it refused")
+				}
+				if len(f.calls) != 0 {
+					t.Fatalf("the command ran %v, want nothing run at all", f.calls)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("the command failed: %v", err)
+			}
+			args := f.calls[0][5:]
+			if tc.prefix != nil {
+				if !slices.Equal(args[:len(tc.prefix)], tc.prefix) {
+					t.Fatalf("the command ran %v, want it to start with %v", args, tc.prefix)
+				}
+				// The message goes through a file, never on the command line.
+				for _, a := range args {
+					if a == "the release" {
+						t.Fatalf("the message was passed as %q", a)
+					}
+				}
+				return
+			}
+			if !slices.Equal(args, tc.want) {
+				t.Fatalf("the command ran %v, want %v", args, tc.want)
+			}
+		})
+	}
+}
+
+// replayRecorder stands in for git during a history rewrite. It reads the
+// plan while the command is running: the file is removed as soon as the
+// rebase is over, so nothing is left to read afterwards.
+type replayRecorder struct {
+	calls [][]string
+	envs  [][]string
+	plans []string
+	err   error
+}
+
+func (rec *replayRecorder) Exec(_ context.Context, _ string, args, env []string, _ int64) (Result, error) {
+	rec.calls = append(rec.calls, args)
+	rec.envs = append(rec.envs, env)
+	rec.plans = append(rec.plans, rec.read(env))
+	return Result{}, rec.err
+}
+
+// read follows GIT_SEQUENCE_EDITOR to the plan it hands over.
+func (rec *replayRecorder) read(env []string) string {
+	for _, kv := range env {
+		rest, ok := strings.CutPrefix(kv, "GIT_SEQUENCE_EDITOR=")
+		if !ok {
+			continue
+		}
+		_, path, found := strings.Cut(rest, " rebase-todo ")
+		if !found {
+			return ""
+		}
+		data, err := os.ReadFile(strings.TrimSuffix(strings.TrimPrefix(path, "'"), "'"))
+		if err != nil {
+			return ""
+		}
+		return string(data)
+	}
+	return ""
+}
+
+// TestRunnerReplayArgvAndEditor holds the command a history rewrite builds and
+// proves the plan reaches git through our own sequence editor rather than
+// through anything the user has configured.
+func TestRunnerReplayArgvAndEditor(t *testing.T) {
+	plain := vcs.Todo{Steps: []vcs.TodoStep{
+		{Action: vcs.TodoPick, OID: hashA, Subject: "one"},
+		{Action: vcs.TodoDrop, OID: hashB, Subject: "two"},
+	}}
+	cases := []struct {
+		name    string
+		plan    Replan
+		want    []string
+		wantErr bool
+	}{
+		{
+			name: "a history replayed after a commit",
+			plan: Replan{Upstream: hashA, Todo: plain, Bin: "/opt/lmux"},
+			want: []string{"rebase", "--interactive", hashA},
+		},
+		{
+			name: "a history replayed from its first commit",
+			plan: Replan{Upstream: "--root", Todo: plain, Bin: "/opt/lmux"},
+			want: []string{"rebase", "--interactive", "--root"},
+		},
+		{
+			name: "the working tree put away for the time of it",
+			plan: Replan{Upstream: "HEAD~3", Todo: plain, Bin: "/opt/lmux", AutoStash: true},
+			want: []string{"rebase", "--interactive", "--autostash", "HEAD~3"},
+		},
+		{
+			name: "a sequence editor at a path a shell would read",
+			plan: Replan{Upstream: hashA, Todo: plain, Bin: "/opt/my tools/o'brien;id/lmux"},
+			want: []string{"rebase", "--interactive", hashA},
+		},
+		{
+			name:    "a plan with no step",
+			plan:    Replan{Upstream: hashA, Bin: "/opt/lmux"},
+			wantErr: true,
+		},
+		{
+			name:    "a plan that folds its first commit into nothing",
+			plan:    Replan{Upstream: hashA, Bin: "/opt/lmux", Todo: vcs.Todo{Steps: []vcs.TodoStep{{Action: vcs.TodoSquash, OID: hashA, Subject: "one"}}}},
+			wantErr: true,
+		},
+		{
+			name:    "no sequence editor to hand the plan over",
+			plan:    Replan{Upstream: hashA, Todo: plain},
+			wantErr: true,
+		},
+		{
+			name:    "an upstream that would be an option",
+			plan:    Replan{Upstream: "--exec", Todo: plain, Bin: "/opt/lmux"},
+			wantErr: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := &replayRecorder{}
+			err := Runner{Executor: rec}.Replay(context.Background(), "/repo", tc.plan)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("the replay went through, want it refused")
+				}
+				if len(rec.calls) != 0 {
+					t.Fatalf("the replay ran %v, want nothing run at all", rec.calls)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Replay() error = %v", err)
+			}
+			if args := rec.calls[0][5:]; !slices.Equal(args, tc.want) {
+				t.Fatalf("the replay ran %v, want %v", args, tc.want)
+			}
+			if got := rec.plans[0]; got != string(tc.plan.Todo.Render()) {
+				t.Fatalf("git was handed the plan %q, want %q", got, tc.plan.Todo.Render())
+			}
+			assertSequenceEditor(t, rec.envs[0], tc.plan.Bin)
+		})
+	}
+}
+
+// assertSequenceEditor reads the environment of a replay: git is told to run
+// our own command over a plan file, and everything that could open an editor
+// is turned off.
+func assertSequenceEditor(t *testing.T, env []string, bin string) {
+	t.Helper()
+	seen := map[string]string{}
+	for _, kv := range env {
+		if k, v, ok := strings.Cut(kv, "="); ok {
+			seen[k] = v
+		}
+	}
+	editor := seen["GIT_SEQUENCE_EDITOR"]
+	prefix := shellQuote(bin) + " rebase-todo "
+	if !strings.HasPrefix(editor, prefix) {
+		t.Fatalf("GIT_SEQUENCE_EDITOR = %q, want it to run %s", editor, prefix)
+	}
+	for _, name := range []string{"GIT_EDITOR", "EDITOR", "VISUAL"} {
+		if seen[name] != "true" {
+			t.Fatalf("%s = %q, want an editor that cannot block", name, seen[name])
+		}
+	}
+}
+
+// TestRunnerHistoryEditsRefuseBeforeRunning proves the checks of a history
+// edit happen before git is started at all.
+func TestRunnerHistoryEditsRefuseBeforeRunning(t *testing.T) {
+	cases := []struct {
+		name string
+		act  func(r Runner) error
+	}{
+		{
+			name: "a commit that is no commit",
+			act: func(r Runner) error {
+				return r.DropCommit(context.Background(), "/repo", Edit{OID: "nope", Bin: "/opt/lmux"})
+			},
+		},
+		{
+			name: "a commit folded but named by a branch",
+			act: func(r Runner) error {
+				return r.SquashCommit(context.Background(), "/repo", Edit{OID: "HEAD~2", Bin: "/opt/lmux"})
+			},
+		},
+		{
+			name: "a commit moved nowhere",
+			act: func(r Runner) error {
+				return r.MoveCommit(context.Background(), "/repo", Edit{OID: hashA, Bin: "/opt/lmux"})
+			},
+		},
+		{
+			name: "a message no one can read",
+			act: func(r Runner) error {
+				return r.Reword(context.Background(), "/repo", Edit{OID: hashA, Bin: "/opt/lmux", Message: "  "})
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeGit{outputs: map[string]Result{"rebase": {}, "log": {}, "rev-parse": {}}}
+			if err := tc.act(Runner{Executor: f}); err == nil {
+				t.Fatal("the edit went through, want it refused")
+			}
+			if len(f.calls) != 0 {
+				t.Fatalf("the edit ran %v, want nothing run at all", f.calls)
+			}
+		})
+	}
+}

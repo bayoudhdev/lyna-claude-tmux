@@ -12,6 +12,7 @@ import (
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/config"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/session"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/git"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/sanitize"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tui"
@@ -123,18 +124,62 @@ func OpenWatch(ctx context.Context, h Host, req WatchRequest) (WatchView, error)
 		}
 	}
 
-	source := watch.Runner{Environ: func() []string { return h.Environ }}
-	var (
-		cfg    config.Config
-		signal func(context.Context) error
-		review *watchReview
-	)
-	if socket, ok := tmux.SocketFromEnv(h.Getenv("TMUX")); ok {
-		_, loaded, err := LoadConfig(h)
-		if err != nil {
-			return WatchView{}, err
+	follow, err := followLive(ctx, h, req.Session)
+	if err != nil {
+		return WatchView{}, err
+	}
+	source := git.Runner{Environ: func() []string { return h.Environ }}
+	var review *watchReview
+	// tmux shows one popup per client and closes the one already open: a view
+	// that is itself a popup would be taken off the screen by its own action,
+	// so only a pane opens reviews.
+	if follow.Pane != "" && !req.Popup && h.Exe != "" {
+		client := follow.Client
+		review = &watchReview{
+			run: func(ctx context.Context, cmd tmux.Command) error {
+				_, err := client.Batch(ctx, cmd)
+				return err
+			},
+			src: source, exe: h.Exe, pane: follow.Pane, dir: req.Dir,
 		}
-		cfg = loaded
+	}
+
+	look, err := tui.ThemeFromConfig(follow.Config.UI, h.Getenv)
+	if err != nil {
+		return WatchView{}, err
+	}
+	opts := tui.ChangesOptions{Styles: tui.NewStyles(look), Popup: req.Popup, Dir: req.Dir, Home: h.Home}
+	if review != nil {
+		opts.Open = func(path string) tea.Cmd { return review.open(ctx, path) }
+		opts.OpenReview = func() tea.Cmd { return review.open(ctx, "") }
+	}
+	return WatchView{
+		Watcher: &watch.Watcher{Dir: req.Dir, Source: source, Signal: follow.Signal, Idle: WatchIdle},
+		Options: opts,
+	}, nil
+}
+
+// workspaceFollow is what a live view needs to follow a workspace: the signal
+// its hooks send, the configuration it draws with, and the client and the
+// pane it runs in when it runs in one.
+type workspaceFollow struct {
+	Signal func(ctx context.Context) error
+	Config config.Config
+	Client *tmux.Client
+	Pane   string
+}
+
+// followLive resolves what a live view follows. In a tmux pane or popup
+// ($TMUX and $TMUX_PANE) the view talks to that server and follows the
+// session of the pane, whose name is read again before every wait so a
+// renamed workspace keeps refreshing. Elsewhere it follows the named session
+// on the lyna-tmux server, which must exist.
+func followLive(ctx context.Context, h Host, session string) (workspaceFollow, error) {
+	if socket, ok := tmux.SocketFromEnv(h.Getenv("TMUX")); ok {
+		_, cfg, err := LoadConfig(h)
+		if err != nil {
+			return workspaceFollow{}, err
+		}
 		client := tmux.New(tmux.Options{Bin: h.TmuxBin, Socket: socket, Env: ServerEnviron(h.Environ)})
 		switch pane := h.Getenv("TMUX_PANE"); {
 		case pane != "":
@@ -145,56 +190,30 @@ func OpenWatch(ctx context.Context, h Host, req WatchRequest) (WatchView, error)
 				err = watch.ErrNoSession
 			}
 			if err != nil {
-				return WatchView{}, fmt.Errorf("cannot read the workspace of pane %s: %w", sanitize.Line(pane), err)
+				return workspaceFollow{}, fmt.Errorf("cannot read the workspace of pane %s: %w", sanitize.Line(pane), err)
 			}
-			signal = watch.TmuxPaneSignal(client, pane)
-			// tmux shows one popup per client and closes the one already
-			// open: a view that is itself a popup would be taken off the
-			// screen by its own action, so only a pane opens reviews.
-			if !req.Popup && h.Exe != "" {
-				review = &watchReview{
-					run: func(ctx context.Context, cmd tmux.Command) error {
-						_, err := client.Batch(ctx, cmd)
-						return err
-					},
-					src: source, exe: h.Exe, pane: pane, dir: req.Dir,
-				}
-			}
-		case req.Session != "":
-			signal = watch.TmuxSignal(client, req.Session)
+			return workspaceFollow{
+				Signal: watch.TmuxPaneSignal(client, pane), Config: cfg, Client: client, Pane: pane,
+			}, nil
+		case session != "":
+			return workspaceFollow{Signal: watch.TmuxSignal(client, session), Config: cfg, Client: client}, nil
 		default:
-			return WatchView{}, fmt.Errorf("%w: pass --session", ErrWatchNoSession)
+			return workspaceFollow{}, fmt.Errorf("%w: pass --session", ErrWatchNoSession)
 		}
-	} else {
-		if req.Session == "" {
-			return WatchView{}, fmt.Errorf("%w: outside tmux, pass --session with a workspace name", ErrWatchNoSession)
-		}
-		s, err := OpenServer(ctx, h)
-		if err != nil {
-			return WatchView{}, err
-		}
-		ok, err := s.Client.HasSession(ctx, req.Session)
-		if err != nil {
-			return WatchView{}, err
-		}
-		if !ok {
-			return WatchView{}, fmt.Errorf("%w: %s", ErrNoWorkspace, req.Session)
-		}
-		cfg = s.Config
-		signal = watch.TmuxSignal(s.Client, req.Session)
 	}
-
-	look, err := tui.ThemeFromConfig(cfg.UI, h.Getenv)
+	if session == "" {
+		return workspaceFollow{}, fmt.Errorf("%w: outside tmux, pass --session with a workspace name", ErrWatchNoSession)
+	}
+	s, err := OpenServer(ctx, h)
 	if err != nil {
-		return WatchView{}, err
+		return workspaceFollow{}, err
 	}
-	opts := tui.ChangesOptions{Styles: tui.NewStyles(look), Popup: req.Popup, Dir: req.Dir, Home: h.Home}
-	if review != nil {
-		opts.Open = func(path string) tea.Cmd { return review.open(ctx, path) }
-		opts.OpenReview = func() tea.Cmd { return review.open(ctx, "") }
+	ok, err := s.Client.HasSession(ctx, session)
+	if err != nil {
+		return workspaceFollow{}, err
 	}
-	return WatchView{
-		Watcher: &watch.Watcher{Dir: req.Dir, Source: source, Signal: signal, Idle: WatchIdle},
-		Options: opts,
-	}, nil
+	if !ok {
+		return workspaceFollow{}, fmt.Errorf("%w: %s", ErrNoWorkspace, session)
+	}
+	return workspaceFollow{Signal: watch.TmuxSignal(s.Client, session), Config: s.Config, Client: s.Client}, nil
 }

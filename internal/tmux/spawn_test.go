@@ -11,6 +11,42 @@ import (
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
 )
 
+func TestCopyText(t *testing.T) {
+	cases := []struct {
+		name, text string
+		want       []tmux.Command
+	}{
+		{
+			name: "an object name", text: "aba727d5c1f0",
+			want: []tmux.Command{{"set-buffer", "-w", "-b", "lyna-tmux-copy", "--", "aba727d5c1f0"}},
+		},
+		{
+			name: "text a tmux command would read as options", text: "--kill-server",
+			want: []tmux.Command{{"set-buffer", "-w", "-b", "lyna-tmux-copy", "--", "--kill-server"}},
+		},
+		{
+			name: "text carrying what a terminal would read as keys",
+			text: "one\x1b[201~two\nthree\r",
+			want: []tmux.Command{{"set-buffer", "-w", "-b", "lyna-tmux-copy", "--", "onetwo three"}},
+		},
+		{name: "nothing left to copy", text: " \x1b[2J\n\t"},
+		{name: "nothing at all"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tmux.CopyText(tc.text)
+			if len(got) != len(tc.want) {
+				t.Fatalf("CopyText =\n%q\nwant\n%q", got, tc.want)
+			}
+			for i := range got {
+				if !slices.Equal(got[i], tc.want[i]) {
+					t.Fatalf("CopyText[%d] = %q, want %q", i, got[i], tc.want[i])
+				}
+			}
+		})
+	}
+}
+
 func TestPasteLine(t *testing.T) {
 	cases := []struct {
 		name, pane, text string

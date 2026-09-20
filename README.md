@@ -131,6 +131,20 @@ working tree. Both open over the pane and close back into it.
 
 ![The live changes pane](docs/assets/changes.gif)
 
+## The git workstation
+
+`Alt+G` opens the repository in one pane: the branches, the worktrees and the stashes on the left,
+the history with its lanes in the middle, the commit or the working tree on the right. Every
+operation is a key on whatever the cursor is on: stage and commit, branch, merge, rebase, cherry
+pick, stash, tag, reword, drop and fold commits, fetch, pull and push.
+
+![The git workstation](docs/assets/git.gif)
+
+Anything that cannot be undone asks first, and shows the exact command it is about to run. The
+command is built by the same code that runs it, so what you agree to is what happens. A rebase that
+stops on a conflict becomes a banner offering to carry on, leave that commit out or put the branch
+back. The full key map is in [docs/git.md](docs/git.md).
+
 ## The agent picker
 
 `Alt+a` lists every Claude agent on the machine: the ones in this workspace, the ones in another
@@ -156,6 +170,7 @@ exits, and the workspace underneath is untouched.
 | `quad` | four Claude agents, each in its own git worktree |
 | `review` | Claude and the side-by-side diff |
 | `team` | the agents rail, the lead and room for its teammates |
+| `git` | Claude and the git workstation |
 | `auto` | picks one from the size of the terminal |
 
 `lmux layout <name>` opens one in a new window, `lmux split right` adds a pane to the

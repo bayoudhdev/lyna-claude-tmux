@@ -1,0 +1,16 @@
+  ┌─ Drop every stash ─────────┐
+  │ 4 stashes are thrown away. │
+  │                            │
+  │ ✕ the changes they hold    │
+  │   are in no commit and no  │
+  │   branch                   │
+  │                            │
+  │ runs                       │
+  │ git stash clear            │
+  │                            │
+  │ type clear to go on        │
+  │ ›                        ▌ │
+  │                            │
+  │  enter run it  esc cancel  │
+  └────────────────────────────┘
+

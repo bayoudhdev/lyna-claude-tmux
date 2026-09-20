@@ -290,10 +290,10 @@ func TestBenchScriptWithHyperfine(t *testing.T) {
 			rows++
 		}
 	}
-	// Four commands timed by hyperfine, three benchmarks timed by the Go
+	// Four commands timed by hyperfine, five benchmarks timed by the Go
 	// toolchain. A benchmark this machine cannot run still has its row, so the
 	// count holds whether or not tmux is installed here.
-	if rows != 7 || !strings.Contains(stdout, "| Command | Mean [ms] |") ||
+	if rows != 9 || !strings.Contains(stdout, "| Command | Mean [ms] |") ||
 		!strings.Contains(stdout, "| Inside a workspace | Mean [ms] |") || !strings.Contains(stdout, "lmux v9.9.9") {
 		t.Fatalf("report:\n%s", stdout)
 	}

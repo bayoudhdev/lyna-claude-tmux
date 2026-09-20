@@ -1,3 +1,8 @@
+// Package watch keeps the changes of a working tree current: a runner that
+// executes git safely, a refresh loop, and a watcher that redraws on file
+// events, on the tmux signal the edit hooks of an agent send, and on an
+// interval when nothing else says anything. What it reads is parsed and
+// modeled in internal/domain/vcs.
 package watch
 
 import (
@@ -11,6 +16,8 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/vcs"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/git"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
 )
 
@@ -28,15 +35,15 @@ const (
 	signalBackoffMax = 5 * time.Second
 )
 
-// Source reads a working tree. Runner implements it.
+// Source reads a working tree. A git.Runner implements it.
 type Source interface {
-	Repo(ctx context.Context, dir string) (Repo, error)
-	Changes(ctx context.Context, dir string) (Changes, error)
+	Repo(ctx context.Context, dir string) (git.Repo, error)
+	Changes(ctx context.Context, dir string) (vcs.Changes, error)
 }
 
 // Update is one refresh result.
 type Update struct {
-	Changes Changes
+	Changes vcs.Changes
 	// Err is set when the refresh failed; Changes is then empty.
 	Err error
 	At  time.Time
@@ -120,7 +127,7 @@ func (w *Watcher) Run(ctx context.Context, emit func(Update)) {
 	} else {
 		defer func() { _ = fsw.Close() }()
 	}
-	var repo *Repo
+	var repo *git.Repo
 	watched := make(map[string]bool)
 	loop := Loop{
 		Signal:   w.Signal,
@@ -192,7 +199,7 @@ func relevant(ev fsnotify.Event) bool {
 // (index, HEAD), the common directory (packed-refs) and the local and remote
 // ref directories (commits, fetches). Nested working tree directories are not
 // watched: Claude's edits arrive through Signal and the rest through Idle.
-func addWatches(fsw *fsnotify.Watcher, repo Repo, watched map[string]bool) {
+func addWatches(fsw *fsnotify.Watcher, repo git.Repo, watched map[string]bool) {
 	add := func(dir string) {
 		if watched[dir] || len(watched) >= maxWatchedDirs {
 			return

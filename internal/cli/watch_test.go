@@ -17,6 +17,8 @@ import (
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/app"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/config"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/vcs"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/git"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/testutil/tmuxtest"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tui"
@@ -115,19 +117,19 @@ func watchRunCLI(t *testing.T, e *cliEnv, term *watchTerm, args ...string) func(
 // watchFakeSource serves a settable list of changed files.
 type watchFakeSource struct {
 	mu    sync.Mutex
-	files []watch.File
+	files []vcs.File
 	calls atomic.Int64
 }
 
-func (s *watchFakeSource) Repo(context.Context, string) (watch.Repo, error) {
-	return watch.Repo{}, watch.ErrNotRepository
+func (s *watchFakeSource) Repo(context.Context, string) (git.Repo, error) {
+	return git.Repo{}, git.ErrNotRepository
 }
 
-func (s *watchFakeSource) Changes(context.Context, string) (watch.Changes, error) {
+func (s *watchFakeSource) Changes(context.Context, string) (vcs.Changes, error) {
 	s.calls.Add(1)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return watch.Changes{Branch: watch.Branch{Head: "main"}, Files: append([]watch.File(nil), s.files...)}, nil
+	return vcs.Changes{Head: vcs.Head{Name: "main"}, Files: append([]vcs.File(nil), s.files...)}, nil
 }
 
 func (s *watchFakeSource) set(paths ...string) {
@@ -135,7 +137,7 @@ func (s *watchFakeSource) set(paths ...string) {
 	defer s.mu.Unlock()
 	s.files = s.files[:0]
 	for _, p := range paths {
-		s.files = append(s.files, watch.File{Kind: watch.KindUntracked, Path: p, Index: '?', Worktree: '?'})
+		s.files = append(s.files, vcs.File{Kind: vcs.KindUntracked, Path: p, Index: '?', Worktree: '?'})
 	}
 }
 

@@ -6,7 +6,8 @@ skip  Project trust       no project directory
 warn  Agent teams         claude.teams is off, so only a workspace opened with lmux team runs a team; the workspace could not take teammates over, at 2026-09-15 12:32 UTC: write-docs opens the way the agent opens it: the team runs on the agent's own server (/tmp/claude-swarm-4242)
                           /home/u/.local/state/lyna-tmux/lyna-tmux.log lists every teammate that opened
                           fix:  fix what the reason above names; the next teammate to open is reported here
-ok    git                 git 2.43.0 at /usr/bin/git
+ok    git                 git 2.43.0 at /usr/bin/git, past the 2.36 the worktree list, the interactive rebase and the force-with-lease push need
+skip  Project repository  no project directory
 fail  bubblewrap          bwrap is not on PATH; the Linux sandbox needs it
                           fix:  sudo apt-get install bubblewrap
 fail  socat               socat is not on PATH; the Linux sandbox needs it
@@ -36,4 +37,4 @@ warn  Docker              the Docker daemon is not reachable: permission denied 
 warn  Neovim              Neovim 0.7.2 at /usr/bin/nvim is older than 0.9; the review popup needs 0.9 or newer
                           fix:  sudo apt-get install neovim
 
-2 ok, 7 warn, 5 fail, 1 skipped
+2 ok, 7 warn, 5 fail, 2 skipped

@@ -35,7 +35,7 @@ func TestIntegrationWorkspaceLayouts(t *testing.T) {
 		t.Fatal(err)
 	}
 	plans := []layout.Plan{custom}
-	for _, name := range []string{layout.Solo, layout.Duo, layout.Trio, layout.Quad, layout.Review} {
+	for _, name := range []string{layout.Solo, layout.Duo, layout.Trio, layout.Quad, layout.Review, layout.Git} {
 		p, err := layout.Builtin(name, layout.Options{Session: "ws"})
 		if err != nil {
 			t.Fatal(err)
@@ -112,6 +112,9 @@ func TestIntegrationWorkspaceGeometry(t *testing.T) {
 		// 200 columns: a split gives the new pane its percentage of the split
 		// pane and the old pane the rest minus one border column.
 		{name: "duo", layout: layout.Duo, widths: []int{123, 76}},
+		// The workstation takes the place the shell takes in duo, so it opens
+		// on the same share of the window.
+		{name: "git", layout: layout.Git, widths: []int{123, 76}},
 		{name: "quad", layout: layout.Quad, widths: []int{99, 100, 99, 100}},
 		// The rail is a number of cells, and the lead takes the rest of the
 		// window but the border between them.

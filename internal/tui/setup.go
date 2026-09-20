@@ -248,6 +248,7 @@ var layoutHelp = map[string]string{
 	"quad":   "four Claude agents in their own worktrees",
 	"review": "Claude beside a review pane",
 	"team":   "the agents rail, the lead and room for its teammates",
+	"git":    "Claude and the git workstation",
 	"auto":   "chosen from the terminal size",
 }
 

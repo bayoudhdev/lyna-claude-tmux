@@ -37,3 +37,20 @@ func PasteLine(pane, text string) []Command {
 		{"send-keys", "-t", pane, "Enter"},
 	}
 }
+
+// copyBuffer names the paste buffer text copied out of a view lands in. It is
+// reused, so one copy replaces the one before it.
+const copyBuffer = "lyna-tmux-copy"
+
+// CopyText puts one line where the user can paste it: the paste buffer of the
+// server, and the clipboard of the terminal, which tmux writes with the escape
+// the terminal understands. The text is one line of printable text and nothing
+// else, for the reasons PasteLine is, and text with nothing left to copy is
+// refused.
+func CopyText(text string) []Command {
+	text = sanitize.Line(text)
+	if text == "" {
+		return nil
+	}
+	return []Command{{"set-buffer", "-w", "-b", copyBuffer, "--", text}}
+}

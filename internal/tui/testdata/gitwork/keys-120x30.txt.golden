@@ -1,0 +1,30 @@
+ ⎇ refs          15  ● h┌─ Keys ───────────────────────────────────────────────────────────────┐               4 staged
+ ▾ LOCAL          4     │ IN THE HISTORY                                                       │
+ ● main             ▌◆  │ c         check it out                                               │              +12    -3
+   feat/git-… ↑12 ↓1 ├─╮│ b         open a branch here                                         │ocs/guide.md   +1    -1
+   fix/border   gone ● ││ A         open a worktree                                            │               +0    -0
+   spike             │ ││ t         tag it                                                     │                    bin
+ ▾ REMOTE         3  │ ●│ T         tag it with a message                                      │
+   origi… origin/ma… ├─╯│ y         cherry pick it                                             │
+   origin/main       ●  │ v         revert it                                                  │              +40    -0
+   origin/feat/git…  │  │ m         move the branch here, keeping the changes                  │ocs/guide.md   +1    -1
+ ▾ WORKTREES      4  ●  │ M         move the branch here                                       │               +0    -0
+   main    ~/src/api    │ H         move the branch here, writing the tree over                │               +7    -2
+   task-a ~/src/api…    │ e         reword it                                                  │               +0    -0
+   spike    detached    │ d         drop it from the history                                   │ry/deep/dir…+1024  -512
+   gone         gone    │ S         fold it into the one before                                │
+ ▾ STASHES        2     │ f         fold it into the one before, keeping that message          │
+   stash@{0}     20m    │ [         move it up                                                 │
+   stash@{1}      2d    │ ]         move it down                                               │
+ ▾ TAGS           2     │ p         write a patch                                              │
+   v1.1.0  annotated    │ o         copy the object name                                       │
+   v1.0.1        16d    │                                                                      │
+                        │ ANYWHERE                                                             │
+                        │ y         carry on                                                   │
+                        │ !         leave this one out                                         │
+                        │ Z         put the branch back                                        │
+                        │ F         fetch and prune                                            │
+                        │ L         pull                                                       │
+                        │                                                                      │
+ ↓/j down  space fol a00│ 26 of 29, ↓/j scrolls, any other key closes this                     │    ↓/j down  enter diff
+ ~/src/acme             └──────────────────────────────────────────────────────────────────────┘ee  r read again  ? keys

@@ -130,7 +130,7 @@ func TestE2ECreateLayouts(t *testing.T) {
 		wantFocus int
 		// wantExe is the command line a view of the layout is started with,
 		// as the workspace binary records it.
-		wantExe string
+		wantExe func(w *e2eWorkspace) string
 	}{
 		{name: "solo", layout: layout.Solo, wantRoles: []string{"claude"}},
 		{name: "duo", layout: layout.Duo, wantRoles: []string{"claude", "shell"}},
@@ -142,7 +142,11 @@ func TestE2ECreateLayouts(t *testing.T) {
 			// opened for is the one it is measured against.
 			name: "team", layout: layout.Team, width: e2eCols, height: e2eRows,
 			wantRoles: []string{"agents", "claude"}, wantFocus: 1,
-			wantExe: "agents|--rail|--session|api|",
+			wantExe: func(*e2eWorkspace) string { return "agents|--rail|--session|api|" },
+		},
+		{
+			name: "git", layout: layout.Git, wantRoles: []string{"claude", "git"},
+			wantExe: func(w *e2eWorkspace) string { return "git|--dir|" + w.env.project + "|" },
 		},
 		{
 			name: "auto on a terminal with room for three", layout: layout.Auto,
@@ -185,9 +189,10 @@ func TestE2ECreateLayouts(t *testing.T) {
 							t.Fatalf("the rail is %s cells wide, want %d", got, layout.RailWidth)
 						}
 					}
-					if tc.wantExe != "" {
-						if got := w.env.exeCalls(t, 1); got[0] != tc.wantExe {
-							t.Fatalf("the view was started as %q, want %q", got[0], tc.wantExe)
+					if tc.wantExe != nil {
+						want := tc.wantExe(w)
+						if got := w.env.exeCalls(t, 1); got[0] != want {
+							t.Fatalf("the view was started as %q, want %q", got[0], want)
 						}
 					}
 					w.alive(t)

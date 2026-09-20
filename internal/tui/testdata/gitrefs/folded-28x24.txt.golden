@@ -1,0 +1,24 @@
+ ⎇ refs                  15
+▌▸ LOCAL                  4
+ ▾ REMOTE                 3
+   origin/HEAD   origin/main
+   origin/main
+   origin/feat/git-worksta…
+ ▾ WORKTREES              4
+   main              project
+   task-a
+   spike            detached
+   gone                 gone
+ ▾ STASHES                2
+   stash@{0}             20m
+   stash@{1}              2d
+ ▾ TAGS                   2
+   v1.1.0          annotated
+   v1.0.1                16d
+
+
+
+
+
+
+ ↓/j down  space fold …

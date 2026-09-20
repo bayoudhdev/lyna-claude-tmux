@@ -134,12 +134,23 @@ func checkGit(ctx context.Context, d Deps) []Result {
 		r.Status, r.Detail, r.Fix = StatusFail, fmt.Sprintf("%s --version failed: %v", path, err), d.installCommand(pkgGit)
 		return []Result{r}
 	}
-	if v, ok := ParseVersion(out); ok {
-		r.Detail = fmt.Sprintf("git %s at %s", v, path)
-	} else {
-		r.Detail = "git at " + path
+	v, ok := ParseVersion(out)
+	switch {
+	case !ok:
+		r.Status = StatusWarn
+		r.Detail = fmt.Sprintf("cannot read the git version from %q; the workspace needs %d.%d or newer",
+			firstLine(out), gitMinMajor, gitMinMinor)
+		r.Fix = d.installCommand(pkgGit)
+	case v.Less(Version{Major: gitMinMajor, Minor: gitMinMinor}):
+		r.Status = StatusWarn
+		r.Detail = fmt.Sprintf("git %s at %s is older than %d.%d, which is where `git worktree list` learned to separate its records with NUL; if the distribution package is still older, install a newer one from https://git-scm.com/downloads",
+			v, path, gitMinMajor, gitMinMinor)
+		r.Fix = d.installCommand(pkgGit)
+	default:
+		r.Status = StatusOK
+		r.Detail = fmt.Sprintf("git %s at %s, past the %d.%d the worktree list, the interactive rebase and the force-with-lease push need",
+			v, path, gitMinMajor, gitMinMinor)
 	}
-	r.Status = StatusOK
 	return []Result{r}
 }
 

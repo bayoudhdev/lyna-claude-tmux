@@ -88,6 +88,10 @@ type Styles struct {
 	Selected lipgloss.Style
 	Title    lipgloss.Style
 	Key      lipgloss.Style
+
+	// Lanes are the colors a history graph draws its lines of descent with,
+	// taken in turn: one per lane, and round again past the last.
+	Lanes []lipgloss.Style
 }
 
 // NewStyles derives the styles of a theme.
@@ -113,6 +117,9 @@ func NewStyles(t Theme) Styles {
 		Selected: lipgloss.NewStyle().Background(t.Color(p.Overlay)).Foreground(t.Color(p.Text)),
 		Title:    fg(p.Accent).Bold(true),
 		Key:      fg(p.Accent2).Bold(true),
+	}
+	for _, c := range p.Lanes() {
+		s.Lanes = append(s.Lanes, fg(c))
 	}
 	if t.Icons.Name == "ascii" {
 		s.Ellipsis = "~"

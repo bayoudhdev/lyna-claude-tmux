@@ -2,15 +2,17 @@
 # fixtures: off
 # The report prints where Claude Code is installed, so this scene runs against
 # the machine's own installation rather than the fixture that answers for the
-# agent list.
+# agent list. The recorder drives a terminal that is itself a tmux pane, which
+# is not where the report is read, so the two variables that say so are unset
+# for it: what the picture shows is what a terminal shows.
 title lmux doctor
-size 104 30
+size 160 32
 run demo-shell
 wait 1
 type clear
 enter
 wait 0.5
-type lmux doctor
+type env -u TMUX -u TMUX_PANE lmux doctor
 enter
 wait 3
 frame 3.5

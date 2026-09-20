@@ -179,6 +179,7 @@ func Run(ctx context.Context, d Deps) []Result {
 		checkProjectTrust,
 		checkTeams,
 		checkGit,
+		checkGitProject,
 		checkSandbox,
 		checkSandboxRuntime,
 		checkTruecolor,

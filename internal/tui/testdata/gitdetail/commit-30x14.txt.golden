@@ -1,0 +1,14 @@
+ ⎇ commit             a000000
+ merge the git workstation
+ into the release
+
+ The history, the refs and
+ the detail of a commit, with
+ every operation reachable
+ from the keys.
+
+ authored by Ada Lovel…1d ago
+ landed by   Grace Hop…1h ago
+ parents     b000000 d000000
+ refs        main v1.2.0
+ 1/4  a000000       ↓/j down …

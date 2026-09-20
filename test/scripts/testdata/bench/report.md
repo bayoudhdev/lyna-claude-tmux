@@ -12,3 +12,5 @@ Measured with hyperfine 1.20.0 on UNAME testarch, go1.27.1, lmux v9.9.9 (abc1234
 | `agents rail redraw, 40 agents` | 2.5 |
 | `agents rail, one reading` | 2.5 |
 | `teammate pane taken over` | not measured |
+| `git workstation redraw, 400 commits` | 2.5 |
+| `git workstation, one reading` | 2.5 |

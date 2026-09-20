@@ -10,6 +10,7 @@ import (
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/claudecfg"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/layout"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/session"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/vcs"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
 )
 
@@ -159,7 +160,7 @@ const taskPlan = "task"
 // OpenTask opens a window named after the task running Claude in the
 // worktree of that name, with per-launch settings.
 func (s *Server) OpenTask(ctx context.Context, h Host, req TaskRequest) (WindowResult, error) {
-	if err := layout.ValidateWorktree(req.Name); err != nil {
+	if err := vcs.ValidateWorktreeName(req.Name); err != nil {
 		return WindowResult{}, err
 	}
 	if err := claudecfg.ValidatePrompt(req.Prompt); err != nil {

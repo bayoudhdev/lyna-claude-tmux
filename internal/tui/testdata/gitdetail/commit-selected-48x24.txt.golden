@@ -1,0 +1,24 @@
+ ⎇ commit                               a000000
+ merge the git workstation into the release
+
+ The history, the refs and the detail of a
+ commit, with every operation reachable from
+ the keys.
+
+ authored by Ada Lovelace <ada@example.i…1d ago
+ landed by   Grace Hopper <grace@example…1h ago
+ parents     b000000 d000000
+ refs        main v1.2.0
+
+ 4 files  +512 -16
+ internal/tui/gitgraph.go            +420   -12
+ docs/git.md                          +88    -0
+ internal/tui/testdata/gitgraph/log…        bin
+ internal/tui/refs.go → internal/tu…   +4    -4
+
+
+
+
+
+
+ 3/4  a000000               ↓/j down  enter diff

@@ -28,7 +28,13 @@
       "id": "git",
       "title": "git",
       "status": "ok",
-      "detail": "git 2.50.1 at /usr/bin/git"
+      "detail": "git 2.50.1 at /usr/bin/git, past the 2.36 the worktree list, the interactive rebase and the force-with-lease push need"
+    },
+    {
+      "id": "git-repository",
+      "title": "Project repository",
+      "status": "skip",
+      "detail": "no project directory"
     },
     {
       "id": "sandbox",
@@ -84,6 +90,6 @@
     "ok": 11,
     "warn": 1,
     "fail": 0,
-    "skip": 1
+    "skip": 2
   }
 }

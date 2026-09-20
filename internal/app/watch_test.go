@@ -10,10 +10,11 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/vcs"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/git"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/testutil/tmuxtest"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tmux"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/tui"
-	"github.com/bayoudhdev/lyna-claude-tmux/internal/watch"
 )
 
 // watchExpectWake signals channel, then checks that one wait of signal
@@ -45,15 +46,15 @@ type fakeSource struct {
 	err  error
 }
 
-func (s fakeSource) Repo(context.Context, string) (watch.Repo, error) {
+func (s fakeSource) Repo(context.Context, string) (git.Repo, error) {
 	if s.err != nil {
-		return watch.Repo{}, s.err
+		return git.Repo{}, s.err
 	}
-	return watch.Repo{Root: s.root, GitDir: filepath.Join(s.root, ".git"), CommonDir: filepath.Join(s.root, ".git")}, nil
+	return git.Repo{Root: s.root, GitDir: filepath.Join(s.root, ".git"), CommonDir: filepath.Join(s.root, ".git")}, nil
 }
 
-func (s fakeSource) Changes(context.Context, string) (watch.Changes, error) {
-	return watch.Changes{}, s.err
+func (s fakeSource) Changes(context.Context, string) (vcs.Changes, error) {
+	return vcs.Changes{}, s.err
 }
 
 func TestWatchReviewOpen(t *testing.T) {
@@ -87,8 +88,8 @@ func TestWatchReviewOpen(t *testing.T) {
 		},
 		{
 			name:    "a directory that is no repository",
-			review:  watchReview{src: fakeSource{err: watch.ErrNotRepository}, exe: "/opt/bin/lmux", pane: "%7", dir: root},
-			wantMsg: "review: " + watch.ErrNotRepository.Error(),
+			review:  watchReview{src: fakeSource{err: git.ErrNotRepository}, exe: "/opt/bin/lmux", pane: "%7", dir: root},
+			wantMsg: "review: " + git.ErrNotRepository.Error(),
 		},
 		{
 			name:    "a pane that is no pane",
@@ -207,7 +208,7 @@ func TestOpenWatch(t *testing.T) {
 				if w.Dir != dir || w.Idle != WatchIdle || w.Signal == nil {
 					t.Fatalf("watcher %+v", w)
 				}
-				if _, ok := w.Source.(watch.Runner); !ok {
+				if _, ok := w.Source.(git.Runner); !ok {
 					t.Fatalf("source %T, want the git runner", w.Source)
 				}
 			},

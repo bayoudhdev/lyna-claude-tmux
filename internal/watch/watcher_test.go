@@ -10,6 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/git"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/testutil/gittest"
+
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/vcs"
+
 	"github.com/fsnotify/fsnotify"
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/testutil/tmuxtest"
@@ -23,16 +28,16 @@ type countingSource struct {
 	dir     string
 }
 
-func (s *countingSource) Repo(context.Context, string) (Repo, error) {
+func (s *countingSource) Repo(context.Context, string) (git.Repo, error) {
 	if s.repoErr != nil {
-		return Repo{}, s.repoErr
+		return git.Repo{}, s.repoErr
 	}
-	return Repo{Root: s.dir, GitDir: s.dir, CommonDir: s.dir}, nil
+	return git.Repo{Root: s.dir, GitDir: s.dir, CommonDir: s.dir}, nil
 }
 
-func (s *countingSource) Changes(context.Context, string) (Changes, error) {
+func (s *countingSource) Changes(context.Context, string) (vcs.Changes, error) {
 	n := s.n.Add(1)
-	return Changes{Branch: Branch{Ahead: int(n)}}, nil
+	return vcs.Changes{Head: vcs.Head{Ahead: int(n)}}, nil
 }
 
 // runWatcher starts w and returns its updates and a stop function that
@@ -114,16 +119,16 @@ func TestWatcherSignalsAndCancellation(t *testing.T) {
 	updates, stop := runWatcher(t, w)
 
 	first := next(t, updates, "initial refresh", func(Update) bool { return true })
-	if first.Changes.Branch.Ahead != 1 || first.Err != nil || first.At.IsZero() {
+	if first.Changes.Head.Ahead != 1 || first.Err != nil || first.At.IsZero() {
 		t.Fatalf("initial update = %+v", first)
 	}
 	signals <- nil
-	next(t, updates, "refresh after signal", func(u Update) bool { return u.Changes.Branch.Ahead >= 2 })
+	next(t, updates, "refresh after signal", func(u Update) bool { return u.Changes.Head.Ahead >= 2 })
 	// A failing signal backs off, then the loop keeps waiting and a later
 	// signal still refreshes.
 	signals <- errors.New("server restarting")
 	signals <- nil
-	next(t, updates, "refresh after recovered signal", func(u Update) bool { return u.Changes.Branch.Ahead >= 3 })
+	next(t, updates, "refresh after recovered signal", func(u Update) bool { return u.Changes.Head.Ahead >= 3 })
 
 	stop()
 	select {
@@ -138,10 +143,10 @@ func TestWatcherSignalsAndCancellation(t *testing.T) {
 }
 
 func TestWatcherIdleFallback(t *testing.T) {
-	src := &countingSource{dir: t.TempDir(), repoErr: ErrNotRepository}
+	src := &countingSource{dir: t.TempDir(), repoErr: git.ErrNotRepository}
 	w := &Watcher{Dir: src.dir, Source: src, Idle: 5 * time.Millisecond}
 	updates, _ := runWatcher(t, w)
-	next(t, updates, "three idle refreshes", func(u Update) bool { return u.Changes.Branch.Ahead >= 3 })
+	next(t, updates, "three idle refreshes", func(u Update) bool { return u.Changes.Head.Ahead >= 3 })
 }
 
 // TestWatcherIdleResetsOnRefresh proves the fallback is a fallback: a refresh
@@ -150,7 +155,7 @@ func TestWatcherIdleFallback(t *testing.T) {
 // followed 1/3 of a period later by a timer refresh if it did not.
 func TestWatcherIdleResetsOnRefresh(t *testing.T) {
 	const idle = 300 * time.Millisecond
-	src := &countingSource{dir: t.TempDir(), repoErr: ErrNotRepository}
+	src := &countingSource{dir: t.TempDir(), repoErr: git.ErrNotRepository}
 	signals := make(chan error)
 	w := &Watcher{
 		Dir: src.dir, Source: src, Idle: idle, Debounce: time.Millisecond,
@@ -168,11 +173,11 @@ func TestWatcherIdleResetsOnRefresh(t *testing.T) {
 
 	time.Sleep(idle * 2 / 3)
 	signals <- nil
-	signaled := next(t, updates, "refresh after the signal", func(u Update) bool { return u.Changes.Branch.Ahead >= 2 })
+	signaled := next(t, updates, "refresh after the signal", func(u Update) bool { return u.Changes.Head.Ahead >= 2 })
 	if gap := signaled.At.Sub(first.At); gap >= idle {
 		t.Fatalf("the signal refresh came %v after the first one, at or past the idle period %v: the fallback may have caused it", gap, idle)
 	}
-	fallback := next(t, updates, "the idle refresh", func(u Update) bool { return u.Changes.Branch.Ahead >= 3 })
+	fallback := next(t, updates, "the idle refresh", func(u Update) bool { return u.Changes.Head.Ahead >= 3 })
 	if gap := fallback.At.Sub(signaled.At); gap < idle*4/5 {
 		t.Errorf("the idle refresh came %v after the signal refresh, less than %v: the fallback was not put off by it", gap, idle*4/5)
 	}
@@ -200,7 +205,7 @@ func TestRelevantEvent(t *testing.T) {
 	}
 }
 
-func hasFile(ch Changes, path string, staged bool) bool {
+func hasFile(ch vcs.Changes, path string, staged bool) bool {
 	for _, f := range ch.Files {
 		if f.Path == path && f.Staged() == staged {
 			return true
@@ -210,12 +215,12 @@ func hasFile(ch Changes, path string, staged bool) bool {
 }
 
 func TestIntegrationWatcherFileEvents(t *testing.T) {
-	r := newTestRepo(t)
-	r.write("a.txt", "1\n")
-	r.git("add", ".")
-	r.git("commit", "-qm", "one")
-	runner := r.runner()
-	w := &Watcher{Dir: r.dir, Source: runner, Debounce: 20 * time.Millisecond}
+	r := gittest.New(t)
+	r.Write("a.txt", "1\n")
+	r.Git("add", ".")
+	r.Git("commit", "-qm", "one")
+	runner := git.Runner{Environ: r.Environ()}
+	w := &Watcher{Dir: r.Dir, Source: runner, Debounce: 20 * time.Millisecond}
 	updates, _ := runWatcher(t, w)
 	next(t, updates, "clean initial state", func(u Update) bool { return u.Err == nil && u.Changes.Clean() })
 
@@ -227,19 +232,19 @@ func TestIntegrationWatcherFileEvents(t *testing.T) {
 	}{
 		{
 			name:   "top-level edit",
-			act:    func() { r.write("a.txt", "2\n") },
+			act:    func() { r.Write("a.txt", "2\n") },
 			what:   "unstaged a.txt",
 			expect: func(u Update) bool { return hasFile(u.Changes, "a.txt", false) },
 		},
 		{
 			name:   "staging writes the index",
-			act:    func() { r.git("add", "a.txt") },
+			act:    func() { r.Git("add", "a.txt") },
 			what:   "staged a.txt",
 			expect: func(u Update) bool { return hasFile(u.Changes, "a.txt", true) },
 		},
 		{
 			name:   "commit moves the branch",
-			act:    func() { r.git("commit", "-qm", "two") },
+			act:    func() { r.Git("commit", "-qm", "two") },
 			what:   "clean after commit",
 			expect: func(u Update) bool { return u.Err == nil && u.Changes.Clean() },
 		},
@@ -253,34 +258,29 @@ func TestIntegrationWatcherFileEvents(t *testing.T) {
 }
 
 func TestIntegrationWatcherInitInWatchedDirectory(t *testing.T) {
-	requireGit(t)
-	base, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	r := &testRepo{t: t, dir: base, env: hermeticGitEnv(t.TempDir())}
-	w := &Watcher{Dir: base, Source: r.runner(), Debounce: 20 * time.Millisecond}
+	r := gittest.At(t, "")
+	w := &Watcher{Dir: r.Dir, Source: git.Runner{Environ: r.Environ()}, Debounce: 20 * time.Millisecond}
 	updates, _ := runWatcher(t, w)
-	next(t, updates, "not a repository", func(u Update) bool { return errors.Is(u.Err, ErrNotRepository) })
-	r.git("init", "-q", "-b", "main")
-	r.write("new.txt", "x\n")
+	next(t, updates, "not a repository", func(u Update) bool { return errors.Is(u.Err, git.ErrNotRepository) })
+	r.Git("init", "-q", "-b", "main")
+	r.Write("new.txt", "x\n")
 	next(t, updates, "untracked file after init", func(u Update) bool { return u.Err == nil && hasFile(u.Changes, "new.txt", false) })
 }
 
 func TestIntegrationWatcherTmuxSignal(t *testing.T) {
 	srv := tmuxtest.Start(t)
-	r := newTestRepo(t)
-	r.write("sub/deep/a.txt", "1\n")
-	r.git("add", ".")
-	r.git("commit", "-qm", "one")
+	r := gittest.New(t)
+	r.Write("sub/deep/a.txt", "1\n")
+	r.Git("add", ".")
+	r.Git("commit", "-qm", "one")
 	const session = "base"
-	w := &Watcher{Dir: r.dir, Source: r.runner(), Debounce: 20 * time.Millisecond, Signal: TmuxSignal(srv.Client, session)}
+	w := &Watcher{Dir: r.Dir, Source: git.Runner{Environ: r.Environ()}, Debounce: 20 * time.Millisecond, Signal: TmuxSignal(srv.Client, session)}
 	updates, _ := runWatcher(t, w)
 	next(t, updates, "clean initial state", func(u Update) bool { return u.Err == nil && u.Changes.Clean() })
 
 	// A nested edit produces no watched file event; only the hook signal
 	// reports it. tmux latches the signal if the waiter is not waiting yet.
-	if err := os.WriteFile(filepath.Join(r.dir, "sub", "deep", "a.txt"), []byte("2\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(r.Dir, "sub", "deep", "a.txt"), []byte("2\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := srv.Client.Run(tmuxtest.Context(t), "wait-for", "-S", tmux.ChangesChannel(sessionID(t, srv, tmux.ExactSession(session)))); err != nil {

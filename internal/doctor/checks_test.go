@@ -211,12 +211,41 @@ func TestCheckGit(t *testing.T) {
 		{
 			name: "found with version",
 			sys:  fakeSystem{bins: bins, outputs: map[string]fakeOutput{"/usr/bin/git --version": {out: "git version 2.50.1 (Apple Git-155)\n"}}},
-			want: []Result{{ID: "git", Title: "git", Status: StatusOK, Detail: "git 2.50.1 at /usr/bin/git"}},
+			want: []Result{{
+				ID: "git", Title: "git", Status: StatusOK,
+				Detail: "git 2.50.1 at /usr/bin/git, past the 2.36 the worktree list, the interactive rebase and the force-with-lease push need",
+			}},
+		},
+		{
+			name: "exactly the oldest one accepted",
+			sys:  fakeSystem{bins: bins, outputs: map[string]fakeOutput{"/usr/bin/git --version": {out: "git version 2.36.0\n"}}},
+			want: []Result{{
+				ID: "git", Title: "git", Status: StatusOK,
+				Detail: "git 2.36.0 at /usr/bin/git, past the 2.36 the worktree list, the interactive rebase and the force-with-lease push need",
+			}},
+		},
+		{
+			name: "older than the worktree list the workspace reads",
+			sys: fakeSystem{
+				goos: "linux", bins: bins, files: map[string]string{osReleasePath: osReleaseUbuntu},
+				outputs: map[string]fakeOutput{"/usr/bin/git --version": {out: "git version 2.34.1\n"}},
+			},
+			want: []Result{{
+				ID: "git", Title: "git", Status: StatusWarn,
+				Detail: "git 2.34.1 at /usr/bin/git is older than 2.36, which is where `git worktree list` learned to " +
+					"separate its records with NUL; if the distribution package is still older, install a newer one " +
+					"from https://git-scm.com/downloads",
+				Fix: "sudo apt-get install git",
+			}},
 		},
 		{
 			name: "found without a version",
-			sys:  fakeSystem{bins: bins, outputs: map[string]fakeOutput{"/usr/bin/git --version": {out: "git\n"}}},
-			want: []Result{{ID: "git", Title: "git", Status: StatusOK, Detail: "git at /usr/bin/git"}},
+			sys:  fakeSystem{goos: "darwin", bins: bins, outputs: map[string]fakeOutput{"/usr/bin/git --version": {out: "git\n"}}},
+			want: []Result{{
+				ID: "git", Title: "git", Status: StatusWarn,
+				Detail: `cannot read the git version from "git"; the workspace needs 2.36 or newer`,
+				Fix:    "brew install git",
+			}},
 		},
 	})
 }

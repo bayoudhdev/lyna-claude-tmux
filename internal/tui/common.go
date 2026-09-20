@@ -12,6 +12,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/sanitize"
 )
 
 // Frame size used until the first WindowSizeMsg when the caller gives none.
@@ -95,6 +97,111 @@ func (s Styles) rule(width int, title string) string {
 	title = truncate(title, max(width-4, 0), s.Ellipsis)
 	rest := max(width-ansi.StringWidth(head)-ansi.StringWidth(title)-1, 0)
 	return s.Border.Render(head) + s.Muted.Render(title) + " " + s.Border.Render(strings.Repeat(h, rest))
+}
+
+// box frames rendered content lines: a border carrying the title on its top
+// edge and one cell of padding inside it. Every line it returns is exactly
+// width cells wide, so a box draws over a frame without moving what is under
+// it. The title is plain text and is sanitized here, since a box is drawn
+// around a branch, a path or a message as often as around a word of our own.
+func (s Styles) box(width int, title string, lines []string) []string {
+	h, v, tl, tr, bl, br := "─", "│", "┌", "┐", "└", "┘"
+	if s.Theme.Icons.Name == "ascii" {
+		h, v, tl, tr, bl, br = "-", "|", "+", "+", "+", "+"
+	}
+	if width < 4 {
+		return nil
+	}
+	inner := width - 4
+	var head string
+	if title != "" {
+		// The title sits between the corner and the edge, so it takes the
+		// width of the box less the two cells around it and the three of the
+		// corners.
+		head = " " + truncate(sanitize.Line(title), max(width-5, 0), s.Ellipsis) + " "
+	}
+	rest := max(width-2-ansi.StringWidth(head)-1, 0)
+	out := []string{s.Border.Render(tl+h) + s.Title.Render(head) + s.Border.Render(strings.Repeat(h, rest)+tr)}
+	for _, l := range lines {
+		w := ansi.StringWidth(l)
+		if w > inner {
+			l, w = ansi.Truncate(l, inner, s.Ellipsis), inner
+		}
+		out = append(out, s.Border.Render(v)+" "+l+strings.Repeat(" ", inner-w)+" "+s.Border.Render(v))
+	}
+	return append(out, s.Border.Render(bl+strings.Repeat(h, width-2)+br))
+}
+
+// overlay draws box over base with its top left corner at x, y, which is how
+// a form is put over the regions it was opened from. The cells the box covers
+// are replaced and the rest of every line is kept, styles and all; a box that
+// falls outside the frame is clipped rather than moving anything.
+func overlay(base, box []string, x, y int) []string {
+	out := append([]string(nil), base...)
+	for i, l := range box {
+		row := y + i
+		if row < 0 || row >= len(out) || x < 0 {
+			continue
+		}
+		left := ansi.Truncate(out[row], x, "")
+		if w := ansi.StringWidth(left); w < x {
+			left += strings.Repeat(" ", x-w)
+		}
+		right := ansi.TruncateLeft(out[row], x+ansi.StringWidth(l), "")
+		out[row] = left + l + right
+	}
+	return out
+}
+
+// beside joins columns of lines side by side into one block of lines, each
+// column already drawn to its own width. A column shorter than the tallest is
+// padded with blanks.
+func beside(columns ...[]string) []string {
+	rows, widths := 0, make([]int, len(columns))
+	for i, col := range columns {
+		rows = max(rows, len(col))
+		for _, l := range col {
+			widths[i] = max(widths[i], ansi.StringWidth(l))
+		}
+	}
+	out := make([]string, rows)
+	for r := range rows {
+		var b strings.Builder
+		for i, col := range columns {
+			l := ""
+			if r < len(col) {
+				l = col[r]
+			}
+			b.WriteString(l)
+			if w := ansi.StringWidth(l); w < widths[i] {
+				b.WriteString(strings.Repeat(" ", widths[i]-w))
+			}
+		}
+		out[r] = b.String()
+	}
+	return out
+}
+
+// flatten runs a command and returns the messages it produced, unpacking the
+// batches. It is for a view that holds other views and has to read what they
+// report rather than letting the program loop hand it back to them; every
+// command it runs is one that builds a message and does nothing else.
+func flatten(cmd tea.Cmd) []tea.Msg {
+	if cmd == nil {
+		return nil
+	}
+	msg := cmd()
+	if msg == nil {
+		return nil
+	}
+	if batch, ok := msg.(tea.BatchMsg); ok {
+		var out []tea.Msg
+		for _, c := range batch {
+			out = append(out, flatten(c)...)
+		}
+		return out
+	}
+	return []tea.Msg{msg}
 }
 
 // helpLine renders key help that fits in width.

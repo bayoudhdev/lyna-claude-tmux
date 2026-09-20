@@ -1,0 +1,22 @@
+
+
+
+  ┌─ Discard every change ───────────────────────────────────┐
+  │ 12 files go back to what HEAD holds on feat/git-         │
+  │ workstation.                                             │
+  │                                                          │
+  │ ✕ every change made since the last commit, in no commit  │
+  │   and no stash                                           │
+  │                                                          │
+  │ runs                                                     │
+  │ git restore --staged --worktree -- .                     │
+  │                                                          │
+  │ type feat/git-workstation to go on                       │
+  │ › main                                                 ▌ │
+  │ that is not feat/git-workstation                         │
+  │                                                          │
+  │  enter run it  esc cancel                                │
+  └──────────────────────────────────────────────────────────┘
+
+
+
