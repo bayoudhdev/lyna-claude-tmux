@@ -420,3 +420,219 @@ func TestRunnerStashesArgv(t *testing.T) {
 		t.Fatalf("Stashes() ran %v, want %v", args, want)
 	}
 }
+
+// TestRunnerStagingArgv holds the commands the working tree actions build,
+// and proves a path that leaves the project never reaches git: the refusal
+// comes before a process is started.
+func TestRunnerStagingArgv(t *testing.T) {
+	cases := []struct {
+		name    string
+		act     func(r Runner) error
+		want    []string
+		wantErr bool
+	}{
+		{
+			name: "one file staged",
+			act:  func(r Runner) error { return r.Stage(context.Background(), "/repo", "a.txt", "sub/b.txt") },
+			want: []string{"add", "-A", "--", "a.txt", "sub/b.txt"},
+		},
+		{
+			name: "every change staged",
+			act:  func(r Runner) error { return r.StageAll(context.Background(), "/repo") },
+			want: []string{"add", "-A", "--", ":/"},
+		},
+		{
+			name: "one file taken out of the index",
+			act:  func(r Runner) error { return r.Unstage(context.Background(), "/repo", "a.txt") },
+			want: []string{"reset", "-q", "--", "a.txt"},
+		},
+		{
+			name: "the index emptied",
+			act:  func(r Runner) error { return r.UnstageAll(context.Background(), "/repo") },
+			want: []string{"reset", "-q"},
+		},
+		{
+			name: "one change thrown away",
+			act:  func(r Runner) error { return r.Discard(context.Background(), "/repo", "a.txt") },
+			want: []string{"restore", "--worktree", "--", "a.txt"},
+		},
+		{
+			name: "every change thrown away",
+			act:  func(r Runner) error { return r.DiscardAll(context.Background(), "/repo") },
+			want: []string{"restore", "--worktree", "--", ":/"},
+		},
+		{
+			name: "one untracked file deleted",
+			act:  func(r Runner) error { return r.CleanUntracked(context.Background(), "/repo", "new/") },
+			want: []string{"clean", "-f", "-d", "-q", "--", "new/"},
+		},
+		{
+			name: "every untracked file deleted, the ignored ones kept",
+			act:  func(r Runner) error { return r.CleanAllUntracked(context.Background(), "/repo") },
+			want: []string{"clean", "-f", "-d", "-q", "--", ":/"},
+		},
+		{name: "staging nothing", act: func(r Runner) error { return r.Stage(context.Background(), "/repo") }, wantErr: true},
+		{
+			name:    "a path leaving the project",
+			act:     func(r Runner) error { return r.Stage(context.Background(), "/repo", "../outside.txt") },
+			wantErr: true,
+		},
+		{
+			name:    "a path leaving it halfway",
+			act:     func(r Runner) error { return r.Discard(context.Background(), "/repo", "sub/../../outside") },
+			wantErr: true,
+		},
+		{
+			name:    "an absolute path",
+			act:     func(r Runner) error { return r.CleanUntracked(context.Background(), "/repo", "/etc/passwd") },
+			wantErr: true,
+		},
+		{
+			name:    "one good path beside one that leaves",
+			act:     func(r Runner) error { return r.Stage(context.Background(), "/repo", "a.txt", "../outside.txt") },
+			wantErr: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeGit{outputs: map[string]Result{}}
+			err := tc.act(Runner{Executor: f})
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("the command went through, want it refused")
+				}
+				if len(f.calls) != 0 {
+					t.Fatalf("the command ran %v, want nothing run at all", f.calls)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("the command failed: %v", err)
+			}
+			if len(f.calls) != 1 {
+				t.Fatalf("the command ran %d times, want once", len(f.calls))
+			}
+			if args := f.calls[0][5:]; !slices.Equal(args, tc.want) {
+				t.Fatalf("the command ran %v, want %v", args, tc.want)
+			}
+		})
+	}
+}
+
+// TestRunnerWorktreeArgv holds the commands a worktree action builds, and
+// proves a name or a branch that would be read as something else never
+// reaches the worktree command.
+func TestRunnerWorktreeArgv(t *testing.T) {
+	root := t.TempDir()
+	cases := []struct {
+		name    string
+		act     func(r Runner) error
+		want    []string
+		wantErr bool
+	}{
+		{
+			name: "a worktree on a branch of its own",
+			act: func(r Runner) error {
+				_, err := r.AddWorktree(context.Background(), root, AddWorktree{Name: "task-a"})
+				return err
+			},
+			want: []string{"worktree", "add", "-b", "task-a", "--", filepath.Join(root, ".claude", "worktrees", "task-a")},
+		},
+		{
+			name: "a branch starting where another one stands",
+			act: func(r Runner) error {
+				_, err := r.AddWorktree(context.Background(), root, AddWorktree{Name: "b", Branch: "feat/b", Start: "main"})
+				return err
+			},
+			want: []string{"worktree", "add", "-b", "feat/b", "--", filepath.Join(root, ".claude", "worktrees", "b"), "main"},
+		},
+		{
+			name: "a branch that already exists",
+			act: func(r Runner) error {
+				_, err := r.AddWorktree(context.Background(), root, AddWorktree{Name: "c", Branch: "side", Checkout: true})
+				return err
+			},
+			want: []string{"worktree", "add", "--", filepath.Join(root, ".claude", "worktrees", "c"), "side"},
+		},
+		{
+			name: "a commit with no branch at all",
+			act: func(r Runner) error {
+				_, err := r.AddWorktree(context.Background(), root, AddWorktree{Name: "d", Detach: true, Start: "HEAD~1"})
+				return err
+			},
+			want: []string{"worktree", "add", "--detach", "--", filepath.Join(root, ".claude", "worktrees", "d"), "HEAD~1"},
+		},
+		{
+			name: "a name that is a path",
+			act: func(r Runner) error {
+				_, err := r.AddWorktree(context.Background(), root, AddWorktree{Name: "../x"})
+				return err
+			},
+			wantErr: true,
+		},
+		{
+			name: "a name that would be an option",
+			act: func(r Runner) error {
+				_, err := r.AddWorktree(context.Background(), root, AddWorktree{Name: "-f"})
+				return err
+			},
+			wantErr: true,
+		},
+		{
+			name: "a branch git refuses",
+			act: func(r Runner) error {
+				_, err := r.AddWorktree(context.Background(), root, AddWorktree{Name: "e", Branch: "feat/.x"})
+				return err
+			},
+			wantErr: true,
+		},
+		{
+			name: "a revision that would be an option",
+			act: func(r Runner) error {
+				_, err := r.AddWorktree(context.Background(), root, AddWorktree{Name: "f", Start: "--output=/tmp/x"})
+				return err
+			},
+			wantErr: true,
+		},
+		{
+			name:    "removing a name that is a path",
+			act:     func(r Runner) error { return r.RemoveWorktree(context.Background(), root, "../x", false) },
+			wantErr: true,
+		},
+		{
+			name: "pruning what is gone",
+			act:  func(r Runner) error { return r.PruneWorktrees(context.Background(), root) },
+			want: []string{"worktree", "prune"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeGit{outputs: map[string]Result{
+				"rev-parse": {Stdout: []byte(root + "\n" + root + "\n" + root + "\n")},
+				"worktree":  {},
+			}}
+			err := tc.act(Runner{Executor: f})
+			var ran [][]string
+			for _, call := range f.calls {
+				if call[5] == "worktree" {
+					ran = append(ran, call[5:])
+				}
+			}
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("the command went through, want it refused")
+				}
+				if len(ran) != 0 {
+					t.Fatalf("the command ran %v, want no worktree command at all", ran)
+				}
+				return
+			}
+			if len(ran) == 0 {
+				t.Fatalf("no worktree command ran (error: %v)", err)
+			}
+			if !slices.Equal(ran[0], tc.want) {
+				t.Fatalf("the command ran %v, want %v", ran[0], tc.want)
+			}
+		})
+	}
+}

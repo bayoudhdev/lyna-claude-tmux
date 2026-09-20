@@ -842,3 +842,178 @@ func TestIntegrationWorktreeRemoveAndPrune(t *testing.T) {
 		}
 	})
 }
+
+// working builds a working tree holding one of everything the staging
+// commands act on: a change, a staged change, a deletion, an untracked file,
+// an untracked directory and a file the project ignores.
+func working(t *testing.T) *repo {
+	t.Helper()
+	r := newRepo(t)
+	r.Write(".gitignore", "ignored.txt\n")
+	r.Write("kept.txt", "kept\n")
+	r.Write("staged.txt", "staged\n")
+	r.Write("gone.txt", "gone\n")
+	r.Write("sub/deep.txt", "deep\n")
+	r.Git("add", ".")
+	r.Git("commit", "-qm", "first commit subject")
+	r.Write("kept.txt", "changed\n")
+	r.Write("staged.txt", "changed\n")
+	r.Git("add", "staged.txt")
+	r.Git("rm", "-q", "gone.txt")
+	r.Write("untracked.txt", "new\n")
+	r.Write("new-dir/inside.txt", "new\n")
+	r.Write("ignored.txt", "ignored\n")
+	return r
+}
+
+// state reads the working tree back as a path to its two status codes, which
+// is what the view shows and what a staging command has to change.
+func state(t *testing.T, r *repo) map[string]string {
+	t.Helper()
+	ch, err := r.Runner.Changes(t.Context(), r.Dir)
+	if err != nil {
+		t.Fatalf("Changes() error = %v", err)
+	}
+	out := make(map[string]string, len(ch.Files))
+	for _, f := range ch.Files {
+		out[f.Path] = string([]byte{f.Index, f.Worktree})
+	}
+	return out
+}
+
+func TestIntegrationStaging(t *testing.T) {
+	cases := []struct {
+		name string
+		act  func(t *testing.T, r *repo) error
+		want map[string]string
+	}{
+		{
+			name: "one file staged",
+			act:  func(t *testing.T, r *repo) error { return r.Runner.Stage(t.Context(), r.Dir, "kept.txt") },
+			want: map[string]string{"kept.txt": "M.", "staged.txt": "M.", "gone.txt": "D.", "untracked.txt": "??", "new-dir/": "??"},
+		},
+		{
+			name: "every change staged",
+			act:  func(t *testing.T, r *repo) error { return r.Runner.StageAll(t.Context(), r.Dir) },
+			want: map[string]string{"kept.txt": "M.", "staged.txt": "M.", "gone.txt": "D.", "untracked.txt": "A.", "new-dir/inside.txt": "A."},
+		},
+		{
+			name: "every change staged from a subdirectory",
+			act: func(t *testing.T, r *repo) error {
+				return r.Runner.StageAll(t.Context(), filepath.Join(r.Dir, "sub"))
+			},
+			want: map[string]string{"kept.txt": "M.", "staged.txt": "M.", "gone.txt": "D.", "untracked.txt": "A.", "new-dir/inside.txt": "A."},
+		},
+		{
+			name: "one file taken out of the index",
+			act:  func(t *testing.T, r *repo) error { return r.Runner.Unstage(t.Context(), r.Dir, "staged.txt") },
+			want: map[string]string{"kept.txt": ".M", "staged.txt": ".M", "gone.txt": "D.", "untracked.txt": "??", "new-dir/": "??"},
+		},
+		{
+			name: "the index emptied",
+			act:  func(t *testing.T, r *repo) error { return r.Runner.UnstageAll(t.Context(), r.Dir) },
+			want: map[string]string{"kept.txt": ".M", "staged.txt": ".M", "gone.txt": ".D", "untracked.txt": "??", "new-dir/": "??"},
+		},
+		{
+			name: "one change thrown away",
+			act:  func(t *testing.T, r *repo) error { return r.Runner.Discard(t.Context(), r.Dir, "kept.txt") },
+			want: map[string]string{"staged.txt": "M.", "gone.txt": "D.", "untracked.txt": "??", "new-dir/": "??"},
+		},
+		{
+			name: "every change of the working tree thrown away",
+			act: func(t *testing.T, r *repo) error {
+				if err := r.Runner.UnstageAll(t.Context(), r.Dir); err != nil {
+					return err
+				}
+				return r.Runner.DiscardAll(t.Context(), r.Dir)
+			},
+			want: map[string]string{"untracked.txt": "??", "new-dir/": "??"},
+		},
+		{
+			name: "one untracked file deleted",
+			act:  func(t *testing.T, r *repo) error { return r.Runner.CleanUntracked(t.Context(), r.Dir, "untracked.txt") },
+			want: map[string]string{"kept.txt": ".M", "staged.txt": "M.", "gone.txt": "D.", "new-dir/": "??"},
+		},
+		{
+			name: "every untracked file deleted",
+			act:  func(t *testing.T, r *repo) error { return r.Runner.CleanAllUntracked(t.Context(), r.Dir) },
+			want: map[string]string{"kept.txt": ".M", "staged.txt": "M.", "gone.txt": "D."},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := working(t)
+			if err := tc.act(t, r); err != nil {
+				t.Fatalf("the command failed: %v", err)
+			}
+			got := state(t, r)
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("the working tree reads as %v, want %v", got, tc.want)
+			}
+			// A file the project ignores is never thrown away.
+			if _, err := os.Stat(filepath.Join(r.Dir, "ignored.txt")); err != nil {
+				t.Fatalf("the ignored file was deleted: %v", err)
+			}
+		})
+	}
+}
+
+func TestIntegrationStagingRefusals(t *testing.T) {
+	cases := []struct {
+		name string
+		act  func(t *testing.T, r *repo) error
+	}{
+		{name: "staging with no path", act: func(t *testing.T, r *repo) error { return r.Runner.Stage(t.Context(), r.Dir) }},
+		{name: "unstaging with no path", act: func(t *testing.T, r *repo) error { return r.Runner.Unstage(t.Context(), r.Dir) }},
+		{name: "discarding with no path", act: func(t *testing.T, r *repo) error { return r.Runner.Discard(t.Context(), r.Dir) }},
+		{name: "cleaning with no path", act: func(t *testing.T, r *repo) error { return r.Runner.CleanUntracked(t.Context(), r.Dir) }},
+		{
+			name: "a path leaving the project",
+			act:  func(t *testing.T, r *repo) error { return r.Runner.Stage(t.Context(), r.Dir, "../outside.txt") },
+		},
+		{
+			name: "an absolute path",
+			act:  func(t *testing.T, r *repo) error { return r.Runner.Discard(t.Context(), r.Dir, "/etc/passwd") },
+		},
+		{
+			name: "a path leaving the project halfway",
+			act: func(t *testing.T, r *repo) error {
+				return r.Runner.CleanUntracked(t.Context(), r.Dir, "sub/../../outside")
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := working(t)
+			before := state(t, r)
+			if err := tc.act(t, r); err == nil {
+				t.Fatal("the command went through, want it refused")
+			}
+			if after := state(t, r); !reflect.DeepEqual(before, after) {
+				t.Fatalf("the working tree changed: %v, was %v", after, before)
+			}
+		})
+	}
+}
+
+// TestIntegrationUnstageBeforeTheFirstCommit covers the one state where a
+// restore cannot work: there is no commit to restore the index from.
+func TestIntegrationUnstageBeforeTheFirstCommit(t *testing.T) {
+	r := newRepo(t)
+	r.Write("a.txt", "a\n")
+	r.Write("b.txt", "b\n")
+	r.Git("add", ".")
+
+	if err := r.Runner.Unstage(t.Context(), r.Dir, "a.txt"); err != nil {
+		t.Fatalf("Unstage() error = %v", err)
+	}
+	if got, want := state(t, r), map[string]string{"a.txt": "??", "b.txt": "A."}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("the working tree reads as %v, want %v", got, want)
+	}
+	if err := r.Runner.UnstageAll(t.Context(), r.Dir); err != nil {
+		t.Fatalf("UnstageAll() error = %v", err)
+	}
+	if got, want := state(t, r), map[string]string{"a.txt": "??", "b.txt": "??"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("the working tree reads as %v, want %v", got, want)
+	}
+}
