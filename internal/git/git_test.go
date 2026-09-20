@@ -38,6 +38,7 @@ func nul(records ...string) []byte {
 
 const (
 	hashA = "422c2b7ab3b3c668038da977e4e93a5fc623169c"
+	hashB = "9c3a5a0e0a5f2a0b5a2e7a1d4f6b8c0d2e4f6a81"
 	zero  = "0000000000000000000000000000000000000000"
 )
 
@@ -1258,6 +1259,193 @@ func TestRunnerTagArgv(t *testing.T) {
 			}
 			if !slices.Equal(args, tc.want) {
 				t.Fatalf("the command ran %v, want %v", args, tc.want)
+			}
+		})
+	}
+}
+
+// replayRecorder stands in for git during a history rewrite. It reads the
+// plan while the command is running: the file is removed as soon as the
+// rebase is over, so nothing is left to read afterwards.
+type replayRecorder struct {
+	calls [][]string
+	envs  [][]string
+	plans []string
+	err   error
+}
+
+func (rec *replayRecorder) Exec(_ context.Context, _ string, args, env []string, _ int64) (Result, error) {
+	rec.calls = append(rec.calls, args)
+	rec.envs = append(rec.envs, env)
+	rec.plans = append(rec.plans, rec.read(env))
+	return Result{}, rec.err
+}
+
+// read follows GIT_SEQUENCE_EDITOR to the plan it hands over.
+func (rec *replayRecorder) read(env []string) string {
+	for _, kv := range env {
+		rest, ok := strings.CutPrefix(kv, "GIT_SEQUENCE_EDITOR=")
+		if !ok {
+			continue
+		}
+		_, path, found := strings.Cut(rest, " rebase-todo ")
+		if !found {
+			return ""
+		}
+		data, err := os.ReadFile(strings.TrimSuffix(strings.TrimPrefix(path, "'"), "'"))
+		if err != nil {
+			return ""
+		}
+		return string(data)
+	}
+	return ""
+}
+
+// TestRunnerReplayArgvAndEditor holds the command a history rewrite builds and
+// proves the plan reaches git through our own sequence editor rather than
+// through anything the user has configured.
+func TestRunnerReplayArgvAndEditor(t *testing.T) {
+	plain := vcs.Todo{Steps: []vcs.TodoStep{
+		{Action: vcs.TodoPick, OID: hashA, Subject: "one"},
+		{Action: vcs.TodoDrop, OID: hashB, Subject: "two"},
+	}}
+	cases := []struct {
+		name    string
+		plan    Replan
+		want    []string
+		wantErr bool
+	}{
+		{
+			name: "a history replayed after a commit",
+			plan: Replan{Upstream: hashA, Todo: plain, Bin: "/opt/lmux"},
+			want: []string{"rebase", "--interactive", hashA},
+		},
+		{
+			name: "a history replayed from its first commit",
+			plan: Replan{Upstream: "--root", Todo: plain, Bin: "/opt/lmux"},
+			want: []string{"rebase", "--interactive", "--root"},
+		},
+		{
+			name: "the working tree put away for the time of it",
+			plan: Replan{Upstream: "HEAD~3", Todo: plain, Bin: "/opt/lmux", AutoStash: true},
+			want: []string{"rebase", "--interactive", "--autostash", "HEAD~3"},
+		},
+		{
+			name: "a sequence editor at a path a shell would read",
+			plan: Replan{Upstream: hashA, Todo: plain, Bin: "/opt/my tools/o'brien;id/lmux"},
+			want: []string{"rebase", "--interactive", hashA},
+		},
+		{
+			name:    "a plan with no step",
+			plan:    Replan{Upstream: hashA, Bin: "/opt/lmux"},
+			wantErr: true,
+		},
+		{
+			name:    "a plan that folds its first commit into nothing",
+			plan:    Replan{Upstream: hashA, Bin: "/opt/lmux", Todo: vcs.Todo{Steps: []vcs.TodoStep{{Action: vcs.TodoSquash, OID: hashA, Subject: "one"}}}},
+			wantErr: true,
+		},
+		{
+			name:    "no sequence editor to hand the plan over",
+			plan:    Replan{Upstream: hashA, Todo: plain},
+			wantErr: true,
+		},
+		{
+			name:    "an upstream that would be an option",
+			plan:    Replan{Upstream: "--exec", Todo: plain, Bin: "/opt/lmux"},
+			wantErr: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := &replayRecorder{}
+			err := Runner{Executor: rec}.Replay(context.Background(), "/repo", tc.plan)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("the replay went through, want it refused")
+				}
+				if len(rec.calls) != 0 {
+					t.Fatalf("the replay ran %v, want nothing run at all", rec.calls)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Replay() error = %v", err)
+			}
+			if args := rec.calls[0][5:]; !slices.Equal(args, tc.want) {
+				t.Fatalf("the replay ran %v, want %v", args, tc.want)
+			}
+			if got := rec.plans[0]; got != string(tc.plan.Todo.Render()) {
+				t.Fatalf("git was handed the plan %q, want %q", got, tc.plan.Todo.Render())
+			}
+			assertSequenceEditor(t, rec.envs[0], tc.plan.Bin)
+		})
+	}
+}
+
+// assertSequenceEditor reads the environment of a replay: git is told to run
+// our own command over a plan file, and everything that could open an editor
+// is turned off.
+func assertSequenceEditor(t *testing.T, env []string, bin string) {
+	t.Helper()
+	seen := map[string]string{}
+	for _, kv := range env {
+		if k, v, ok := strings.Cut(kv, "="); ok {
+			seen[k] = v
+		}
+	}
+	editor := seen["GIT_SEQUENCE_EDITOR"]
+	prefix := shellQuote(bin) + " rebase-todo "
+	if !strings.HasPrefix(editor, prefix) {
+		t.Fatalf("GIT_SEQUENCE_EDITOR = %q, want it to run %s", editor, prefix)
+	}
+	for _, name := range []string{"GIT_EDITOR", "EDITOR", "VISUAL"} {
+		if seen[name] != "true" {
+			t.Fatalf("%s = %q, want an editor that cannot block", name, seen[name])
+		}
+	}
+}
+
+// TestRunnerHistoryEditsRefuseBeforeRunning proves the checks of a history
+// edit happen before git is started at all.
+func TestRunnerHistoryEditsRefuseBeforeRunning(t *testing.T) {
+	cases := []struct {
+		name string
+		act  func(r Runner) error
+	}{
+		{
+			name: "a commit that is no commit",
+			act: func(r Runner) error {
+				return r.DropCommit(context.Background(), "/repo", Edit{OID: "nope", Bin: "/opt/lmux"})
+			},
+		},
+		{
+			name: "a commit folded but named by a branch",
+			act: func(r Runner) error {
+				return r.SquashCommit(context.Background(), "/repo", Edit{OID: "HEAD~2", Bin: "/opt/lmux"})
+			},
+		},
+		{
+			name: "a commit moved nowhere",
+			act: func(r Runner) error {
+				return r.MoveCommit(context.Background(), "/repo", Edit{OID: hashA, Bin: "/opt/lmux"})
+			},
+		},
+		{
+			name: "a message no one can read",
+			act: func(r Runner) error {
+				return r.Reword(context.Background(), "/repo", Edit{OID: hashA, Bin: "/opt/lmux", Message: "  "})
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeGit{outputs: map[string]Result{"rebase": {}, "log": {}, "rev-parse": {}}}
+			if err := tc.act(Runner{Executor: f}); err == nil {
+				t.Fatal("the edit went through, want it refused")
+			}
+			if len(f.calls) != 0 {
+				t.Fatalf("the edit ran %v, want nothing run at all", f.calls)
 			}
 		})
 	}

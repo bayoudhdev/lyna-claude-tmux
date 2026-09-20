@@ -3,11 +3,14 @@ package git
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/domain/vcs"
@@ -2193,4 +2196,236 @@ func TestIntegrationFormatPatch(t *testing.T) {
 			})
 		}
 	})
+}
+
+// lmuxBin builds the binary git runs as the sequence editor, once per test
+// run, so the history edits are driven the way they are in a workspace.
+var lmuxBin = sync.OnceValues(func() (string, error) {
+	dir, err := os.MkdirTemp("", "lmux-bin-")
+	if err != nil {
+		return "", err
+	}
+	bin := filepath.Join(dir, "lmux")
+	out, err := exec.Command("go", "build", "-o", bin, "github.com/bayoudhdev/lyna-claude-tmux/cmd/lmux").CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("building lmux: %w\n%s", err, out)
+	}
+	return bin, nil
+})
+
+func sequenceEditorBin(t *testing.T) string {
+	t.Helper()
+	bin, err := lmuxBin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return bin
+}
+
+// series is a repository of commits in a line, each adding a file of its own.
+func series(t *testing.T, subjects ...string) *repo {
+	t.Helper()
+	r := newRepo(t)
+	for i, s := range subjects {
+		r.Commit(s, fmt.Sprintf("f%d.txt", i), fmt.Sprintf("%d\n", i))
+	}
+	return r
+}
+
+// subjects reads the history of the working tree back, newest first.
+func subjects(t *testing.T, r *repo) []string {
+	t.Helper()
+	commits, err := r.Runner.Log(t.Context(), r.Dir, LogOptions{Revs: []string{"HEAD"}})
+	if err != nil {
+		t.Fatalf("Log() error = %v", err)
+	}
+	out := make([]string, len(commits))
+	for i, c := range commits {
+		out[i] = c.Subject
+	}
+	return out
+}
+
+// commitNamed is the object name of the commit with that subject.
+func commitNamed(t *testing.T, r *repo, subject string) string {
+	t.Helper()
+	commits, err := r.Runner.Log(t.Context(), r.Dir, LogOptions{Revs: []string{"HEAD"}})
+	if err != nil {
+		t.Fatalf("Log() error = %v", err)
+	}
+	for _, c := range commits {
+		if c.Subject == subject {
+			return c.OID
+		}
+	}
+	t.Fatalf("no commit named %q in %v", subject, subjects(t, r))
+	return ""
+}
+
+func TestIntegrationHistoryEdits(t *testing.T) {
+	bin := sequenceEditorBin(t)
+	ctx := t.Context()
+	cases := []struct {
+		name string
+		on   string
+		act  func(r *repo, e Edit) error
+		want []string
+	}{
+		{
+			name: "a commit left out",
+			on:   "two",
+			act:  func(r *repo, e Edit) error { return r.Runner.DropCommit(ctx, r.Dir, e) },
+			want: []string{"three", "one"},
+		},
+		{
+			name: "the first commit left out",
+			on:   "one",
+			act:  func(r *repo, e Edit) error { return r.Runner.DropCommit(ctx, r.Dir, e) },
+			want: []string{"three", "two"},
+		},
+		{
+			name: "a commit folded into the one before it",
+			on:   "two",
+			act:  func(r *repo, e Edit) error { return r.Runner.FixupCommit(ctx, r.Dir, e) },
+			want: []string{"three", "one"},
+		},
+		{
+			name: "a commit folded with both messages kept",
+			on:   "three",
+			act:  func(r *repo, e Edit) error { return r.Runner.SquashCommit(ctx, r.Dir, e) },
+			// The message of the commit it lands in comes first, so the
+			// subject of the fold is the subject of that commit.
+			want: []string{"two", "one"},
+		},
+		{
+			name: "a commit moved earlier",
+			on:   "three",
+			act:  func(r *repo, e Edit) error { e.By = -1; return r.Runner.MoveCommit(ctx, r.Dir, e) },
+			want: []string{"two", "three", "one"},
+		},
+		{
+			name: "a commit moved later",
+			on:   "one",
+			act:  func(r *repo, e Edit) error { e.By = 1; return r.Runner.MoveCommit(ctx, r.Dir, e) },
+			want: []string{"three", "one", "two"},
+		},
+		{
+			name: "a message written again on an older commit",
+			on:   "two",
+			act: func(r *repo, e Edit) error {
+				e.Message = "two, said better"
+				return r.Runner.Reword(ctx, r.Dir, e)
+			},
+			want: []string{"three", "two, said better", "one"},
+		},
+		{
+			name: "a message written again on the commit HEAD stands on",
+			on:   "three",
+			act: func(r *repo, e Edit) error {
+				e.Message = "three, said better"
+				return r.Runner.Reword(ctx, r.Dir, e)
+			},
+			want: []string{"three, said better", "two", "one"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := series(t, "one", "two", "three")
+			e := Edit{OID: commitNamed(t, r, tc.on), Bin: bin}
+			if err := tc.act(r, e); err != nil {
+				t.Fatalf("the edit failed: %v", err)
+			}
+			if got := subjects(t, r); !slices.Equal(got, tc.want) {
+				t.Fatalf("the history reads as %v, want %v", got, tc.want)
+			}
+			state, err := r.Runner.InProgress(ctx, r.Dir)
+			if err != nil {
+				t.Fatalf("InProgress() error = %v", err)
+			}
+			if state.Running() {
+				t.Fatalf("InProgress() = %+v, want the replay through", state)
+			}
+		})
+	}
+}
+
+// TestIntegrationSquashKeepsBothMessages proves the difference between
+// folding a commit with its message and folding it without.
+func TestIntegrationSquashKeepsBothMessages(t *testing.T) {
+	bin := sequenceEditorBin(t)
+	r := series(t, "one", "two")
+	e := Edit{OID: commitNamed(t, r, "two"), Bin: bin}
+	if err := r.Runner.SquashCommit(t.Context(), r.Dir, e); err != nil {
+		t.Fatalf("SquashCommit() error = %v", err)
+	}
+	message := r.Git("log", "-1", "--format=%B")
+	if !strings.Contains(message, "one") || !strings.Contains(message, "two") {
+		t.Fatalf("the message reads as %q, want both", message)
+	}
+
+	r2 := series(t, "one", "two")
+	e2 := Edit{OID: commitNamed(t, r2, "two"), Bin: bin}
+	if err := r2.Runner.FixupCommit(t.Context(), r2.Dir, e2); err != nil {
+		t.Fatalf("FixupCommit() error = %v", err)
+	}
+	if got := r2.Git("log", "-1", "--format=%B"); strings.Contains(got, "two") {
+		t.Fatalf("the message reads as %q, want the one it landed in alone", got)
+	}
+}
+
+func TestIntegrationHistoryEditRefusals(t *testing.T) {
+	bin := sequenceEditorBin(t)
+	ctx := t.Context()
+	r := series(t, "one", "two", "three")
+	head := strings.TrimSpace(r.Git("rev-parse", "HEAD"))
+	first := commitNamed(t, r, "one")
+	cases := []struct {
+		name string
+		act  func() error
+	}{
+		{name: "a commit that is no commit", act: func() error { return r.Runner.DropCommit(ctx, r.Dir, Edit{OID: "nope", Bin: bin}) }},
+		{
+			name: "a commit that is not in the history",
+			act: func() error {
+				return r.Runner.DropCommit(ctx, r.Dir, Edit{OID: strings.Repeat("a", 40), Bin: bin})
+			},
+		},
+		{
+			name: "the first commit folded into nothing",
+			act:  func() error { return r.Runner.SquashCommit(ctx, r.Dir, Edit{OID: first, Bin: bin}) },
+		},
+		{
+			name: "the first commit moved earlier",
+			act:  func() error { return r.Runner.MoveCommit(ctx, r.Dir, Edit{OID: first, By: -1, Bin: bin}) },
+		},
+		{
+			name: "a commit moved nowhere",
+			act:  func() error { return r.Runner.MoveCommit(ctx, r.Dir, Edit{OID: first, Bin: bin}) },
+		},
+		{
+			name: "a message of nothing",
+			act:  func() error { return r.Runner.Reword(ctx, r.Dir, Edit{OID: first, Message: "  \n", Bin: bin}) },
+		},
+		{
+			name: "no sequence editor to hand the plan to",
+			act:  func() error { return r.Runner.DropCommit(ctx, r.Dir, Edit{OID: first}) },
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := tc.act(); err == nil {
+				t.Fatal("the edit went through, want it refused")
+			}
+			if got := strings.TrimSpace(r.Git("rev-parse", "HEAD")); got != head {
+				t.Fatalf("the history moved to %s", got)
+			}
+			state, err := r.Runner.InProgress(ctx, r.Dir)
+			if err != nil {
+				t.Fatalf("InProgress() error = %v", err)
+			}
+			if state.Running() {
+				t.Fatalf("InProgress() = %+v, want nothing left running", state)
+			}
+		})
+	}
 }

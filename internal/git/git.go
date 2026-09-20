@@ -165,6 +165,13 @@ func (r Runner) Branches(ctx context.Context, dir string) ([]vcs.LocalBranch, er
 // never trigger another file event), no fsmonitor hook program, and an
 // environment that cannot redirect -C to another repository.
 func (r Runner) git(ctx context.Context, dir string, args ...string) ([]byte, error) {
+	return r.gitEnv(ctx, dir, nil, args...)
+}
+
+// gitEnv runs one command with variables of its own over the environment
+// every command runs with. It is how the one command that needs an editor
+// gets the one it is given.
+func (r Runner) gitEnv(ctx context.Context, dir string, env []string, args ...string) ([]byte, error) {
 	timeout := r.Timeout
 	if timeout <= 0 {
 		timeout = DefaultTimeout
@@ -184,7 +191,7 @@ func (r Runner) git(ctx context.Context, dir string, args ...string) ([]byte, er
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	argv := append([]string{"--no-pager", "-c", "core.fsmonitor=false", "-C", dir}, args...)
-	res, err := exe.Exec(ctx, bin, argv, r.environ(), limit)
+	res, err := exe.Exec(ctx, bin, argv, r.environ(env...), limit)
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil && !errors.Is(err, ErrOutputTooLarge) {
 			return nil, fmt.Errorf("git %s: %w", args[0], ctxErr)
@@ -210,16 +217,23 @@ var scrubbedGitEnv = []string{
 	"GIT_PREFIX", "GIT_CEILING_DIRECTORIES", "GIT_DISCOVERY_ACROSS_FILESYSTEM",
 }
 
-func (r Runner) environ() []string {
+func (r Runner) environ(extra ...string) []string {
 	base := r.Environ
 	if base == nil {
 		base = os.Environ
+	}
+	// A variable given for this one command replaces the one the process has
+	// and the one forced below, so the environment never holds a name twice.
+	over := make(map[string]bool, len(extra))
+	for _, kv := range extra {
+		name, _, _ := strings.Cut(kv, "=")
+		over[name] = true
 	}
 	env := make([]string, 0, 32)
 	for _, kv := range base() {
 		name, _, _ := strings.Cut(kv, "=")
 		switch {
-		case isScrubbed(name), name == "GIT_OPTIONAL_LOCKS", name == "GIT_PAGER", name == "PAGER",
+		case isScrubbed(name), over[name], name == "GIT_OPTIONAL_LOCKS", name == "GIT_PAGER", name == "PAGER",
 			name == "GIT_TERMINAL_PROMPT", name == "LC_ALL", name == "GIT_EDITOR", name == "GIT_SEQUENCE_EDITOR",
 			name == "EDITOR", name == "VISUAL":
 			continue
@@ -230,9 +244,15 @@ func (r Runner) environ() []string {
 	// The editors are commands that exit at once: no command run from here
 	// ever opens one, so a commit or a rebase cannot stop waiting for a
 	// terminal the pane does not have.
-	return append(env,
+	for _, kv := range []string{
 		"GIT_OPTIONAL_LOCKS=0", "GIT_PAGER=cat", "PAGER=cat", "GIT_TERMINAL_PROMPT=0", "LC_ALL=C",
-		"GIT_EDITOR=true", "GIT_SEQUENCE_EDITOR=true", "EDITOR=true", "VISUAL=true")
+		"GIT_EDITOR=true", "GIT_SEQUENCE_EDITOR=true", "EDITOR=true", "VISUAL=true",
+	} {
+		if name, _, _ := strings.Cut(kv, "="); !over[name] {
+			env = append(env, kv)
+		}
+	}
+	return append(env, extra...)
 }
 
 func isScrubbed(name string) bool {
