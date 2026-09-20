@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/app"
+	"github.com/bayoudhdev/lyna-claude-tmux/internal/git"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/hook"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/sanitize"
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/statusline"
@@ -15,10 +16,30 @@ import (
 	"github.com/bayoudhdev/lyna-claude-tmux/internal/xdg"
 )
 
-// glueCommands are the commands Claude Code and tmux call: hook, statusline,
-// the teammate launcher, bell-forward, and the theme command.
+// glueCommands are the commands Claude Code, tmux and git call: hook,
+// statusline, the teammate launcher, bell-forward, the theme command and the
+// sequence editor of an interactive rebase.
 func glueCommands(d Deps) []*cobra.Command {
-	return []*cobra.Command{hookCommand(d), statusCommand(d), teammateCommand(d), bellCommand(d), themeCommand(d)}
+	return []*cobra.Command{
+		hookCommand(d), statusCommand(d), teammateCommand(d),
+		bellCommand(d), themeCommand(d), rebaseTodoCommand(),
+	}
+}
+
+// rebaseTodoCommand is what git runs as the sequence editor of an interactive
+// rebase: the workstation computes the plan, writes it to a file and points
+// GIT_SEQUENCE_EDITOR here, so no editor ever opens and nothing about the
+// rebase is decided while git waits.
+func rebaseTodoCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:    "rebase-todo <plan-file> <todo-file>",
+		Short:  "Put a prepared rebase plan into the todo list git is waiting on",
+		Hidden: true,
+		Args:   cobra.ExactArgs(2),
+		RunE: func(_ *cobra.Command, args []string) error {
+			return git.WriteTodo(args[0], args[1])
+		},
+	}
 }
 
 // pluginClaudeCommands are the subcommands of `plugin` for Claude Code.
