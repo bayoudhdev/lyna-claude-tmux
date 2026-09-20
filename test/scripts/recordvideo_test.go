@@ -3,6 +3,7 @@ package scripts_test
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -251,6 +252,54 @@ func TestRecordVideoArguments(t *testing.T) {
 			if strings.Contains(tc.name, "dry run") {
 				if _, err := os.Stat(filepath.Join(e.assets, "demo.mp4")); err == nil {
 					t.Fatal("a dry run wrote the film")
+				}
+			}
+		})
+	}
+}
+
+// TestVideoScenesAreValid reads every chapter of the film the way the recorder
+// does: each one parses, opens with a chapter card, carries subtitles, and is
+// recorded at the size the others are, which is what lets them be joined
+// without being encoded again.
+func TestVideoScenesAreValid(t *testing.T) {
+	root := repoRoot(t)
+	scenes, err := filepath.Glob(filepath.Join(root, "docs", "video", "*.scene"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(scenes) == 0 {
+		t.Fatal("no scene files under docs/video")
+	}
+	size := ""
+	for i, scene := range scenes {
+		name := filepath.Base(scene)
+		t.Run(name, func(t *testing.T) {
+			// The chapters play in the order they are named, so the numbers
+			// are the running order and no number is used twice.
+			if want := fmt.Sprintf("%02d-", i+1); !strings.HasPrefix(name, want) {
+				t.Fatalf("chapter %s is named out of order, want the prefix %q", name, want)
+			}
+			e := newRecordEnv(t)
+			stdout, stderr, exit := runRecord(t, e.env(t), "--scene", scene, "--mp4", filepath.Join(e.dir, "x.mp4"), "--dry-run")
+			if exit != 0 {
+				t.Fatalf("exit %d\nstderr:\n%s", exit, stderr)
+			}
+			got := ""
+			for _, line := range strings.Split(stdout, "\n") {
+				if rest, ok := strings.CutPrefix(line, "size: "); ok {
+					got = rest
+				}
+			}
+			if size == "" {
+				size = got
+			}
+			if got != size {
+				t.Fatalf("%s is recorded at %q and the chapters before it at %q: the film has one size", name, got, size)
+			}
+			for _, want := range []string{"band: 1", "step: chapter ", "step: caption "} {
+				if !strings.Contains(stdout, want) {
+					t.Fatalf("%s has no %q:\n%s", name, want, stdout)
 				}
 			}
 		})
