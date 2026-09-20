@@ -151,6 +151,11 @@ func (s *releaseServer) serveTLS(w http.ResponseWriter, r *http.Request) {
 	s.requests = append(s.requests, r.Method+" "+r.URL.Path)
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/")
 	switch {
+	case strings.HasPrefix(r.URL.Path, "/renamed/"):
+		// A repository that was renamed answers every path under its old name
+		// with a redirect to the new one, which for the latest release comes
+		// before the tag redirect below.
+		http.Redirect(w, r, s.tls.URL+strings.TrimPrefix(r.URL.Path, "/renamed"), http.StatusMovedPermanently)
 	case r.URL.Path == "/releases/latest":
 		if s.latest == "" {
 			http.NotFound(w, r)
@@ -505,6 +510,53 @@ func TestInstallScript(t *testing.T) {
 			wantExit:     1,
 			wantErr:      "invalid version v1.2.3;rm -rf",
 			wantRequests: noRequests,
+		},
+		{
+			// A rename puts a redirect of its own before the tag, which the
+			// installer follows: an address printed before the repository was
+			// renamed keeps working.
+			name: "a renamed repository still resolves the latest release",
+			args: func(s *releaseServer, _ string) []string {
+				return []string{"--base-url", s.tls.URL + "/renamed/releases"}
+			},
+			wantOut:     []string{"installed lyna-tmux " + latestVersion + " to "},
+			wantVersion: latestVersion,
+			wantRequests: func(*releaseServer) []string {
+				asset := assetName(latestVersion, "linux", "amd64")
+				return []string{
+					"GET /renamed/releases/latest",
+					"GET /releases/latest",
+					"GET /renamed/releases/download/v1.2.3/checksums.txt",
+					"GET /releases/download/v1.2.3/checksums.txt",
+					"GET /renamed/releases/download/v1.2.3/" + asset,
+					"GET /releases/download/v1.2.3/" + asset,
+					"GET /assets/v1.2.3/" + asset,
+				}
+			},
+		},
+		{
+			// A rename puts a redirect of its own before the tag, which the
+			// installer follows: an address printed before the repository was
+			// renamed keeps working.
+			name:       "a renamed repository resolves the latest release with wget too",
+			downloader: "wget",
+			args: func(s *releaseServer, _ string) []string {
+				return []string{"--base-url", s.tls.URL + "/renamed/releases"}
+			},
+			wantOut:     []string{"installed lyna-tmux " + latestVersion + " to "},
+			wantVersion: latestVersion,
+			wantRequests: func(*releaseServer) []string {
+				asset := assetName(latestVersion, "linux", "amd64")
+				return []string{
+					"GET /renamed/releases/latest",
+					"GET /releases/latest",
+					"GET /renamed/releases/download/v1.2.3/checksums.txt",
+					"GET /releases/download/v1.2.3/checksums.txt",
+					"GET /renamed/releases/download/v1.2.3/" + asset,
+					"GET /releases/download/v1.2.3/" + asset,
+					"GET /assets/v1.2.3/" + asset,
+				}
+			},
 		},
 		{
 			name:         "no published release",
