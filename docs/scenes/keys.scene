@@ -1,12 +1,12 @@
 # The whole key map, including the keys left to Claude Code.
 title lmux keys
-size 104 50
+size 104 54
 run demo-shell
 wait 1
 type clear
 enter
 wait 0.5
-type lmux keys | head -46
+type lmux keys | head -49
 enter
 wait 1.5
 frame 3.5
