@@ -379,28 +379,28 @@ func (m *GitWorkModel) opKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 
 // target is the operation filled in with what it applies to, false when there
 // is nothing there to apply it to.
-func (m *GitWorkModel) target(need gitOpNeed) (GitOp, bool) {
-	op := GitOp{Index: -1}
+func (m *GitWorkModel) target(need GitOpOn) (GitOp, bool) {
+	op := GitOp{On: need, Index: -1}
 	switch need {
-	case needNothing:
+	case OnNothing:
 		return op, true
-	case needRunning:
+	case OnRunning:
 		return op, m.state.Progress.Running()
-	case needRef:
+	case OnRef:
 		ref, ok := m.refs.Selected()
 		if !ok {
 			return op, false
 		}
-		op.Rev, op.Name, op.Path, op.Index = ref.Rev, ref.Name, ref.Path, ref.Index
+		op.Rev, op.Name, op.Path, op.Index, op.RefKind = ref.Rev, ref.Name, ref.Path, ref.Index, ref.Kind
 		return op, true
-	case needCommit:
+	case OnCommit:
 		c, ok := m.graph.Selected()
 		if !ok {
 			return op, false
 		}
 		op.Rev = c.OID
 		return op, true
-	case needFile:
+	case OnFile:
 		file, ok := m.detail.Selected()
 		if !ok {
 			return op, false

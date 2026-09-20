@@ -861,6 +861,7 @@ func TestGitWorkOpKeys(t *testing.T) {
 		{name: "a fetch", keys: []string{"F"}, want: OpFetch},
 		{name: "a pull", keys: []string{"L"}, want: OpPull},
 		{name: "a push", keys: []string{"P"}, want: OpPush},
+		{name: "a push over what the remote holds", keys: []string{"W"}, want: OpPushLease},
 		{name: "a push that follows", keys: []string{"O"}, want: OpPushUpstream},
 		{name: "a fetch from the refs", keys: []string{"shift+tab", "F"}, want: OpFetch},
 		{name: "a fetch from the detail", keys: []string{"w", "F"}, want: OpFetch},
@@ -1021,7 +1022,7 @@ func TestGitWorkListsItsKeys(t *testing.T) {
 		want   []string
 	}{
 		{name: "the history", keys: []string{"?"}, region: "HISTORY", want: []string{"cherry pick it", "fetch and prune"}},
-		{name: "the refs", keys: []string{"shift+tab", "?"}, region: "REFS", want: []string{"merge it in", "push"}},
+		{name: "the refs", keys: []string{"shift+tab", "?"}, region: "REFS", want: []string{"merge it in", "pull"}},
 		{name: "the detail", keys: []string{"w", "?"}, region: "DETAIL", want: []string{"stage the file", "pull"}},
 	}
 	for _, tc := range cases {
@@ -1038,7 +1039,7 @@ func TestGitWorkListsItsKeys(t *testing.T) {
 			// It scrolls, so a list longer than the frame is still read in
 			// full, and every other key closes it without doing anything
 			// else.
-			workKeys(m, "j", "j")
+			workKeys(m, "end")
 			if !strings.Contains(workFrame(m), "push and follow") {
 				t.Fatalf("the end of the list cannot be reached:\n%s", workFrame(m))
 			}
@@ -1090,11 +1091,14 @@ func TestGitOpKeysAreUnambiguous(t *testing.T) {
 		"enter": true, "esc": true, "tab": true, "shift+tab": true, "ctrl+c": true,
 		"/": true, "n": true, "N": true, " ": true, "space": true,
 		"w": true, "r": true, "q": true, "?": true,
+		"F": true, "L": true, "P": true, "W": true, "O": true,
 	}
 	kinds := map[GitRegion]map[GitOpKind]bool{}
 	for _, k := range gitOpKeys() {
 		for _, name := range k.binding.Keys() {
-			if taken[name] {
+			// The keys of the whole repository are the workstation's own, so
+			// they are not free for a region to take.
+			if taken[name] && k.region != anyRegion {
 				t.Fatalf("%q stands for %v and for a key the workstation already uses", name, k.kind)
 			}
 		}

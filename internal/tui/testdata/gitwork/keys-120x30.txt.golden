@@ -26,5 +26,5 @@
                         │ F         fetch and prune                                            │
                         │ L         pull                                                       │
                         │                                                                      │
- ↓/j down  space fol a00│ 26 of 28, ↓/j scrolls, any other key closes this                     │    ↓/j down  enter diff
+ ↓/j down  space fol a00│ 26 of 29, ↓/j scrolls, any other key closes this                     │    ↓/j down  enter diff
  ~/src/acme             └──────────────────────────────────────────────────────────────────────┘ee  r read again  ? keys

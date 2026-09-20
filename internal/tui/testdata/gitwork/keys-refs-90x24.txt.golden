@@ -18,7 +18,7 @@
    stash@│ F         fetch and prune                                            │
  ▾ TAGS  │ L         pull                                                       │
    v1.1… │ P         push                                                       │
-   v1.0.1│ O         push and follow                                            │
+   v1.0.1│ W         push over what the remote holds                            │
          │                                                                      │
- ↓/j down│ any key closes this                                                  │ / search
+ ↓/j down│ 20 of 21, ↓/j scrolls, any other key closes this                     │ / search
  ~/src/ac└──────────────────────────────────────────────────────────────────────┘d again …

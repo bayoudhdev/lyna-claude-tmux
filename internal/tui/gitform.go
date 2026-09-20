@@ -547,6 +547,17 @@ func ForcePushForm(remote, branch string, lease bool, command []string) GitForm 
 	return f
 }
 
+// ConfirmForm builds a form that asks for one key before an operation that
+// is not undone by pressing the same key again. lose is what the operation
+// costs, empty for one that costs nothing but is still worth a look.
+func ConfirmForm(id, title, question string, lose, command []string) GitForm {
+	return GitForm{
+		ID: id, Ask: AskConfirm,
+		Title: title, Question: question,
+		Lose: lose, Command: command,
+	}
+}
+
 // TextForm builds a form that collects a line: a commit message, a branch
 // name, a tag. check refuses a value before any command is proposed.
 func TextForm(id, title, question, placeholder string, required bool, check func(string) error) GitForm {

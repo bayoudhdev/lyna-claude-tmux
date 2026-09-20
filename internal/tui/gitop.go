@@ -53,6 +53,7 @@ const (
 	OpFetch
 	OpPull
 	OpPush
+	OpPushLease
 	OpPushUpstream
 	// What git stopped in the middle of.
 	OpContinue
@@ -101,6 +102,7 @@ var opNames = [gitOpCount]string{
 	OpFetch:        "fetch and prune",
 	OpPull:         "pull",
 	OpPush:         "push",
+	OpPushLease:    "push over what the remote holds",
 	OpPushUpstream: "push and follow",
 	OpContinue:     "carry on",
 	OpSkip:         "leave this one out",
@@ -119,6 +121,13 @@ func (k GitOpKind) String() string {
 // fields it does not use are empty, so one record carries every operation.
 type GitOp struct {
 	Kind GitOpKind
+	// On is what it applies to, which is what tells a ref of the pane from a
+	// commit of the history when one key works in both.
+	On GitOpOn
+	// RefKind is what the row of the refs pane stands for, which is what
+	// tells a branch from a tag, a stash and a worktree when one key means
+	// "get rid of it" for all four. It is only read when On is OnRef.
+	RefKind GitRefKind
 	// Rev is the commit or the full name of the ref it applies to, Name what
 	// that ref is called, Path the file or the directory of a worktree.
 	Rev  string
@@ -146,20 +155,22 @@ type GitAskMsg struct {
 	Op   GitOp
 }
 
-// gitOpNeed says what an operation applies to, so a key with nothing under it
-// does nothing rather than asking for an operation on nothing.
-type gitOpNeed int
+// GitOpOn says what an operation applies to, so a key with nothing under it
+// does nothing rather than asking for an operation on nothing, and so whoever
+// answers knows whether a revision is a ref of the pane or a commit of the
+// history.
+type GitOpOn int
 
 const (
-	// needNothing is an operation about the repository itself, needRef one
-	// about the row of the refs pane, needCommit one about the commit the
-	// history is on, needFile one about the file the detail is on, and
-	// needRunning one about what git stopped in the middle of.
-	needNothing gitOpNeed = iota
-	needRef
-	needCommit
-	needFile
-	needRunning
+	// OnNothing is an operation about the repository itself, OnRef one
+	// about the row of the refs pane, OnCommit one about the commit the
+	// history is on, OnFile one about the file the detail is on, and
+	// OnRunning one about what git stopped in the middle of.
+	OnNothing GitOpOn = iota
+	OnRef
+	OnCommit
+	OnFile
+	OnRunning
 )
 
 // anyRegion is a key that works wherever the cursor stands.
@@ -170,7 +181,7 @@ type gitOpKey struct {
 	binding key.Binding
 	region  GitRegion
 	kind    GitOpKind
-	need    gitOpNeed
+	need    GitOpOn
 }
 
 // gitOpKeys are every operation on a key. A key means the same thing
@@ -184,7 +195,7 @@ type gitOpKey struct {
 // is on when there is not. The first one whose target is there wins, so a key
 // never asks for an operation on nothing.
 func gitOpKeys() []gitOpKey {
-	op := func(name string, region GitRegion, kind GitOpKind, need gitOpNeed) gitOpKey {
+	op := func(name string, region GitRegion, kind GitOpKind, need GitOpOn) gitOpKey {
 		return gitOpKey{
 			binding: key.NewBinding(key.WithKeys(name), key.WithHelp(name, kind.String())),
 			region:  region, kind: kind, need: need,
@@ -192,56 +203,57 @@ func gitOpKeys() []gitOpKey {
 	}
 	return []gitOpKey{
 		// What git stopped in the middle of, wherever the cursor stands.
-		op("y", anyRegion, OpContinue, needRunning),
-		op("!", anyRegion, OpSkip, needRunning),
-		op("Z", anyRegion, OpAbort, needRunning),
+		op("y", anyRegion, OpContinue, OnRunning),
+		op("!", anyRegion, OpSkip, OnRunning),
+		op("Z", anyRegion, OpAbort, OnRunning),
 		// The remotes.
-		op("F", anyRegion, OpFetch, needNothing),
-		op("L", anyRegion, OpPull, needNothing),
-		op("P", anyRegion, OpPush, needNothing),
-		op("O", anyRegion, OpPushUpstream, needNothing),
+		op("F", anyRegion, OpFetch, OnNothing),
+		op("L", anyRegion, OpPull, OnNothing),
+		op("P", anyRegion, OpPush, OnNothing),
+		op("W", anyRegion, OpPushLease, OnNothing),
+		op("O", anyRegion, OpPushUpstream, OnNothing),
 
 		// The refs of the project.
-		op("c", RegionRefs, OpCheckout, needRef),
-		op("b", RegionRefs, OpBranchHere, needRef),
-		op("m", RegionRefs, OpMerge, needRef),
-		op("B", RegionRefs, OpRebase, needRef),
-		op("i", RegionRefs, OpRename, needRef),
-		op("d", RegionRefs, OpDelete, needRef),
-		op("u", RegionRefs, OpSetUpstream, needRef),
-		op("p", RegionRefs, OpStashPop, needRef),
-		op("a", RegionRefs, OpStashApply, needRef),
-		op("A", RegionRefs, OpWorktreeAdd, needRef),
+		op("c", RegionRefs, OpCheckout, OnRef),
+		op("b", RegionRefs, OpBranchHere, OnRef),
+		op("m", RegionRefs, OpMerge, OnRef),
+		op("B", RegionRefs, OpRebase, OnRef),
+		op("i", RegionRefs, OpRename, OnRef),
+		op("d", RegionRefs, OpDelete, OnRef),
+		op("u", RegionRefs, OpSetUpstream, OnRef),
+		op("p", RegionRefs, OpStashPop, OnRef),
+		op("a", RegionRefs, OpStashApply, OnRef),
+		op("A", RegionRefs, OpWorktreeAdd, OnRef),
 
 		// One commit of the history.
-		op("c", RegionGraph, OpCheckout, needCommit),
-		op("b", RegionGraph, OpBranchHere, needCommit),
-		op("A", RegionGraph, OpWorktreeAdd, needCommit),
-		op("t", RegionGraph, OpTag, needCommit),
-		op("T", RegionGraph, OpTagAnnotated, needCommit),
-		op("y", RegionGraph, OpCherryPick, needCommit),
-		op("v", RegionGraph, OpRevert, needCommit),
-		op("m", RegionGraph, OpResetMixed, needCommit),
-		op("M", RegionGraph, OpResetSoft, needCommit),
-		op("H", RegionGraph, OpResetHard, needCommit),
-		op("e", RegionGraph, OpReword, needCommit),
-		op("d", RegionGraph, OpDrop, needCommit),
-		op("S", RegionGraph, OpSquash, needCommit),
-		op("f", RegionGraph, OpFixup, needCommit),
-		op("[", RegionGraph, OpMoveUp, needCommit),
-		op("]", RegionGraph, OpMoveDown, needCommit),
-		op("p", RegionGraph, OpPatch, needCommit),
-		op("o", RegionGraph, OpCopyOID, needCommit),
+		op("c", RegionGraph, OpCheckout, OnCommit),
+		op("b", RegionGraph, OpBranchHere, OnCommit),
+		op("A", RegionGraph, OpWorktreeAdd, OnCommit),
+		op("t", RegionGraph, OpTag, OnCommit),
+		op("T", RegionGraph, OpTagAnnotated, OnCommit),
+		op("y", RegionGraph, OpCherryPick, OnCommit),
+		op("v", RegionGraph, OpRevert, OnCommit),
+		op("m", RegionGraph, OpResetMixed, OnCommit),
+		op("M", RegionGraph, OpResetSoft, OnCommit),
+		op("H", RegionGraph, OpResetHard, OnCommit),
+		op("e", RegionGraph, OpReword, OnCommit),
+		op("d", RegionGraph, OpDrop, OnCommit),
+		op("S", RegionGraph, OpSquash, OnCommit),
+		op("f", RegionGraph, OpFixup, OnCommit),
+		op("[", RegionGraph, OpMoveUp, OnCommit),
+		op("]", RegionGraph, OpMoveDown, OnCommit),
+		op("p", RegionGraph, OpPatch, OnCommit),
+		op("o", RegionGraph, OpCopyOID, OnCommit),
 
 		// The working tree and the commit in front of you.
-		op("s", RegionDetail, OpStage, needFile),
-		op("S", RegionDetail, OpStageAll, needNothing),
-		op("u", RegionDetail, OpUnstage, needFile),
-		op("U", RegionDetail, OpUnstageAll, needNothing),
-		op("x", RegionDetail, OpDiscard, needFile),
-		op("X", RegionDetail, OpDiscardAll, needNothing),
-		op("C", RegionDetail, OpCommit, needNothing),
-		op("M", RegionDetail, OpAmend, needNothing),
-		op("e", RegionDetail, OpRewordHead, needNothing),
+		op("s", RegionDetail, OpStage, OnFile),
+		op("S", RegionDetail, OpStageAll, OnNothing),
+		op("u", RegionDetail, OpUnstage, OnFile),
+		op("U", RegionDetail, OpUnstageAll, OnNothing),
+		op("x", RegionDetail, OpDiscard, OnFile),
+		op("X", RegionDetail, OpDiscardAll, OnNothing),
+		op("C", RegionDetail, OpCommit, OnNothing),
+		op("M", RegionDetail, OpAmend, OnNothing),
+		op("e", RegionDetail, OpRewordHead, OnNothing),
 	}
 }
